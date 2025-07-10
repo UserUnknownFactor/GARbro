@@ -377,6 +377,8 @@
     <Compile Include="GameSystem\ArcPureMail.cs" />
     <Compile Include="GameSystem\AudioADP4.cs" />
     <Compile Include="ImageLZS.cs" />
+    <Compile Include="ImageICO.cs" />
+    <Compile Include="ImageICNS.cs" />
     <Compile Include="ImagePIC.cs" />
     <Compile Include="ImagePNX.cs" />
     <Compile Include="ImagePSM.cs" />
