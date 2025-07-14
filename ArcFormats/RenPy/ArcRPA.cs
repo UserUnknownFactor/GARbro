@@ -1,5 +1,5 @@
 //! \file       ArcRPA.cs
-//! \date       Sat Aug 16 05:26:13 2014
+//! \date       2025 Jul 14
 //! \brief      Ren'Py game engine archive implementation.
 //
 // Copyright (C) 2014 by morkt
@@ -58,63 +58,142 @@ namespace GameRes.Formats.RenPy
 
         public override ArcFile TryOpen (ArcView file)
         {
-            if (0x20302e33 != file.View.ReadUInt32 (4))
+            var magic = file.View.ReadString (0, 8, Encoding.ASCII);
+            if (!magic.StartsWith("RPA-"))
                 return null;
-            string index_offset_str = file.View.ReadString (8, 16, Encoding.ASCII);
+
+            string version_str = magic.Substring (4, 3);
+            float version;
+            if (!float.TryParse (version_str, NumberStyles.Float, CultureInfo.InvariantCulture, out version))
+                return null;
+
+            if (version == 3.0f || version == 3.2f)
+                return TryOpenV3 (file, version);
+            else if (version == 2.0f)
+                return TryOpenV2 (file);
+            else
+                return null;
+        }
+
+        private ArcFile TryOpenV2 (ArcView file)
+        {
+            // RPA-2.0 format: "RPA-2.0 XXXXXXXXXXXXXXXX\n"
+            string header_line = file.View.ReadString (0, 25, Encoding.ASCII);
+            if (!header_line.EndsWith ("\n"))
+                return null;
+
+            string index_offset_str = header_line.Substring (8, 16).Trim();
             long index_offset;
             if (!long.TryParse (index_offset_str, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out index_offset))
                 return null;
+
             if (index_offset >= file.MaxOffset)
                 return null;
-            uint key;
-            string key_str = file.View.ReadString (0x19, 8, Encoding.ASCII);
-            if (!uint.TryParse (key_str, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out key))
+
+            return LoadIndex (file, index_offset, 0);
+        }
+
+        private ArcFile TryOpenV3 (ArcView file, float version)
+        {
+            var header_bytes = new byte[256];
+            file.View.Read (0, header_bytes, 0, (uint)header_bytes.Length);
+
+            int newline_pos = Array.IndexOf (header_bytes, (byte)'\n');
+            if (newline_pos == -1)
                 return null;
 
-            IDictionary dict = null;
+            string header_line = Encoding.ASCII.GetString(header_bytes, 0, newline_pos);
+            var parts = header_line.Split (' ');
+
+            if (parts.Length < 3)
+                return null;
+
+            long index_offset;
+            if (!long.TryParse (parts[1], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out index_offset))
+                return null;
+
+            if (index_offset >= file.MaxOffset)
+                return null;
+
+            uint key = 0;
+            int key_start = (version == 3.2f) ? 3 : 2;
+            for (int i = key_start; i < parts.Length; i++)
+            {
+                uint part;
+                if (uint.TryParse (parts[i], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out part))
+                    key ^= part;
+            }
+
+            return LoadIndex (file, index_offset, key);
+        }
+
+        private ArcFile LoadIndex (ArcView file, long index_offset, uint key)
+        {
+            IDictionary indexes_dict = null;
             using (var index = new ZLibStream (file.CreateStream (index_offset), CompressionMode.Decompress))
             {
                 var pickle = new Pickle (index);
-                dict = pickle.Load() as IDictionary;
+                indexes_dict = pickle.Load() as IDictionary;
             }
-            if (null == dict)
+            if (null == indexes_dict)
                 return null;
-            var dir = new List<Entry> (dict.Count);
-            foreach (DictionaryEntry item in dict)
+
+            var dir = new List<Entry> (indexes_dict.Count);
+            foreach (DictionaryEntry cur_index in indexes_dict)
             {
-                var name_raw = item.Key as byte[];
-                var values = item.Value as IList;
+                var name_raw = cur_index.Key as byte[];
+                var values = cur_index.Value as IList;
                 if (null == name_raw || null == values || values.Count < 1)
                 {
                     Trace.WriteLine ("invalid index entry", "RpaOpener.TryOpen");
-                    return null;
+                    continue;
                 }
                 string name = Encoding.UTF8.GetString (name_raw);
                 if (string.IsNullOrEmpty (name))
-                    return null;
-                var tuple = values[0] as IList;
-                if (null == tuple || tuple.Count < 2)
+                    continue;
+
+                IList entries_list = values[0] is IList ? values : new ArrayList { values };
+                foreach (var entry_data in entries_list)
                 {
-                    Trace.WriteLine ("invalid index tuple", "RpaOpener.TryOpen");
-                    return null;
-                }
-                var entry = FormatCatalog.Instance.Create<RpaEntry> (name);
-                entry.Offset       = (long)(Convert.ToInt64 (tuple[0]) ^ key);
-                entry.UnpackedSize = (uint)(Convert.ToInt64 (tuple[1]) ^ key);
-                entry.Size         = entry.UnpackedSize;
-                if (tuple.Count > 2)
-                {
-                    entry.Header = tuple[2] as byte[];
-                    if (null != entry.Header && entry.Header.Length > 0)
+                    var tuple = entry_data as IList;
+                    if (null == tuple || tuple.Count < 2)
                     {
-                        entry.Size -= (uint)entry.Header.Length;
-                        entry.IsPacked = true;
+                        Trace.WriteLine ("invalid index tuple", "RpaOpener.TryOpen");
+                        continue;
                     }
+
+                    var entry = FormatCatalog.Instance.Create<RpaEntry> (name);
+
+                    if (key != 0)
+                    {
+                        entry.Offset       = (long)(Convert.ToInt64 (tuple[0]) ^ key);
+                        entry.UnpackedSize = (uint)(Convert.ToInt64 (tuple[1]) ^ key);
+                    }
+                    else
+                    {
+                        entry.Offset       = Convert.ToInt64 (tuple[0]);
+                        entry.UnpackedSize = (uint)Convert.ToInt64 (tuple[1]);
+                    }
+
+                    entry.Size = entry.UnpackedSize;
+
+                    if (tuple.Count > 2)
+                    {
+                        entry.Header = tuple[2] as byte[];
+                        if (null != entry.Header && entry.Header.Length > 0)
+                        {
+                            entry.Size -= (uint)entry.Header.Length;
+                            entry.IsPacked = true;
+                        }
+                    }
+                    dir.Add (entry);
                 }
-                dir.Add (entry);
             }
-            if (dir.Count > 0)
-                Trace.TraceInformation ("[{0}] [{1:X8}] [{2}]", dir[0].Name, dir[0].Offset, dir[0].Size);
+
+            if (dir.Count == 0)
+                return null;
+
+            Trace.TraceInformation ("[{0}] [{1:X8}] [{2}]", dir[0].Name, dir[0].Offset, dir[0].Size);
             return new ArcFile (file, this, dir);
         }
 
@@ -144,11 +223,12 @@ namespace GameRes.Formats.RenPy
         public override void Create (Stream output, IEnumerable<Entry> list, ResourceOptions options,
                                      EntryCallback callback)
         {
-            var rpa_options = GetOptions<RpaOptions> (options);
+            var rpa_options    = GetOptions<RpaOptions> (options);
             int callback_count = 0;
-            var file_table = new Dictionary<PyString, ArrayList>();
-            long data_offset = 0x22;
-            output.Position = data_offset;
+            var file_table     = new Dictionary<PyString, ArrayList>();
+            long data_offset   = 0x22;
+            output.Position    = data_offset;
+
             foreach (var entry in list)
             {
                 if (null != callback)
@@ -161,11 +241,12 @@ namespace GameRes.Formats.RenPy
                     var size = file.Length;
                     if (size > uint.MaxValue)
                         throw new FileSizeException();
-                    int header_size = (int)Math.Min (size, 0x10);
+                    int header_size         = (int)Math.Min (size, 0x10);
                     rpa_entry.Offset        = output.Position ^ rpa_options.Key;
                     rpa_entry.Header        = new byte[header_size];
                     rpa_entry.UnpackedSize  = (uint)size ^ rpa_options.Key;
                     rpa_entry.Size          = (uint)(size - header_size);
+
                     file.Read (rpa_entry.Header, 0, header_size);
                     file.CopyTo (output);
                 }
@@ -195,23 +276,38 @@ namespace GameRes.Formats.RenPy
             output.Write (header, 0, header.Length);
         }
     }
-
     public class Pickle
     {
-        Stream          m_stream;
+        Stream                  m_stream;
 
-        ArrayList       m_stack = new ArrayList();
-        Stack<int>      m_marks = new Stack<int>();
+        ArrayList               m_stack = new ArrayList();
+        Stack<int>              m_marks = new Stack<int>();
+        Dictionary<int, object> m_memo  = new Dictionary<int, object>();
 
-        const int HIGHEST_PROTOCOL  = 2;
+        const int HIGHEST_PROTOCOL = 5;
         const int BATCHSIZE         = 1000;
         const byte PROTO            = 0x80; /* identify pickle protocol */
         const byte TUPLE2           = 0x86; /* build 2-tuple from two topmost stack items */
         const byte TUPLE3           = 0x87; /* build 3-tuple from three topmost stack items */
         const byte LONG1            = 0x8A; /* push long from < 256 bytes */
         const byte LONG4            = 0x8B; /* push really big long */
+        const byte SHORT_BINUNICODE = 0x8C; /* protocol 4 */
+        const byte BINUNICODE8      = 0x8D; /* protocol 4 */
+        const byte BINBYTES8        = 0x8E; /* protocol 4 */
+        const byte EMPTY_SET        = 0x8F; /* protocol 4 */
+        const byte ADDITEMS         = 0x90; /* protocol 4 */
+        const byte FROZENSET        = 0x91; /* protocol 4 */
+        const byte NEWOBJ_EX        = 0x92; /* protocol 4 */
+        const byte STACK_GLOBAL     = 0x93; /* protocol 4 */
+        const byte MEMOIZE          = 0x94; /* protocol 4 */
+        const byte FRAME            = 0x95; /* protocol 4 */
+        const byte BYTEARRAY8       = 0x96; /* protocol 5 */
+        const byte NEXT_BUFFER      = 0x97; /* protocol 5 */
+        const byte READONLY_BUFFER  = 0x98; /* protocol 5 */
         const byte MARK             = (byte)'(';
         const byte STOP             = (byte)'.';
+        const byte BINBYTES         = (byte)'B'; /* protocol 3 */
+        const byte SHORT_BINBYTES   = (byte)'C'; /* protocol 3 */
         const byte INT              = (byte)'I';
         const byte BININT           = (byte)'J';
         const byte BININT1          = (byte)'K';
@@ -222,6 +318,7 @@ namespace GameRes.Formats.RenPy
         const byte EMPTY_LIST       = (byte)']';
         const byte APPEND           = (byte)'a';
         const byte APPENDS          = (byte)'e';
+        const byte BINGET           = (byte)'h';
         const byte BINPUT           = (byte)'q';
         const byte LONG_BINPUT      = (byte)'r';
         const byte SETITEM          = (byte)'s';
@@ -456,6 +553,7 @@ namespace GameRes.Formats.RenPy
 
         public object Load ()
         {
+            m_memo.Clear();
             for (;;)
             {
                 int sym = m_stream.ReadByte();
@@ -463,6 +561,11 @@ namespace GameRes.Formats.RenPy
                 {
                 case PROTO:
                     if (!LoadProto())
+                        break;
+                    continue;
+
+                case FRAME:
+                    if (!LoadFrame())
                         break;
                     continue;
 
@@ -478,6 +581,11 @@ namespace GameRes.Formats.RenPy
 
                 case LONG_BINPUT:
                     if (!LoadLongBinPut())
+                        break;
+                    continue;
+
+                case BINGET:
+                    if (!LoadBinGet())
                         break;
                     continue;
 
@@ -497,8 +605,38 @@ namespace GameRes.Formats.RenPy
                         break;
                     continue;
 
+                case SHORT_BINUNICODE:
+                    if (!LoadShortBinUnicode())
+                        break;
+                    continue;
+
+                case BINUNICODE8:
+                    if (!LoadBinUnicode8())
+                        break;
+                    continue;
+
+                case BINBYTES:
+                    if (!LoadBinBytes())
+                        break;
+                    continue;
+
+                case SHORT_BINBYTES:
+                    if (!LoadShortBinBytes())
+                        break;
+                    continue;
+
+                case BINBYTES8:
+                    if (!LoadBinBytes8())
+                        break;
+                    continue;
+
                 case EMPTY_LIST:
                     if (!LoadEmptyList())
+                        break;
+                    continue;
+
+                case EMPTY_SET:
+                    if (!LoadEmptySet())
                         break;
                     continue;
 
@@ -519,6 +657,11 @@ namespace GameRes.Formats.RenPy
 
                 case INT:
                     if (!LoadInt())
+                        break;
+                    continue;
+
+                case TUPLE:
+                    if (!LoadTuple())
                         break;
                     continue;
 
@@ -547,6 +690,21 @@ namespace GameRes.Formats.RenPy
                         break;
                     continue;
 
+                case APPENDS:
+                    if (!LoadAppends())
+                        break;
+                    continue;
+
+                case ADDITEMS:
+                    if (!LoadAddItems())
+                        break;
+                    continue;
+
+                case FROZENSET:
+                    if (!LoadFrozenSet())
+                        break;
+                    continue;
+
                 case SETITEM:
                     if (!LoadSetItem())
                         break;
@@ -554,6 +712,26 @@ namespace GameRes.Formats.RenPy
 
                 case SETITEMS:
                     if (!LoadSetItems())
+                        break;
+                    continue;
+
+                case MEMOIZE:
+                    if (!LoadMemoize())
+                        break;
+                    continue;
+
+                case BYTEARRAY8:
+                    if (!LoadByteArray8())
+                        break;
+                    continue;
+
+                case NEXT_BUFFER:
+                    if (!LoadNextBuffer())
+                        break;
+                    continue;
+
+                case READONLY_BUFFER:
+                    if (!LoadReadOnlyBuffer())
                         break;
                     continue;
 
@@ -589,6 +767,14 @@ namespace GameRes.Formats.RenPy
             return true;
         }
 
+        bool LoadFrame ()
+        {
+            long frame_size;
+            if (!ReadLong (8, out frame_size) || frame_size < 0)
+                return false;
+            return true;
+        }
+
         bool LoadEmptyDict ()
         {
             m_stack.Push (new Hashtable());
@@ -600,6 +786,7 @@ namespace GameRes.Formats.RenPy
             int key = m_stream.ReadByte();
             if (-1 == key || 0 == m_stack.Count)
                 return false;
+            m_memo[key] = m_stack.Peek();
             return true;
         }
 
@@ -607,6 +794,19 @@ namespace GameRes.Formats.RenPy
         {
             int key;
             if (!ReadInt (4, out key) || 0 == m_stack.Count || key < 0)
+                return false;
+            m_memo[key] = m_stack.Peek();
+            return true;
+        }
+
+        bool LoadBinGet ()
+        {
+            int key = m_stream.ReadByte();
+            if (-1 == key)
+                return false;
+            if (m_memo.ContainsKey(key))
+                m_stack.Push(m_memo[key]);
+            else
                 return false;
             return true;
         }
@@ -621,7 +821,7 @@ namespace GameRes.Formats.RenPy
         {
             if (0 == m_marks.Count)
             {
-                Trace.TraceError ("MARK list is empty");
+                Trace.TraceError("RPA Pickle MARK list is empty");
                 return -1;
             }
             return m_marks.Pop();
@@ -643,6 +843,24 @@ namespace GameRes.Formats.RenPy
             return LoadBinString (length);
         }
 
+        bool LoadShortBinUnicode ()
+        {
+            int length = m_stream.ReadByte();
+            if (-1 == length)
+                return false;
+
+            return LoadBinString (length);
+        }
+
+        bool LoadBinUnicode8 ()
+        {
+            long length;
+            if (!ReadLong(8, out length) || length < 0 || length > int.MaxValue)
+                return false;
+
+            return LoadBinString ((int)length);
+        }
+
         bool LoadBinString (int length)
         {
             var bytes = new byte[length];
@@ -652,9 +870,57 @@ namespace GameRes.Formats.RenPy
             return true;
         }
 
+        bool LoadBinBytes ()
+        {
+            int length;
+            if (!ReadInt (4, out length) || length < 0)
+                return false;
+
+            var bytes = new byte[length];
+            if (length != m_stream.Read (bytes, 0, length))
+                return false;
+
+            m_stack.Push (bytes);
+            return true;
+        }
+
+        bool LoadShortBinBytes ()
+        {
+            int length = m_stream.ReadByte();
+            if (-1 == length)
+                return false;
+
+            var bytes = new byte[length];
+            if (length != m_stream.Read (bytes, 0, length))
+                return false;
+
+            m_stack.Push (bytes);
+            return true;
+        }
+
+        bool LoadBinBytes8 ()
+        {
+            long length;
+            if (!ReadLong (8, out length) || length < 0 || length > int.MaxValue)
+                return false;
+
+            var bytes = new byte[length];
+            if ((int)length != m_stream.Read (bytes, 0, (int)length))
+                return false;
+
+            m_stack.Push (bytes);
+            return true;
+        }
+
         bool LoadEmptyList ()
         {
             m_stack.Push (new ArrayList());
+            return true;
+        }
+
+        bool LoadEmptySet ()
+        {
+            m_stack.Push(new HashSet<object>());
             return true;
         }
 
@@ -667,6 +933,19 @@ namespace GameRes.Formats.RenPy
                 if (-1 == b)
                     return false;
                 value |= b << (i * 8);
+            }
+            return true;
+        }
+
+        bool ReadLong (int size, out long value)
+        {
+            value = 0;
+            for (int i = 0; i < size; ++i)
+            {
+                int b = m_stream.ReadByte();
+                if (-1 == b)
+                    return false;
+                value |= (long)b << (i * 8);
             }
             return true;
         }
@@ -731,17 +1010,25 @@ namespace GameRes.Formats.RenPy
             }
         }
 
+        bool LoadTuple ()
+        {
+            int mark = GetMarker();
+            if (mark < 0)
+                return false;
+            return LoadCountedTuple (m_stack.Count - mark);
+        }
+
         bool LoadCountedTuple (int count)
         {
             if (m_stack.Count < count)
                 return false;
             var tuple = new ArrayList (count);
-            while (--count >= 0)
+            int start = m_stack.Count - count;
+            for (int i = 0; i < count; ++i)
             {
-                var item = m_stack.Pop();
-                tuple.Add (item);
+                tuple.Add (m_stack[start + i]);
             }
-            tuple.Reverse();
+            m_stack.RemoveRange (start, count);
             m_stack.Push (tuple);
             return true;
         }
@@ -760,10 +1047,123 @@ namespace GameRes.Formats.RenPy
                 Trace.WriteLine ("Object is not a list", "LoadAppend");
                 return false;
             }
-            var slice = PdataPopList (x);
+            list.Add (m_stack[x]);
+            m_stack.RemoveAt (x);
+            return true;
+        }
+
+        bool LoadAppends ()
+        {
+            int mark = GetMarker();
+            if (mark < 0)
+                return false;
+
+            var list = m_stack[mark - 1] as ArrayList;
+            if (null == list)
+            {
+                Trace.WriteLine ("Marked object is not a list", "LoadAppends");
+                return false;
+            }
+
+            var slice = PdataPopList(mark);
             if (null == slice)
                 return false;
-            list.AddRange (slice);
+            list.AddRange(slice);
+            return true;
+        }
+
+        bool LoadAddItems ()
+        {
+            int mark = GetMarker();
+            if (mark < 0)
+                return false;
+
+            var set = m_stack[mark - 1] as HashSet<object>;
+            if (null == set)
+            {
+                Trace.WriteLine ("Marked object is not a set", "LoadAddItems");
+                return false;
+            }
+
+            for (int i = mark; i < m_stack.Count; ++i)
+            {
+                set.Add (m_stack[i]);
+            }
+
+            return PdataClear (mark);
+        }
+
+        bool LoadFrozenSet ()
+        {
+            int mark = GetMarker();
+            if (mark < 0)
+                return false;
+
+            var items = new HashSet<object>();
+            for (int i = mark; i < m_stack.Count; ++i)
+            {
+                items.Add (m_stack[i]);
+            }
+
+            PdataClear (mark);
+
+            m_stack.Push (items);
+            return true;
+        }
+
+        bool LoadMemoize ()
+        {
+            if (0 == m_stack.Count)
+                return false;
+
+            // Find the next available memo key
+            int key = m_memo.Count;
+            m_memo[key] = m_stack.Peek();
+            return true;
+        }
+
+        bool LoadByteArray8 ()
+        {
+            if (m_stack.Count == 0)
+                return false;
+
+            var obj = m_stack.Pop();
+            if (!(obj is long || obj is ulong || obj is BigInteger))
+                return false;
+
+            ulong length;
+            if (obj is BigInteger bigInt)
+            {
+                if (bigInt < 0 || bigInt > ulong.MaxValue)
+                    return false;
+                length = (ulong)bigInt;
+            }
+            else
+            {
+                length = Convert.ToUInt64(obj);
+            }
+
+            if (length > int.MaxValue)
+                return false;
+
+            var bytes = new byte[length];
+            if (m_stream.Read (bytes, 0, (int)length) != (int)length)
+                return false;
+
+            m_stack.Push (bytes);
+            return true;
+        }
+
+        bool LoadNextBuffer ()
+        {
+            Trace.TraceError ("NEXT_BUFFER opcode requires out-of-band buffer support");
+            return false;
+        }
+
+        bool LoadReadOnlyBuffer ()
+        {
+            if (m_stack.Count == 0)
+                return false;
             return true;
         }
 
