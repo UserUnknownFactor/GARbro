@@ -247,6 +247,7 @@
     <Compile Include="Carriere\ArcARC.cs" />
     <Compile Include="Carriere\ImageCGD.cs" />
     <Compile Include="CatSystem\ArcDAT.cs" />
+    <Compile Include="CatSystem\ArcZT.cs" />
     <Compile Include="CDPA\ArcPACK.cs" />
     <Compile Include="Cmvs\ArcCPZ1.cs" />
     <Compile Include="Cmvs\CpzHeader.cs" />
