@@ -340,7 +340,7 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <!-- PreBuildEvent>perl "$(SolutionDir)inc-revision.pl" "$(ProjectPath)" $(ConfigurationName) "$(SolutionDir)\"
+    <!-- PreBuildEvent>perl "$(SolutionDir)inc-revision.cmd" "$(ProjectPath)" $(ConfigurationName) "$(SolutionDir)\"
 exit 0</PreBuildEvent -->
   </PropertyGroup>
   <PropertyGroup>
