@@ -25,10 +25,10 @@
 using System;
 using System.IO;
 using System.Text;
-using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
-using System.Web.Script.Serialization;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using GameRes.Utility;
 
 namespace GameRes.Formats.Electron
@@ -78,24 +78,22 @@ namespace GameRes.Formats.Electron
                 return null;
             }
 
-            IDictionary root;
+            JObject root;
             try
             {
-                var serializer = new JavaScriptSerializer();
-                serializer.MaxJsonLength = (int)json_length * 2;
-                root = serializer.DeserializeObject (json_string) as IDictionary;
+                root = JObject.Parse (json_string);
             }
-            catch
+            catch (JsonException)
             {
                 return null;
             }
 
-            if (root == null || !root.Contains ("files"))
+            if (root == null || !root.ContainsKey("files"))
                 return null;
 
             var dir = new List<Entry>();
             long base_offset = 16 + json_length;
-            var files_obj = root["files"] as IDictionary;
+            var files_obj = root["files"] as JObject;
             if (files_obj == null)
                 return null;
 
@@ -106,42 +104,47 @@ namespace GameRes.Formats.Electron
             return new ArcFile (file, this, dir);
         }
 
-        private void ParseDirectory (IDictionary files, string path, List<Entry> dir, long base_offset)
+        private void ParseDirectory(JObject files, string path, List<Entry> dir, long base_offset)
         {
-            foreach (DictionaryEntry item in files)
+            foreach (var item in files)
             {
-                string name = item.Key as string;
-                if (name == null) continue;
-
-                var value = item.Value as IDictionary;
+                string name = item.Key;
+                var value = item.Value as JObject;
                 if (value == null) continue;
 
                 string full_path = string.IsNullOrEmpty (path) ? name : path + "/" + name;
 
-                if (value.Contains ("files"))
+                if (value.ContainsKey ("files"))
                 {
-                    var subfiles = value["files"] as IDictionary;
+                    var subfiles = value["files"] as JObject;
                     if (subfiles != null)
                         ParseDirectory (subfiles, full_path, dir, base_offset);
                 }
-                else // it's a file, yep
+                else // it's a file
                 {
                     var entry = new AsarEntry { Name = full_path };
 
-                    if (value.Contains ("size"))
+                    if (value.ContainsKey ("size"))
                     {
-                        entry.Size = Convert.ToUInt32 (value["size"]);
+                        entry.Size = value["size"].Value<uint>();
                     }
 
-                    if (value.Contains ("offset"))
+                    if (value.ContainsKey ("offset"))
                     {
-                        string offset_str = value["offset"] as string;
-                        entry.Offset = base_offset + Convert.ToInt64 (offset_str != null ? offset_str : value["offset"]);
+                        var offset_token = value["offset"];
+                        if (offset_token.Type == JTokenType.String)
+                        {
+                            entry.Offset = base_offset + long.Parse (offset_token.Value<string>());
+                        }
+                        else
+                        {
+                            entry.Offset = base_offset + offset_token.Value<long>();
+                        }
                     }
 
-                    if (value.Contains ("unpacked"))
+                    if (value.ContainsKey ("unpacked"))
                     {
-                        entry.IsUnpacked = Convert.ToBoolean (value["unpacked"]);
+                        entry.IsUnpacked = value["unpacked"].Value<bool>();
                     }
 
                     entry.Type = FormatCatalog.Instance.GetTypeFromName (full_path);

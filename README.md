@@ -1,35 +1,21 @@
-GARbro
-======
+# GARbro - Visual Novels Resource Browser
 
-Visual Novels resource browser.
-
-Requires .NET Framework v4.6 or newer (https://www.microsoft.com/net)
+Requires [.NET Framework v4.8](https://dotnet.microsoft.com) or newer
 
 [Supported formats](https://morkt.github.io/GARbro/supported.html)
 
-[Download latest release](https://github.com/morkt/GARbro/releases)
+[Download latest release](https://github.com/UserUnknownFactor/GARbro/actions)
 
-Operation
----------
+## Operation
+Browse through the file system to find the file you're looking for.  If you think it's a game archive, try entering it by pressing the `Enter` key. If GARbro recognizes the format, its contents will be displayed just like a regular file system.
 
-Browse through the file system to a file of interest.  If you think it's an
-archive, try to 'enter' inside by pressing 'Enter' on it.  If GARbro
-recognizes format its contents will be displayed just like regular file
-system.  Some archives are encrypted, so you will be asked for credentials or
-a supposed game title.  If game is not listed among presented options then
-most likely archive could not be opened by current GARbro version.
+Some archives are encrypted, so you may be asked for credentials or the name of the game.  If the game is not listed among the presented options, then the archive most likely cannot be opened by the current version of GARbro.
 
-Files could be extracted from archives by pressing 'F4', with all images and
-audio converted to common formats in the process, of course if game format
-itself is recognized.
+You can extract files from archives by pressing `F4`. In the process, all images and audio can be converted to common formats if the original format is recognized and the corresponding option is set.
 
-When displaying file system contents GARbro assigns types to files based on
-their names extension (so it's not always correct).  If types are misapplied,
-it could be changed by selecting files and assigning type manually via context
-menu 'Assign file type'.
+When displaying the contents of a file system, GARbro assigns types to files based on their name extensions, but it's not always correct. If the types are incorrect, they can be changed by selecting the files and assigning the type manually via the context menu `Assign file type`.
 
-GUI Hotkeys
------------
+## GUI Hotkeys
 
 <table>
 <tr><td><kbd>Enter</kbd></td><td>                   Try to open selected file as archive -OR- playback audio file</td></tr>
@@ -55,20 +41,12 @@ GUI Hotkeys
 <tr><td><kbd>Ctrl</kbd>+<kbd>Q</kbd></td><td>       Exit</td></tr>
 </table>
 
-Author
-------
+### Author
 
-Written by [morkt](https://github.com/morkt/GARbro) under [MIT License](https://github.com/morkt/GARbro/blob/master/LICENSE).
+Originally written by [morkt](https://github.com/morkt/GARbro) under [MIT License](https://github.com/morkt/GARbro/blob/master/LICENSE).
 
-Korean translation by [mireado](https://github.com/mireado), [overworks](https://github.com/overworks)
+### Contributors
 
-Simplified Chinese translation by [elasticblitz](https://github.com/elasticblitz), [PeratX](https://github.com/PeratX) and [taroxd](https://github.com/taroxd)
-
-Japanese translation by [haniwa55](https://github.com/haniwa55)
-
-Contributors
-------
-
-<a href="https://github.com/crskycode/GARbro/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=crskycode/GARbro" />
+<a href="https://github.com/UserUnknownFactor/GARbro/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=UserUnknownFactor/GARbro" />
 </a>

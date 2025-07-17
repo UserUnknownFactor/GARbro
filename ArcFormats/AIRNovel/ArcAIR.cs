@@ -89,8 +89,8 @@ namespace GameRes.Formats.AirNovel
             SharpZip.ZipFile zip = null;
             try
             {
-                SharpZip.ZipStrings.CodePage = Encoding.UTF8.CodePage;
                 zip = new SharpZip.ZipFile (input);
+                zip.StringCodec = SharpZip.StringCodec.FromEncoding(Encoding.UTF8);
                 var files = zip.Cast<SharpZip.ZipEntry>().Where (z => !z.IsDirectory);
                 bool has_encrypted = false;
                 var dir = new List<Entry>();

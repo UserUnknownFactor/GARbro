@@ -74,14 +74,16 @@ namespace GARbro.GUI
                 {
                     var source = entry.Source.Name;
                     SetBusyState();
+
+                    // extract into directory named after archive when clicking on top-level archive
                     if (string.IsNullOrEmpty (destination))
                     {
-                        // extract into directory named after archive
-                        if (!string.IsNullOrEmpty (Path.GetExtension (entry.Name)))
-                            destination = Path.GetFileNameWithoutExtension (source);
-                        else
-                            destination = vm.Path.First();
+                        destination = Path.GetDirectoryName (source);
                     }
+
+                    var archiveName = Path.GetFileNameWithoutExtension (source);
+                    destination = Path.Combine (destination, archiveName);
+
                     extractor = new GarExtract (this, source);
                     extractor.ExtractAll (destination);
                 }

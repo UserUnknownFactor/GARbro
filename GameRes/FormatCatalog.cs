@@ -30,9 +30,14 @@ using System.ComponentModel.Composition.Hosting;
 using System.IO;
 using System.Linq;
 using GameRes.Collections;
+using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using GameRes.Compression;
 using System.Threading;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.Text;
+using System.Reflection;
 
 namespace GameRes
 {
@@ -378,6 +383,86 @@ namespace GameRes
                 bin.Serialize (zs, db);
         }
 
+        /// <summary>
+        /// Serialize scheme database to JSON format.
+        /// </summary>
+        public void SerializeSchemeJson (Stream output, SchemeDataBase db)
+        {
+            var settings = new JsonSerializerSettings
+            {
+                Formatting = Formatting.Indented,
+                TypeNameHandling = TypeNameHandling.Auto,
+                Converters = new List<JsonConverter> { new ResourceSchemeJsonConverter() }
+            };
+
+            var json = JsonConvert.SerializeObject(db, settings);
+            var bytes = Encoding.UTF8.GetBytes(json);
+            output.Write(bytes, 0, bytes.Length);
+        }
+
+        /// <summary>
+        /// Deserialize scheme database from JSON format.
+        /// </summary>
+        public void DeserializeSchemeJson (Stream input)
+        {
+            using (var reader = new StreamReader(input, Encoding.UTF8, true, 1024, true))
+            {
+                var json = reader.ReadToEnd();
+
+                var settings = new JsonSerializerSettings
+                {
+                    TypeNameHandling = TypeNameHandling.Auto,
+                    Converters = new List<JsonConverter> { new ResourceSchemeJsonConverter() }
+                };
+
+                var db = JsonConvert.DeserializeObject<SchemeDataBase>(json, settings);
+
+                if (db.Version <= CurrentSchemeVersion)
+                    return;
+
+                foreach (var format in Formats)
+                {
+                    ResourceScheme scheme;
+                    if (db.SchemeMap.TryGetValue (format.Tag, out scheme))
+                        format.Scheme = scheme;
+                }
+                CurrentSchemeVersion = db.Version;
+                if (db.GameMap != null)
+                    m_game_map = db.GameMap;
+            }
+        }
+
+        /// <summary>
+        /// Helper method to convert ResourceScheme to JSON-serializable format.
+        /// </summary>
+        private JsonResourceScheme ConvertToJsonScheme(ResourceScheme scheme)
+        {
+            // Serialize the scheme object to binary, then convert to base64
+            using (var ms = new MemoryStream())
+            {
+                var formatter = new BinaryFormatter();
+                formatter.Serialize(ms, scheme);
+                return new JsonResourceScheme
+                {
+                    TypeName = scheme.GetType().AssemblyQualifiedName,
+                    Data = Convert.ToBase64String(ms.ToArray())
+                };
+            }
+        }
+
+        /// <summary>
+        /// Helper method to convert JSON-serializable format back to ResourceScheme.
+        /// </summary>
+        private ResourceScheme ConvertFromJsonScheme(JsonResourceScheme jsonScheme)
+        {
+            var bytes = Convert.FromBase64String(jsonScheme.Data);
+            using (var ms = new MemoryStream(bytes))
+            {
+                var formatter = new BinaryFormatter();
+                return (ResourceScheme)formatter.Deserialize(ms);
+            }
+        }
+
         public int GetSerializedSchemeVersion (Stream input)
         {
             using (var reader = new BinaryReader (input, System.Text.Encoding.UTF8, true))
@@ -445,4 +530,240 @@ namespace GameRes
         public Dictionary<string, ResourceScheme>   SchemeMap;
         public Dictionary<string, string>           GameMap;
     }
+
+    /// <summary>
+    /// JSON-serializable version of SchemeDataBase
+    /// </summary>
+    public class JsonSchemeDataBase
+    {
+        public int Version { get; set; }
+        public Dictionary<string, JsonResourceScheme> SchemeMap { get; set; }
+        public Dictionary<string, string> GameMap { get; set; }
+    }
+
+    /// <summary>
+    /// JSON-serializable wrapper for ResourceScheme objects
+    /// </summary>
+    public class JsonResourceScheme
+    {
+        public string TypeName { get; set; }
+        public string Data { get; set; }  // Base64-encoded binary data
+    }
 }
+
+/// <summary>
+/// Custom JSON converter for ResourceScheme objects that intelligently handles serialization
+/// </summary>
+public class ResourceSchemeJsonConverter : JsonConverter
+{
+    public override bool CanConvert(Type objectType)
+    {
+        return typeof(GameRes.ResourceScheme).IsAssignableFrom(objectType);
+    }
+
+    public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+    {
+        if (value == null)
+        {
+            writer.WriteNull();
+            return;
+        }
+
+        var schemeType = value.GetType();
+        var obj = new JObject();
+        obj["$type"] = schemeType.AssemblyQualifiedName;
+
+        // Try to serialize properties normally first
+        var properties = schemeType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        var fields = schemeType.GetFields(BindingFlags.Public | BindingFlags.Instance);
+
+        var data = new JObject();
+        bool hasNonSerializableData = false;
+
+        // Serialize properties
+        foreach (var prop in properties.Where(p => p.CanRead && p.CanWrite))
+        {
+            try
+            {
+                var propValue = prop.GetValue(value);
+                if (IsJsonSerializable(propValue))
+                {
+                    data[prop.Name] = JToken.FromObject(propValue, serializer);
+                }
+                else
+                {
+                    hasNonSerializableData = true;
+                }
+            }
+            catch
+            {
+                hasNonSerializableData = true;
+            }
+        }
+
+        // Serialize fields
+        foreach (var field in fields)
+        {
+            try
+            {
+                var fieldValue = field.GetValue(value);
+                if (IsJsonSerializable(fieldValue))
+                {
+                    data[field.Name] = JToken.FromObject(fieldValue, serializer);
+                }
+                else
+                {
+                    hasNonSerializableData = true;
+                }
+            }
+            catch
+            {
+                hasNonSerializableData = true;
+            }
+        }
+
+        obj["data"] = data;
+
+        // If there's non-serializable data, also include a binary fallback
+        if (hasNonSerializableData)
+        {
+            using (var ms = new MemoryStream())
+            {
+                var formatter = new BinaryFormatter();
+                formatter.Serialize(ms, value);
+                obj["binaryData"] = Convert.ToBase64String(ms.ToArray());
+            }
+        }
+
+        obj.WriteTo(writer);
+    }
+
+    public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+    {
+        var obj = JObject.Load(reader);
+
+        var typeName = obj["$type"]?.Value<string>();
+        if (string.IsNullOrEmpty(typeName))
+            return null;
+
+        var type = Type.GetType(typeName);
+        if (type == null)
+            return null;
+
+        // First try to deserialize from binary data if present
+        var binaryData = obj["binaryData"]?.Value<string>();
+        if (!string.IsNullOrEmpty(binaryData))
+        {
+            var bytes = Convert.FromBase64String(binaryData);
+            using (var ms = new MemoryStream(bytes))
+            {
+                var formatter = new BinaryFormatter();
+                return formatter.Deserialize(ms);
+            }
+        }
+
+        // Otherwise, try to reconstruct from JSON data
+        var data = obj["data"] as JObject;
+        if (data != null)
+        {
+            var instance = Activator.CreateInstance(type);
+
+            // Set properties
+            var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+            foreach (var prop in properties.Where(p => p.CanWrite))
+            {
+                var propData = data[prop.Name];
+                if (propData != null)
+                {
+                    try
+                    {
+                        var value = propData.ToObject(prop.PropertyType, serializer);
+                        prop.SetValue(instance, value);
+                    }
+                    catch { }
+                }
+            }
+
+            // Set fields
+            var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
+            foreach (var field in fields)
+            {
+                var fieldData = data[field.Name];
+                if (fieldData != null)
+                {
+                    try
+                    {
+                        var value = fieldData.ToObject(field.FieldType, serializer);
+                        field.SetValue(instance, value);
+                    }
+                    catch { }
+                }
+            }
+
+            return instance;
+        }
+
+        return null;
+    }
+
+    private bool IsJsonSerializable(object value)
+    {
+        return true;
+        if (value == null)
+            return true;
+
+        var type = value.GetType();
+
+        // Primitive types and strings are always serializable
+        if (type.IsPrimitive || type == typeof(string) || type == typeof(decimal) || 
+            type == typeof(DateTime) || type == typeof(DateTimeOffset) || type == typeof(TimeSpan) ||
+            type == typeof(Guid))
+            return true;
+
+        // Arrays and lists of serializable types
+        if (type.IsArray)
+        {
+            var elementType = type.GetElementType();
+            return IsJsonSerializableType(elementType);
+        }
+
+        // Common generic collections
+        if (type.IsGenericType)
+        {
+            var genericDef = type.GetGenericTypeDefinition();
+            if (genericDef == typeof(List<>) || genericDef == typeof(Dictionary<,>) || 
+                genericDef == typeof(HashSet<>) || genericDef == typeof(Queue<>) || 
+                genericDef == typeof(Stack<>))
+            {
+                return type.GetGenericArguments().All(IsJsonSerializableType);
+            }
+        }
+
+        // Check if type has DataContract or is a simple POCO
+        return type.IsSerializable || type.GetCustomAttribute<DataContractAttribute>() != null;
+    }
+
+    private bool IsJsonSerializableType(Type type)
+    {
+        return type.IsPrimitive || type == typeof(string) || type == typeof(decimal) || 
+               type == typeof(DateTime) || type == typeof(DateTimeOffset) || type == typeof(TimeSpan) ||
+               type == typeof(Guid) || type.IsEnum;
+    }
+}
+
+/*
+using (var fileStream = File.Create("scheme.json"))
+{
+    var db = new SchemeDataBase 
+    {
+        Version = CurrentSchemeVersion,
+        SchemeMap = schemeMap,
+        GameMap = gameMap
+    };
+    catalog.SerializeSchemeJson(fileStream, db);
+}
+using (var fileStream = File.OpenRead("scheme.json"))
+{
+    catalog.DeserializeSchemeJson(fileStream);
+}
+*/

@@ -70,7 +70,8 @@ namespace GameRes.Formats.RPGMaker
                 var info = Png.ReadMetaData (png);
                 if (null == info)
                     return null;
-                return new RpgmvpMetaData {
+                return new RpgmvpMetaData
+                {
                     Width = info.Width,
                     Height = info.Height,
                     OffsetX = info.OffsetX,
@@ -81,16 +82,36 @@ namespace GameRes.Formats.RPGMaker
             }
         }
 
-        public override ImageData Read (IBinaryStream file, ImageMetaData info)
+        public override ImageData Read(IBinaryStream file, ImageMetaData info)
         {
             var meta = (RpgmvpMetaData)info;
-            using (var png = RpgmvDecryptor.DecryptStream (file, meta.Key, true))
-                return Png.Read (png, info);
+            using (var png = RpgmvDecryptor.DecryptStream(file, meta.Key, true))
+                return Png.Read(png, info);
         }
 
-        public override void Write (Stream file, ImageData image)
+        public override void Write(Stream file, ImageData image)
         {
-            throw new System.NotImplementedException ("RpgmvpFormat.Write not implemented");
+            byte[] key = RpgmvDecryptor.LastKey ?? RpgmvDecryptor.DefaultKey;
+
+            file.Write(RpgmvDecryptor.DefaultHeader, 0, RpgmvDecryptor.DefaultHeader.Length);
+
+            using (var pngStream = new MemoryStream())
+            {
+                Png.Write(pngStream, image);
+                pngStream.Position = 0;
+
+                var pngHeader = new byte[key.Length];
+                pngStream.Read(pngHeader, 0, pngHeader.Length);
+
+                for (int i = 0; i < key.Length; ++i)
+                {
+                    pngHeader[i] ^= key[i];
+                }
+
+                file.Write(pngHeader, 0, pngHeader.Length);
+
+                pngStream.CopyTo(file);
+            }
         }
     }
 
@@ -162,6 +183,10 @@ namespace GameRes.Formats.RPGMaker
 
         internal static readonly byte[] DefaultKey = {
             0x77, 0x4E, 0x46, 0x45, 0xFC, 0x43, 0x2F, 0x71, 0x47, 0x95, 0xA2, 0x43, 0xE5, 0x10, 0x13, 0xD8
+        };
+
+        internal static readonly byte[] DefaultHeader = {
+            0x52, 0x50, 0x47, 0x4D, 0x56, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
         };
 
         internal static byte[] LastKey = null;
