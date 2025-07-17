@@ -107,13 +107,17 @@ namespace GameRes.Formats.KiriKiri
             if (0x184D2204 == signature) // LZ4 magic
             {
                 // assume no scripts are compressed using LZ4, return decompressed stream right away
-                return DecompressLz4 (entry, header, input);
+                try {
+                    return DecompressLz4 (entry, header, input);
+                } catch (NotImplementedException) { 
+                    // if decompression is impossible return input as is
+                }
             }
-            if (0x66646D == signature) // 'mdf'
+            else if (0x66646D == signature) // 'mdf'
             {
                 return DecompressMdf (entry, header, input);
             }
-            if ((signature & 0xFF00FFFFu) == 0xFF00FEFEu && header[2] < 3 && 0xFE == header[4])
+            else if ((signature & 0xFF00FFFFu) == 0xFF00FEFEu && header[2] < 3 && 0xFE == header[4])
                 return DecryptScript (header[2], input, entry.UnpackedSize);
 
             if (!input.CanSeek)

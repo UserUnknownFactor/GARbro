@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
+using System.Diagnostics;
 using System.IO;
 
 namespace GameRes.Formats.Kid
@@ -29,7 +30,8 @@ namespace GameRes.Formats.Kid
                 size *= 1024;
                 if (offset > file.MaxOffset || size > file.MaxOffset)
                 {
-                    throw new InvalidFormatException();
+                    Trace.TraceError("DAT size > file.MaxOffset");
+                    return null;
                 }
                 if (size == 0) continue;
 

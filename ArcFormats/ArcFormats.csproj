@@ -249,6 +249,7 @@
     <Compile Include="Carriere\ArcARC.cs" />
     <Compile Include="Carriere\ImageCGD.cs" />
     <Compile Include="CatSystem\ArcDAT.cs" />
+    <Compile Include="CatSystem\ArcZT.cs" />
     <Compile Include="CDPA\ArcPACK.cs" />
     <Compile Include="Cmvs\ArcCPZ1.cs" />
     <Compile Include="Cmvs\CpzHeader.cs" />
@@ -379,6 +380,8 @@
     <Compile Include="GameSystem\ArcPureMail.cs" />
     <Compile Include="GameSystem\AudioADP4.cs" />
     <Compile Include="ImageLZS.cs" />
+    <Compile Include="ImageICO.cs" />
+    <Compile Include="ImageICNS.cs" />
     <Compile Include="ImagePIC.cs" />
     <Compile Include="ImagePNX.cs" />
     <Compile Include="ImagePSM.cs" />
