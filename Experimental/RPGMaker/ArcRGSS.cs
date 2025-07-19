@@ -331,7 +331,7 @@ namespace GameRes.Formats.RPGMaker
             }
         }
 
-        public override ResourceOptions GetDefaultOptions ()
+        public override ResourceOptions GetDefaultOptions()
         {
             return new RgssOptions { Version = 3 };
         }

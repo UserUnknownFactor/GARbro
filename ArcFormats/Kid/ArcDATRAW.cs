@@ -28,11 +28,10 @@ namespace GameRes.Formats.Kid
                 uint size = file.View.ReadUInt32(i * 8 + 4);
                 offset = offset * 2048 + 0x8000;
                 size *= 1024;
+
                 if (offset > file.MaxOffset || size > file.MaxOffset)
-                {
-                    Trace.TraceError("DAT size > file.MaxOffset");
                     return null;
-                }
+
                 if (size == 0) continue;
 
                 var entry = Create<Entry>(archivename + i.ToString("D5"));
@@ -40,21 +39,28 @@ namespace GameRes.Formats.Kid
                 entry.Size = size;
                 dir.Add(entry);
             }
+
             if (dir.Count == 0)
                 return null;
+
             return new ArcFile(file, this, dir);
         }
 
-        /*public override Stream OpenEntry(ArcFile arc, Entry entry)
+        /*
+        public override Stream OpenEntry (ArcFile arc, Entry entry)
         {
-            IBinaryStream input = arc.File.CreateStream(entry.Offset, entry.Size, entry.Name);
+            IBinaryStream input = arc.File.CreateStream (entry.Offset, entry.Size, entry.Name);
             if (input.Signature == 0x535043) // 'CPS'
             {
-                using (input)
-                    return UnpackCps(input);
+                using (input) 
+                {
+                    return UnpackCps (input);
+                }
             }
             return input.AsStream;
-        }*/
+        }
+        */
+
         Stream UnpackCps(IBinaryStream input)
         {
             var header = input.ReadHeader(0x10);
@@ -90,6 +96,7 @@ namespace GameRes.Formats.Kid
                 return new BinMemoryStream(output);
             }
         }
+
         internal static void UnpackLnd(IBinaryStream input, byte[] output)
         {
             int unpacked_size = output.Length;
@@ -144,6 +151,7 @@ namespace GameRes.Formats.Kid
                 }
             }
         }
+
         static void UnpackLnd16(IBinaryStream input, byte[] output)
         {
             throw new NotImplementedException("KID Lnd16 compression not implemented.");

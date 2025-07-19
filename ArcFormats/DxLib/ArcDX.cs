@@ -315,13 +315,14 @@ namespace GameRes.Formats.DxLib
         {
             if (key.Length == 0)
                 return;
-                int key_pos = (int)(offset % key.Length);
-                for (int i = 0; i < count; ++i)
-                {
-                    data[index + i] ^= key[key_pos++];
-                    if (key.Length == key_pos)
-                        key_pos = 0;
-                }
+
+            int key_pos = (int)(offset % key.Length);
+            for (int i = 0; i < count; ++i)
+            {
+                data[index + i] ^= key[key_pos++];
+                if (key.Length == key_pos)
+                    key_pos = 0;
+            }
         }
 
         public override ResourceScheme Scheme

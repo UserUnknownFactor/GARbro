@@ -102,7 +102,7 @@ namespace GameRes.Formats.RenPy
             if (newline_pos == -1)
                 return null;
 
-            string header_line = Encoding.ASCII.GetString(header_bytes, 0, newline_pos);
+            string header_line = Encoding.ASCII.GetString (header_bytes, 0, newline_pos);
             var parts = header_line.Split (' ');
 
             if (parts.Length < 3)

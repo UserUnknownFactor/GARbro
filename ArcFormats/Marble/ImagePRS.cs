@@ -171,7 +171,7 @@ namespace GameRes.Formats.Marble
                         if (3 == b)
                         {
                             length += 9;
-//                            length = Math.Min(m_output.Length - dst, length);
+                            //length = Math.Min(m_output.Length - dst, length);
                             int read = m_input.Read (m_output, dst, length);
                             if (read < length)
                                 break;
@@ -223,9 +223,7 @@ namespace GameRes.Formats.Marble
                 if (!disposed)
                 {
                     if (disposing)
-                    {
                         m_input.Dispose();
-                    }
                     disposed = true;
                 }
             }
@@ -276,9 +274,7 @@ namespace GameRes.Formats.Marble
             public void Pack()
             {
                 if ((m_flag & 0x80) != 0)
-                {
                     ApplyDeltaFilter();
-                }
 
                 CompressData();
                 WriteHeader();
@@ -321,9 +317,7 @@ namespace GameRes.Formats.Marble
                     int matchOffset = 0;
 
                     if (src > 0)
-                    {
                         FindLongestMatch(src, out matchLength, out matchOffset);
-                    }
 
                     if (matchLength >= 2)
                     {
@@ -339,15 +333,11 @@ namespace GameRes.Formats.Marble
                     }
 
                     if (controlBits.Count == 8)
-                    {
                         FlushControlBits(controlBits, tempOutput);
-                    }
                 }
 
                 if (controlBits.Count > 0)
-                {
                     FlushControlBits(controlBits, tempOutput);
-                }
             }
 
             private void FindLongestMatch(int position, out int bestLength, out int bestOffset)

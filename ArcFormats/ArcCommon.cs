@@ -63,6 +63,7 @@ namespace GameRes.Formats
         public static IResource DetectFileType (uint signature)
         {
             if (0 == signature) return null;
+
             // resolve some special cases first
             if (OggAudio.Instance.Signature == signature)
                 return OggAudio.Instance;
@@ -72,6 +73,8 @@ namespace GameRes.Formats
                 return ImageFormat.Bmp;
             if (ImageFormat.Png.Signature == signature)
                 return ImageFormat.Png;
+
+            // Fall back to catalog lookup
             var res = FormatCatalog.Instance.LookupSignature (signature);
             if (!res.Any())
                 return null;

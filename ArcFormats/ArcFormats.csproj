@@ -210,6 +210,7 @@
     <Compile Include="MAGES\ArcGTF.cs" />
     <Compile Include="MAGES\ArcLoveOnce.cs" />
     <Compile Include="MAGES\ImageBIN.cs" />
+    <Compile Include="Minori\ArcFAR.cs" />
     <Compile Include="Mugi\ArcBIN.cs" />
     <Compile Include="Musica\ArcPAK.cs" />
     <Compile Include="NipponIchi\ArcCASN.cs" />
@@ -1087,6 +1088,7 @@
     <Compile Include="KiriKiri\KiriKiriCx.cs" />
     <Compile Include="KogadoCocotte.cs" />
     <Compile Include="AudioOGG.cs" />
+    <Compile Include="AudioFLAC.cs" />
     <Compile Include="LzssStream.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\Settings.Designer.cs">

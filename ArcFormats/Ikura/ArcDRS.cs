@@ -92,9 +92,10 @@ namespace GameRes.Formats.Ikura
         public Dictionary<string, byte[]> KnownSecrets;
     }
 
-    internal class IsfOptions : ResourceOptions
+    internal class IkuraOptions : ResourceOptions
     {
         public byte[] Secret;
+        public string Type;
     }
 
     internal class IsfArchive : ArcFile
@@ -141,17 +142,21 @@ namespace GameRes.Formats.Ikura
                 var name = file.View.ReadString (dir_offset, 12);
                 if (string.IsNullOrEmpty (name))
                     return null;
-                name = name.ToLowerInvariant();
                 Entry entry;
-                if (name.EndsWith (".isf") || name.EndsWith (".snr"))
+                switch (Path.GetExtension(name).ToUpperInvariant())
                 {
+                case "ISF":
+                case "SNR":
                     entry = new Entry { Name = name, Type = "script" };
                     has_scripts = true;
-                }
-                else if (name.EndsWith (".bin"))
+                    break;
+                case "BIN":
                     entry = new ImageEntry { Name = name };
-                else
+                    break;
+                default:
                     entry = FormatCatalog.Instance.Create<Entry> (name);
+                    break;
+                }
                 entry.Offset = file.View.ReadUInt32 (dir_offset+12);
                 entry.Size   = file.View.ReadUInt32 (dir_offset+16);
                 if (!entry.CheckPlacement (file.MaxOffset))
@@ -206,8 +211,9 @@ namespace GameRes.Formats.Ikura
 
         public override ResourceOptions GetDefaultOptions ()
         {
-            return new IsfOptions {
-                Secret = GetSecret (Properties.Settings.Default.ISFScheme) ?? new byte[0]
+            return new IkuraOptions {
+                Secret = GetSecret (Properties.Settings.Default.ISFScheme) ?? Array.Empty<byte>(),
+                Type = Properties.Settings.Default.IkuraArchiveType
             };
         }
 
@@ -218,7 +224,7 @@ namespace GameRes.Formats.Ikura
 
         private byte[] QuerySecret ()
         {
-            var options = Query<IsfOptions> (arcStrings.ArcEncryptedNotice);
+            var options = Query<IkuraOptions> (arcStrings.ArcEncryptedNotice);
             return options.Secret;
         }
 
