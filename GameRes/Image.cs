@@ -199,11 +199,13 @@ namespace GameRes
         static readonly ResourceInstance<ImageFormat> s_PngFormat  = new ResourceInstance<ImageFormat> ("PNG");
         static readonly ResourceInstance<ImageFormat> s_BmpFormat  = new ResourceInstance<ImageFormat> ("BMP");
         static readonly ResourceInstance<ImageFormat> s_TgaFormat  = new ResourceInstance<ImageFormat> ("TGA");
+        static readonly ResourceInstance<ImageFormat> s_GifFormat  = new ResourceInstance<ImageFormat>("GIF");
 
         public static ImageFormat Jpeg => s_JpegFormat.Value;
         public static ImageFormat  Png => s_PngFormat.Value;
         public static ImageFormat  Bmp => s_BmpFormat.Value;
         public static ImageFormat  Tga => s_TgaFormat.Value;
+        public static ImageFormat  Gif => s_GifFormat.Value;
 
         /// <summary>
         /// Desereialize color map from <paramref name="input"/> stream, consisting of specified number of
@@ -250,5 +252,5 @@ namespace GameRes
             using (var input = file.CreateStream (offset, (uint)(4 * colors))) // largest possible size for palette
                 return ReadPalette (input, colors, format);
         }
-    }
+    } // ImageFormat
 }

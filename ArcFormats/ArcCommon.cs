@@ -74,6 +74,11 @@ namespace GameRes.Formats
             if (ImageFormat.Png.Signature == signature)
                 return ImageFormat.Png;
 
+            if (0xE0FFD8FF == signature || 0xE1FFD8FF == signature) // JPEG
+                return ImageFormat.Jpeg;
+            if (0x38464947 == signature || 0x39464947 == signature) // GIF
+                return ImageFormat.Gif;
+
             // Fall back to catalog lookup
             var res = FormatCatalog.Instance.LookupSignature (signature);
             if (!res.Any())

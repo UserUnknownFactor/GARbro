@@ -48,6 +48,7 @@ namespace GameRes
         #pragma warning disable 649
         private IEnumerable<ArchiveFormat>  m_arc_formats;
         private IEnumerable<ImageFormat>    m_image_formats;
+        private IEnumerable<VideoFormat>    m_video_formats;
         private IEnumerable<AudioFormat>    m_audio_formats;
         [ImportMany(typeof(ScriptFormat))]
         private IEnumerable<ScriptFormat>   m_script_formats;
@@ -65,6 +66,7 @@ namespace GameRes
 
         public IEnumerable<ArchiveFormat> ArcFormats    { get { return m_arc_formats; } }
         public IEnumerable<ImageFormat>   ImageFormats  { get { return m_image_formats; } }
+        public IEnumerable<VideoFormat>   VideoFormats  { get { return m_video_formats; } }
         public IEnumerable<AudioFormat>   AudioFormats  { get { return m_audio_formats; } }
         public IEnumerable<ScriptFormat>  ScriptFormats { get { return m_script_formats; } }
 
@@ -72,7 +74,7 @@ namespace GameRes
         {
             get
             {
-                return ((IEnumerable<IResource>)ArcFormats).Concat (ImageFormats).Concat (AudioFormats).Concat (ScriptFormats);
+                return ((IEnumerable<IResource>)ArcFormats).Concat (ImageFormats).Concat (AudioFormats).Concat (ScriptFormats).Concat(VideoFormats);
             }
         }
 
@@ -104,14 +106,17 @@ namespace GameRes
             {
                 m_arc_formats = ImportWithPriorities<ArchiveFormat> (container);
                 m_image_formats = ImportWithPriorities<ImageFormat> (container);
+                m_video_formats = ImportWithPriorities<VideoFormat> (container);
                 m_audio_formats = ImportWithPriorities<AudioFormat> (container);
+
                 //Fill the imports of this object
                 container.ComposeParts (this);
 
                 AddResourceImpl (m_image_formats, container);
-                AddResourceImpl (m_arc_formats, container);
+                AddResourceImpl (m_video_formats, container);
                 AddResourceImpl (m_audio_formats, container);
                 AddResourceImpl (m_script_formats, container);
+                AddResourceImpl (m_arc_formats, container);
 
                 AddAliases (container);
             }
@@ -162,6 +167,8 @@ namespace GameRes
                     target_list = ArcFormats;
                 else if ("image" == metadata.Type)
                     target_list = ImageFormats;
+                else if ("video" == metadata.Type)
+                    target_list = VideoFormats;
                 else if ("audio" == metadata.Type)
                     target_list = AudioFormats;
                 else if ("script" == metadata.Type)
@@ -513,6 +520,8 @@ namespace GameRes
                 m_resolver = () => FormatCatalog.Instance.ArcFormats.FirstOrDefault (f => f.Tag == tag) as T;
             else if (typeof(AudioFormat) == t || t.IsSubclassOf (typeof(AudioFormat)))
                 m_resolver = () => FormatCatalog.Instance.AudioFormats.FirstOrDefault (f => f.Tag == tag) as T;
+            else if (typeof(VideoFormat) == t || t.IsSubclassOf (typeof(VideoFormat)))
+                m_resolver = () => FormatCatalog.Instance.VideoFormats.FirstOrDefault (f => f.Tag == tag) as T;
             else if (typeof(ScriptFormat) == t || t. IsSubclassOf (typeof(ScriptFormat)))
                 m_resolver = () => FormatCatalog.Instance.ScriptFormats.FirstOrDefault (f => f.Tag == tag) as T;
             else

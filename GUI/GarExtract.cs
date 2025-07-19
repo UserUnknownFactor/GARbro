@@ -75,7 +75,7 @@ namespace GARbro.GUI
                     var source = entry.Source.Name;
                     SetBusyState();
 
-                    // extract into directory named after archive when clicking on top-level archive
+                    // extract into dir named after it when clicking on top-level archive
                     if (string.IsNullOrEmpty (destination))
                     {
                         destination = Path.GetDirectoryName (source);

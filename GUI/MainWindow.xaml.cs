@@ -142,8 +142,14 @@ namespace GARbro.GUI
             try
             {
                 SaveSettings();
-                AudioDevice = null;
-                CurrentAudio = null;
+                if (AudioDevice != null)
+                     AudioDevice = null;
+                if (CurrentAudio != null)
+                    CurrentAudio = null;
+                if (m_animated_image_viewer != null)
+                    m_animated_image_viewer.StopAnimation();
+                if (m_video_preview != null)
+                    m_video_preview.Stop();
             }
             catch (Exception X)
             {

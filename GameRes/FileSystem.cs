@@ -776,6 +776,18 @@ namespace GameRes
             return ImageFormatDecoder.Create (input);
         }
 
+        public static VideoData OpenVideo(Entry entry)
+        {
+            using (var file = OpenBinaryStream(entry))
+            {
+                var format = VideoFormat.FindFormat(file);
+                if (null == format)
+                    throw new InvalidFormatException();
+                file.Position = 0;
+                return format.Item1.Read(file, format.Item2);
+            }
+        }
+
         public static Stream OpenStream (string filename)
         {
             return m_vfs.Top.OpenStream (m_vfs.Top.FindFile (filename));
