@@ -346,8 +346,8 @@ namespace GameRes.Formats.Macromedia
 
             using (input)
             {
-                uint offset = Binary.BigEndian (input.ReadUInt32());
-                uint length = Binary.BigEndian (input.ReadUInt32());
+                uint offset = input.ReadUInt32BE();
+                uint length = input.ReadUInt32BE();
                 input.Position = offset;
                 var text = input.ReadBytes ((int)length);
                 return new BinMemoryStream (text, entry.Name);

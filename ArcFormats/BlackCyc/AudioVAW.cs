@@ -12,7 +12,9 @@ namespace GameRes.Formats.BlackCyc
     {
         public override string         Tag { get { return "VAW"; } }
         public override string Description { get { return "Black Cyc audio format"; } }
-        public override uint     Signature { get { return 0; } }
+        public override uint     Signature { get { return  0; } }
+
+        private const int header_end = 0x40;
 
         public VawAudio ()
         {
@@ -24,33 +26,35 @@ namespace GameRes.Formats.BlackCyc
             var header = ResourceHeader.Read (file);
             if (null == header)
                 return null;
+
             AudioFormat format;
             int offset;
-            if (0 == header.PackType)
-            {
+            switch (header.PackType) {
+            case 0:
                 if (4 != file.Read (header.Bytes, 0, 4))
                     return null;
                 if (!Binary.AsciiEqual (header.Bytes, "RIFF"))
                     return null;
                 format = Wav;
-                offset = 0x40;
-            }
-            else if (1 == header.PackType)
-            {
+                offset = header_end;
+                break;
+            case 1:
                 return Unpack (file);
-            }
-            else if (2 == header.PackType)
-            {
+            case 2:
+                file.Seek(0x6C, SeekOrigin.Begin);
                 format = OggAudio.Instance;
-                offset = 0x6C;
-            }
-            else if (6 == header.PackType && Binary.AsciiEqual (header.Bytes, 0x10, "OGG "))
-            {
+                offset = ((byte)'O' == file.ReadByte()) ? 0x6C : 0x6E;
+                break;
+            case 6: 
+                if (!Binary.AsciiEqual (header.Bytes, 0x10, "OGG ")) 
+                    return null;
                 format = OggAudio.Instance;
-                offset = 0x40;
-            }
-            else
+                offset = header_end;
+                break;
+            default:
                 return null;
+            }
+
             var input = new StreamRegion (file.AsStream, offset, file.Length-offset);
             return format.TryOpen (new BinaryStream (input, file.Name));
         }
@@ -62,18 +66,21 @@ namespace GameRes.Formats.BlackCyc
 
         SoundInput Unpack (IBinaryStream input)
         {
-            input.Position = 0x40;
+            input.Position = header_end;
             var header = new byte[0x24];
             if (0x14 != input.Read (header, 0, 0x14))
                 return null;
+
             int fmt_size = LittleEndian.ToInt32 (header, 0x10);
             if (fmt_size + input.Position > input.Length)
                 return null;
+
             int header_size = fmt_size + 0x14;
             if (header_size > header.Length)
                 Array.Resize (ref header, header_size);
             if (fmt_size != input.Read (header, 0x14, fmt_size))
                 return null;
+
             int riff_size = LittleEndian.ToInt32 (header, 4) + 8;
             int data_size = riff_size - header_size;
             var pcm = new MemoryStream (riff_size);

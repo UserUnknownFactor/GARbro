@@ -16,6 +16,7 @@ namespace GameRes
         private byte[]                  m_buffer;
         private int                     m_buffer_pos;   // read position within buffer
         private int                     m_buffer_len;   // length of bytes read in buffer
+        private Encoding                m_default_encoding;
 
         private const int DefaultBufferSize = 0x1000;
         private const uint MaxFrameSize = 0x1000000; // 16MB
@@ -23,6 +24,12 @@ namespace GameRes
         public string     Name { get; set; }
         public uint  Signature { get { return ReadSignature(); } }
         public Stream AsStream { get { return this; } }
+
+        public Encoding DefaultEncoding 
+        { 
+            get { return m_default_encoding ?? Encodings.cp932; }
+            set { m_default_encoding = value; }
+        }
 
         public override bool CanRead  { get { return !disposed; } }
         public override bool CanSeek  { get { return !disposed; } }
@@ -230,9 +237,69 @@ namespace GameRes
             return (ulong)ReadInt64();
         }
 
+        // Big-endian methods
+        public short ReadInt16BE ()
+        {
+            EnsureAvailable (2);
+            short v = (short)((m_buffer[m_buffer_pos] << 8) | m_buffer[m_buffer_pos + 1]);
+            m_buffer_pos += 2;
+            return v;
+        }
+
+        public ushort ReadUInt16BE ()
+        {
+            return (ushort)ReadInt16BE();
+        }
+
+        public int ReadInt24BE ()
+        {
+            EnsureAvailable (3);
+            int v = (m_buffer[m_buffer_pos] << 16) | 
+                    (m_buffer[m_buffer_pos + 1] << 8) | 
+                    m_buffer[m_buffer_pos + 2];
+            m_buffer_pos += 3;
+            return v;
+        }
+
+        public int ReadInt32BE ()
+        {
+            EnsureAvailable (4);
+            int v = (m_buffer[m_buffer_pos] << 24) | 
+                    (m_buffer[m_buffer_pos + 1] << 16) | 
+                    (m_buffer[m_buffer_pos + 2] << 8) | 
+                    m_buffer[m_buffer_pos + 3];
+            m_buffer_pos += 4;
+            return v;
+        }
+
+        public uint ReadUInt32BE ()
+        {
+            return (uint)ReadInt32BE();
+        }
+
+        public long ReadInt64BE ()
+        {
+            EnsureAvailable (8);
+            long v = ((long)m_buffer[m_buffer_pos] << 56) | 
+                     ((long)m_buffer[m_buffer_pos + 1] << 48) | 
+                     ((long)m_buffer[m_buffer_pos + 2] << 40) | 
+                     ((long)m_buffer[m_buffer_pos + 3] << 32) |
+                     ((long)m_buffer[m_buffer_pos + 4] << 24) | 
+                     ((long)m_buffer[m_buffer_pos + 5] << 16) | 
+                     ((long)m_buffer[m_buffer_pos + 6] << 8) | 
+                     m_buffer[m_buffer_pos + 7];
+            m_buffer_pos += 8;
+            return v;
+        }
+
+        public ulong ReadUInt64BE ()
+        {
+            return (ulong)ReadInt64BE();
+        }
+
         public string ReadCString (int length)
         {
-            return ReadCString (length, Encodings.cp932);
+            return ReadCString (length, DefaultEncoding);
         }
 
         public string ReadCString (int length, Encoding enc)
@@ -272,7 +339,7 @@ namespace GameRes
 
         public string ReadCString ()
         {
-            return ReadCString (Encodings.cp932);
+            return ReadCString (DefaultEncoding);
         }
 
         public string ReadCString (Encoding enc)

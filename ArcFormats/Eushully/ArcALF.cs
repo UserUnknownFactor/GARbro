@@ -94,7 +94,8 @@ namespace GameRes.Formats.Eushully
             var res = infos.Where(i => Enumerable.SequenceEqual(i.signature, siglow));
             if (res.Any()) return res.First();
             res = infos.Where(i => Enumerable.SequenceEqual(i.signature, sig));
-            if (res.Any()) return res.First();
+            if (res.Any()) 
+                return res.First();
             return null;
         }
 
@@ -112,13 +113,10 @@ namespace GameRes.Formats.Eushully
                     if (info == null) return null;
 
                     if (info.isLZSSCompressed)
-                    {
                         index = new BinaryStream(new LzssStream(ini.CreateStream(info.offset + 4, (uint)ini.View.ReadInt32(info.offset))), ini_file);
-                    }
                     else
-                    {
                         index = ini.CreateStream(info.offset);
-                    }
+
                     using (index)
                     {
                         var file_table = ReadSysIni (index, info);
@@ -138,8 +136,10 @@ namespace GameRes.Formats.Eushully
             int arc_count = index.ReadInt32();
             if (!IsSaneCount (arc_count))
                 return null;
+
             var file_table = new Dictionary<string, List<Entry>> (arc_count, StringComparer.OrdinalIgnoreCase);
             var arc_list = new List<Entry>[arc_count];
+
             for (int i = 0; i < arc_count; ++i)
             {
                 string name = info.isNameUnicode ? index.ReadCString(0x200, Encoding.Unicode) : index.ReadCString(0x100);
@@ -158,11 +158,13 @@ namespace GameRes.Formats.Eushully
                 int arc_id = index.ReadInt32();
                 if (arc_id < 0 || arc_id >= arc_list.Length)
                     return null;
+
                 index.ReadInt32(); // file number
                 uint offset = index.ReadUInt32();
                 uint size = index.ReadUInt32();
                 if ("@" == name)
                     continue;
+
                 var entry = Create<Entry> (name);
                 entry.Offset = offset;
                 entry.Size = size;

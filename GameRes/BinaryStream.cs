@@ -22,6 +22,11 @@ namespace GameRes
         long     Length { get; }
         long   Position { get; set; }
 
+        /// <summary>
+        /// Default encoding for string operations when encoding is not specified.
+        /// </summary>
+        Encoding DefaultEncoding { get; set; }
+
         long    Seek (long offset, SeekOrigin origin);
 
         int     Read (byte[] buffer, int offset, int count);
@@ -33,6 +38,7 @@ namespace GameRes
         /// <returns>Next byte, or -1 if end of stream is reached.</returns>
         int     PeekByte ();
 
+        // Little-endian methods
         sbyte   ReadInt8 ();
         byte    ReadUInt8 ();
         short   ReadInt16 ();
@@ -42,6 +48,15 @@ namespace GameRes
         uint    ReadUInt32 ();
         long    ReadInt64 ();
         ulong   ReadUInt64 ();
+
+        // Big-endian methods
+        short   ReadInt16BE ();
+        ushort  ReadUInt16BE ();
+        int     ReadInt24BE ();
+        int     ReadInt32BE ();
+        uint    ReadUInt32BE ();
+        long    ReadInt64BE ();
+        ulong   ReadUInt64BE ();
 
         /// <summary>
         /// Read first <paramref="size"/> bytes of stream and return them in a copy-on-write array.
@@ -56,18 +71,18 @@ namespace GameRes
         /// </summary>
         string ReadCString (int length, Encoding enc);
         /// <summary>
-        /// Does ReadCString with CP932 encoding.
+        /// Does ReadCString with default encoding.
         /// </summary>
         string ReadCString (int length);
 
         /// <summary>
-        /// Read zero-terminated string from stream in specefied encoding.
+        /// Read zero-terminated string from stream in specified encoding.
         /// Stream is positioned after a zero byte that terminates a string, or at end of stream, whichever
         /// comes first.
         /// </summary>
         string ReadCString (Encoding enc);
         /// <summary>
-        /// Does ReadCString with CP932 encoding.
+        /// Does ReadCString with default encoding.
         /// </summary>
         string ReadCString ();
 
@@ -89,10 +104,16 @@ namespace GameRes
         Lazy<uint>  m_signature;
         byte[]      m_header;
         int         m_header_size;
+        Encoding    m_default_encoding;
 
         public string     Name { get; set; }
         public uint  Signature { get { return m_signature.Value; } }
         public Stream AsStream { get { return this; } }
+        public Encoding DefaultEncoding 
+        { 
+            get { return m_default_encoding ?? Encodings.cp932; }
+            set { m_default_encoding = value; }
+        }
 
         public BinaryStream (Stream input, string name, bool leave_open = false)
         {
@@ -145,25 +166,37 @@ namespace GameRes
             return bin;
         }
 
-        internal int FindEoS (int start, int length, Encoding enc)
+        internal static int FindTerminator(byte[] buffer, int start, int length, Encoding encoding)
         {
-            int eos_pos = -1;
-            if (enc.IsUtf16())
+            if (start < 0 || length < 0 || start + length > buffer.Length)
+                return -1;
+
+            if (encoding.IsSingleByte)
             {
-                for (int i = start+1; i < start+length; i += 2)
+                return Array.IndexOf<byte>(buffer, 0, start, length);
+            }
+            else if (encoding.Equals(Encoding.Unicode) || encoding.Equals(Encoding.BigEndianUnicode))
+            {
+                for (int i = start; i <= start + length - 2; i += 2)
                 {
-                    if (m_buffer[i-1] == 0 && m_buffer[i] == 0)
-                    {
-                        eos_pos = i - 1;
-                        break;
-                    }
+                    if (buffer[i] == 0 && buffer[i + 1] == 0)
+                        return i;
+                }
+            }
+            else if (encoding.Equals(Encoding.UTF32))
+            {
+                for (int i = start; i <= start + length - 4; i += 4)
+                {
+                    if (buffer[i] == 0 && buffer[i + 1] == 0 && 
+                        buffer[i + 2] == 0 && buffer[i + 3] == 0)
+                        return i;
                 }
             }
             else
             {
-                eos_pos = Array.IndexOf<byte> (m_buffer, 0, start, length);
+                return Array.IndexOf<byte>(buffer, 0, start, length);
             }
-            return eos_pos;
+            return -1;
         }
 
         uint ReadSignature ()
@@ -295,40 +328,123 @@ namespace GameRes
             return (ulong)ReadInt64();
         }
 
+        // Big-endian methods
+        public short ReadInt16BE ()
+        {
+            if (2 != FillBuffer (2))
+                throw new EndOfStreamException();
+            short v = (short)((m_buffer[m_buffer_pos] << 8) | m_buffer[m_buffer_pos + 1]);
+            m_buffer_pos += 2;
+            return v;
+        }
+        
+        public ushort ReadUInt16BE ()
+        {
+            return (ushort)ReadInt16BE();
+        }
+        
+        public int ReadInt24BE ()
+        {
+            if (3 != FillBuffer (3))
+                throw new EndOfStreamException();
+            int v = (m_buffer[m_buffer_pos] << 16) | 
+                    (m_buffer[m_buffer_pos + 1] << 8) | 
+                    m_buffer[m_buffer_pos + 2];
+            m_buffer_pos += 3;
+            return v;
+        }
+        
+        public int ReadInt32BE ()
+        {
+            if (4 != FillBuffer (4))
+                throw new EndOfStreamException();
+            int v = (m_buffer[m_buffer_pos] << 24) | 
+                    (m_buffer[m_buffer_pos + 1] << 16) | 
+                    (m_buffer[m_buffer_pos + 2] << 8) | 
+                    m_buffer[m_buffer_pos + 3];
+            m_buffer_pos += 4;
+            return v;
+        }
+        
+        public uint ReadUInt32BE ()
+        {
+            return (uint)ReadInt32BE();
+        }
+        
+        public long ReadInt64BE ()
+        {
+            if (8 != FillBuffer (8))
+                throw new EndOfStreamException();
+            long v = ((long)m_buffer[m_buffer_pos] << 56) | 
+                     ((long)m_buffer[m_buffer_pos + 1] << 48) | 
+                     ((long)m_buffer[m_buffer_pos + 2] << 40) | 
+                     ((long)m_buffer[m_buffer_pos + 3] << 32) |
+                     ((long)m_buffer[m_buffer_pos + 4] << 24) | 
+                     ((long)m_buffer[m_buffer_pos + 5] << 16) | 
+                     ((long)m_buffer[m_buffer_pos + 6] << 8) | 
+                     m_buffer[m_buffer_pos + 7];
+            m_buffer_pos += 8;
+            return v;
+        }
+        
+        public ulong ReadUInt64BE ()
+        {
+            return (ulong)ReadInt64BE();
+        }
+
         public string ReadCString (int length)
         {
-            return ReadCString (length, Encodings.cp932);
+            return ReadCString (length, DefaultEncoding);
         }
 
         public string ReadCString (int length, Encoding enc)
         {
             length = FillBuffer (length);
-            int i = FindEoS(m_buffer_pos, length, enc) - m_buffer_pos;
-            string s = enc.GetString (m_buffer, m_buffer_pos, i);
+            int terminator_pos = FindTerminator (m_buffer, m_buffer_pos, length, enc);
+            int string_length = terminator_pos >= 0 ? terminator_pos - m_buffer_pos : length;
+            string s = enc.GetString (m_buffer, m_buffer_pos, string_length);
             m_buffer_pos += length;
             return s;
         }
 
         public string ReadCString ()
         {
-            return ReadCString (Encodings.cp932);
+            return ReadCString (DefaultEncoding);
         }
 
         public string ReadCString (Encoding enc)
         {
             int count = 0;
+            int term_size = enc.IsSingleByte ? 1 : 
+                           (enc.Equals(Encoding.Unicode) || enc.Equals(Encoding.BigEndianUnicode)) ? 2 : 
+                           enc.Equals(Encoding.UTF32) ? 4 : 1;
+
             int cached;
+            bool found = false;
+
             for (;;)
             {
-                cached = FillBuffer (count+1);
-                if (cached < count+1)
+                cached = FillBuffer (count + term_size);
+                if (cached < count + term_size)
                     break;
-                if (0 == m_buffer[m_buffer_pos+count])
+
+                int term_pos = FindTerminator(m_buffer, m_buffer_pos + count, term_size, enc);
+                if (term_pos == m_buffer_pos + count)
+                {
+                    found = true;
                     break;
-                ++count;
+                }
+
+                count += term_size;
             }
+
             var s = enc.GetString (m_buffer, m_buffer_pos, count);
-            m_buffer_pos += Math.Min (count+1, cached);
+
+            if (found)
+                m_buffer_pos += count + term_size;
+            else
+                m_buffer_pos += cached;
+
             return s;
         }
 
@@ -453,10 +569,16 @@ namespace GameRes
         int         m_length;
         int         m_position;
         uint        m_signature;
+        Encoding    m_default_encoding;
 
         public string     Name { get; set; }
         public uint  Signature { get { return m_signature; } }
         public Stream AsStream { get { return this; } }
+        public Encoding DefaultEncoding 
+        { 
+            get { return m_default_encoding ?? Encodings.cp932; }
+            set { m_default_encoding = value; }
+        }
 
         public BinMemoryStream (byte[] input, string name = "") : this (input, 0, input.Length, name)
         { }
@@ -575,32 +697,97 @@ namespace GameRes
             return (ulong)ReadInt64();
         }
 
+        // Big-endian methods
+        public short ReadInt16BE ()
+        {
+            if (m_length - m_position < 2)
+                throw new EndOfStreamException();
+            short v = (short)((m_source[m_start+m_position] << 8) | m_source[m_start+m_position + 1]);
+            m_position += 2;
+            return v;
+        }
+        
+        public ushort ReadUInt16BE ()
+        {
+            return (ushort)ReadInt16BE();
+        }
+        
+        public int ReadInt24BE ()
+        {
+            if (m_length - m_position < 3)
+                throw new EndOfStreamException();
+            int v = (m_source[m_start+m_position] << 16) | 
+                    (m_source[m_start+m_position + 1] << 8) | 
+                    m_source[m_start+m_position + 2];
+            m_position += 3;
+            return v;
+        }
+        
+        public int ReadInt32BE ()
+        {
+            if (m_length - m_position < 4)
+                throw new EndOfStreamException();
+            int v = (m_source[m_start+m_position] << 24) | 
+                    (m_source[m_start+m_position + 1] << 16) | 
+                    (m_source[m_start+m_position + 2] << 8) | 
+                    m_source[m_start+m_position + 3];
+            m_position += 4;
+            return v;
+        }
+        
+        public uint ReadUInt32BE ()
+        {
+            return (uint)ReadInt32BE();
+        }
+        
+        public long ReadInt64BE ()
+        {
+            if (m_length - m_position < 8)
+                throw new EndOfStreamException();
+            long v = ((long)m_source[m_start+m_position] << 56) | 
+                     ((long)m_source[m_start+m_position + 1] << 48) | 
+                     ((long)m_source[m_start+m_position + 2] << 40) | 
+                     ((long)m_source[m_start+m_position + 3] << 32) |
+                     ((long)m_source[m_start+m_position + 4] << 24) | 
+                     ((long)m_source[m_start+m_position + 5] << 16) | 
+                     ((long)m_source[m_start+m_position + 6] << 8) | 
+                     m_source[m_start+m_position + 7];
+            m_position += 8;
+            return v;
+        }
+        
+        public ulong ReadUInt64BE ()
+        {
+            return (ulong)ReadInt64BE();
+        }
+
         public string ReadCString (int length)
         {
-            return ReadCString (length, Encodings.cp932);
+            return ReadCString (length, DefaultEncoding);
         }
 
         public string ReadCString (int length, Encoding enc)
         {
             int start = m_start+m_position;
             length = Math.Min (length, m_length - m_position);
-            int eos_pos = FindEoS (start, length, enc);
-            if (-1 == eos_pos)
-                eos_pos = start+length;
+            int eos_pos = BinaryStream.FindTerminator (m_source, start, length, enc);
+            if (-1 == eos_pos) 
+              eos_pos = start + length;
+
             m_position += length;
-            return enc.GetString (m_source, start, eos_pos-start);
+            return enc.GetString (m_source, start, eos_pos - start);
         }
 
         public string ReadCString ()
         {
-            return ReadCString (Encodings.cp932);
+            return ReadCString (DefaultEncoding);
         }
 
         public string ReadCString (Encoding enc)
         {
             int start = m_start+m_position;
             int length = m_length-m_position;
-            int eos_pos = FindEoS (start, length, enc);
+            int eos_pos = BinaryStream.FindTerminator (m_source, start, length, enc);
             int count;
             if (-1 == eos_pos)
             {
@@ -610,7 +797,9 @@ namespace GameRes
             else
             {
                 count = eos_pos - start;
-                int eos_size = enc.IsUtf16() ? 2 : 1;
+                int eos_size = enc.IsSingleByte ? 1 : 
+                              (enc.Equals(Encoding.Unicode) || enc.Equals(Encoding.BigEndianUnicode)) ? 2 : 
+                              enc.Equals(Encoding.UTF32) ? 4 : 1;
                 m_position += count + eos_size;
             }
             return enc.GetString (m_source, start, count);
@@ -623,27 +812,6 @@ namespace GameRes
             Buffer.BlockCopy (m_source, m_start+m_position, buffer, 0, count);
             m_position += count;
             return buffer;
-        }
-
-        internal int FindEoS (int start, int length, Encoding enc)
-        {
-            int eos_pos = -1;
-            if (enc.IsUtf16())
-            {
-                for (int i = start+1; i < start+length; i += 2)
-                {
-                    if (m_source[i-1] == 0 && m_source[i] == 0)
-                    {
-                        eos_pos = i - 1;
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                eos_pos = Array.IndexOf<byte> (m_source, 0, start, length);
-            }
-            return eos_pos;
         }
 
         #region IO.Stream Members
@@ -691,17 +859,17 @@ namespace GameRes
 
         public override void SetLength (long length)
         {
-            throw new NotSupportedException ("BinaryStream.SetLength method is not supported");
+            throw new NotSupportedException ("BinStream.SetLength method is not supported");
         }
 
         public override void Write (byte[] buffer, int offset, int count)
         {
-            throw new NotSupportedException ("BinaryStream.Write method is not supported");
+            throw new NotSupportedException ("BinStream.Write method is not supported");
         }
 
         public override void WriteByte (byte value)
         {
-            throw new NotSupportedException ("BinaryStream.WriteByte method is not supported");
+            throw new NotSupportedException ("BinStream.WriteByte method is not supported");
         }
         #endregion
     }
