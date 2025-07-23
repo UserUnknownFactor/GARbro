@@ -307,6 +307,10 @@
     <Compile Include="Ikura\ArcTAN.cs" />
     <Compile Include="Ikura\ImageGGA.cs" />
     <Compile Include="Ikura\ImageGGS.cs" />
+    <!-- <Compile Include="Ikura\CreateMpxWidget.xaml.cs">
+      <DependentUpon>CreateMpxWidget.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Ikura\IsfArchiveExtension.cs" /> -->
     <Compile Include="Ikura\ImageTAN.cs" />
     <Compile Include="Ikura\ImageVRS.cs" />
     <Compile Include="ImageMNG.cs" />
@@ -1206,6 +1210,10 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="FC01\WidgetMCG.xaml">
+    <!--  <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="Ikura\CreateMpxWidget.xaml"> -->
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
