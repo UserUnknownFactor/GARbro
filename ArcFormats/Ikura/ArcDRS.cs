@@ -143,7 +143,7 @@ namespace GameRes.Formats.Ikura
                 if (string.IsNullOrEmpty (name))
                     return null;
                 Entry entry;
-                switch (Path.GetExtension(name).ToUpperInvariant())
+                switch (Path.GetExtension (name).ToUpperInvariant())
                 {
                 case "ISF":
                 case "SNR":
@@ -170,6 +170,100 @@ namespace GameRes.Formats.Ikura
                 return new ArcFile (file, this, dir);
         }
 
+        /*
+        public override void Create (Stream output, IEnumerable<Entry> list, ResourceOptions options = null, EntryCallback callback = null)
+        {
+            var files = list.Where (e => e.Type != "directory").ToArray();
+            var type = GetOptions<IkuraOptions> (options).Type;
+            
+            Array.Sort (files, (a, b) => string.Compare(
+                Path.GetFileName (a.Name), 
+                Path.GetFileName (b.Name),
+                StringComparison.Ordinal
+            ));
+            
+            var offset = (uint)(0x0000_0020 + 0x14 * files.Length);
+            offset     = (offset + 0x0F) & 0xFFFF_FFF0;
+            var buffer = new byte[0x0C];
+            
+            output.Position = 0x0000_0000;
+            using (var header = new BinaryWriter (output, Encoding.ASCII, true))
+            {
+                header.Write (0x3031_5850_4D32_4D53u); // SM2MPX10
+                header.Write (files.Length);
+                header.Write (offset - 0x04);
+
+                Array.Clear (buffer, 0, buffer.Length);
+                switch (type)
+                {
+                    case "DATA":
+                    case "WMSC":
+                        Encoding.ASCII.GetBytes (type.ToLowerInvariant()).CopyTo (buffer, 0);
+                        break;
+                    default:
+                        Encoding.ASCII.GetBytes (type).CopyTo (buffer, 0);
+                        break;
+                }
+                header.Write (buffer);
+                header.Write (0x0000_0020);
+            }
+            
+            for (var i = 0; i < files.Length; i++)
+            {
+                var entry = files[i];
+                
+                output.Position = offset;
+                switch (type)
+                {
+                    case "ISF":
+                        var code = File.ReadAllText (entry.Name, Encoding.UTF8);
+                        var assembler = code.Compile();
+                
+                        using (var content = new BinaryWriter (output, Encoding.ASCII, true))
+                        {
+                            content.Write (assembler);
+                        }
+                        break;
+                    default:
+                        var bytes = File.ReadAllBytes (entry.Name);
+                        
+                        using (var content = new BinaryWriter (output, Encoding.ASCII, true))
+                        {
+                            content.Write (bytes);
+                        }
+                        break;
+                }
+
+                var size = (uint)(output.Position - offset);
+                
+                output.Position = 0x0000_0020 + i * 0x14;
+                using (var index = new BinaryWriter (output, Encoding.ASCII, true))
+                {
+                    var filename = Path.GetFileName (entry.Name);
+                    Array.Clear (buffer, 0, buffer.Length);
+                    Encoding.ASCII.GetBytes (filename).CopyTo (buffer, 0);
+                    index.Write (buffer);
+                    index.Write (offset);
+                    index.Write (size);
+                }
+                
+                offset += size;
+                offset = (offset + 0x0F) & 0xFFFF_FFF0u;
+                output.Position = offset;
+            }
+
+            if ((byte)(output.Length & 0x0F) == 0x00) return;
+            var empty = new byte[0x10 - (byte)(output.Length & 0x0F)];
+            output.Seek (0, SeekOrigin.End);
+            output.Write (empty, 0, empty.Length);
+        }
+
+        public override object GetCreationWidget()
+        {
+            return new GUI.CreateMpxWidget();
+        }
+        */
+
         public override Stream OpenEntry (ArcFile arc, Entry entry)
         {
             var isf = arc as IsfArchive;
@@ -193,18 +287,20 @@ namespace GameRes.Formats.Ikura
                 decoder.Decode (data);
             }
             int signature = LittleEndian.ToUInt16 (data, 4);
-            if (0x9795 == signature)
-            {
+            switch (signature) {
+            case 0x9795:
                 ApplyTransformation (data, 8, x => x >> 2 | x << 6);
-            }
-            else if (0xd197 == signature)
-            {
+                break;
+            case 0xd197:
                 ApplyTransformation (data, 8, x => ~x);
-            }
-            else if (0xce89 == signature && 0 != data[6])
-            {
+                break;
+            case 0xce89:
+                if (0 == data[6]) break;
                 byte key = data[6];
                 ApplyTransformation (data, 8, x => x ^ key);
+                break;
+            default:
+                break;
             }
             return new BinMemoryStream (data, entry.Name);
         }

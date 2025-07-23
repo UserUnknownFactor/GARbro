@@ -163,7 +163,7 @@ namespace GameRes
                 IEnumerable<IResource> target_list;
                 if (string.IsNullOrEmpty (metadata.Type))
                     target_list = Formats;
-                else if ("archive" == metadata.Type)
+                else if ("archive" == metadata.Type || "data" == metadata.Type)
                     target_list = ArcFormats;
                 else if ("image" == metadata.Type)
                     target_list = ImageFormats;
@@ -171,7 +171,7 @@ namespace GameRes
                     target_list = VideoFormats;
                 else if ("audio" == metadata.Type)
                     target_list = AudioFormats;
-                else if ("script" == metadata.Type)
+                else if ("script" == metadata.Type || "text" == metadata.Type)
                     target_list = ScriptFormats;
                 else
                 {
@@ -292,14 +292,97 @@ namespace GameRes
             };
         }
 
-        public string GetTypeFromName (string filename, IEnumerable<string> preferred_formats = null)
+        private static readonly Dictionary<string, string> m_nametype_map = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase)
+        {
+            // Config/Script files
+            { ".ini",  "script" },
+            { ".cfg",  "script" },
+            { ".conf", "script" },
+            { ".lua",  "script" },
+            { ".rb",   "script" },
+            { ".py",   "script" },
+            { ".js",   "script" },
+            { ".tjs",  "script" },
+            { ".vbs",  "script" },
+
+            // Text files
+            { ".txt",  "script" },
+            { ".html", "script" },
+            { ".xml",  "script" },
+            { ".json", "script" },
+            { ".csv",  "script" },
+            { ".log",  "script" },
+            { ".md",   "script" },
+
+            // Image files
+            { ".png",  "image" },
+            { ".jpg",  "image" },
+            { ".jpeg", "image" },
+            { ".bmp",  "image" },
+            { ".tga",  "image" },
+            { ".gif",  "image" },
+            { ".dds",  "image" },
+            { ".psd",  "image" },
+            { ".tif",  "image" },
+            { ".tiff", "image" },
+            { ".webp", "image" },
+
+            // Video files
+            { ".wmv",  "video" },
+            { ".mp4",  "video" },
+            { ".avi",  "video" },
+            { ".mov",  "video" },
+            { ".mkv",  "video" },
+            { ".webm", "video" },
+            { ".flv",  "video" },
+
+            // Audio files
+            { ".mp3",  "audio" },
+            { ".wav",  "audio" },
+            { ".ogg",  "audio" },
+            { ".flac", "audio" },
+            { ".m4a",  "audio" },
+            { ".wma",  "audio" },
+            { ".aac",  "audio" },
+
+            // 3D/Scene files
+            { ".scn",   "scene" },
+            { ".fbx",   "scene" },
+            { ".obj",   "scene" },
+            { ".dae",   "scene" },
+            { ".3ds",   "scene" },
+            { ".blend", "scene" },
+
+            // Binary/Executable files
+            { ".dll",   "binary" },
+            { ".exe",   "binary" },
+            { ".so",    "binary" },
+            { ".dylib", "binary" }
+        };
+
+        public string GetTypeFromName(string filename, IEnumerable<string> preferred_formats = null, Dictionary<string, string> custom_map = null)
         {
             var formats = LookupFileName (filename);
-            if (!formats.Any())
-                return "";
-            if (preferred_formats != null && preferred_formats.Any())
-                formats = formats.OrderByDescending (f => preferred_formats.Contains (f.Tag));
-            return formats.First().Type;
+            string extension = Path.GetExtension (filename);
+
+            if (custom_map != null && !string.IsNullOrEmpty (extension) && custom_map.TryGetValue (extension, out string customType))
+                return customType;
+
+            if (formats.Any()) 
+            {
+                if (preferred_formats != null && preferred_formats.Any())
+                    formats = formats.OrderByDescending (f => preferred_formats.Contains(f.Tag));
+
+                string type = formats.First().Type;
+                if (!string.IsNullOrEmpty (type))
+                    return type;
+            } 
+
+            // only fallback to builtins as a last resort
+            if (!string.IsNullOrEmpty (extension) && m_nametype_map.TryGetValue (extension, out string builtInType))
+                return builtInType;
+
+            return "";
         }
 
         public void InvokeParametersRequest (object source, ParametersRequestEventArgs args)
@@ -565,12 +648,12 @@ namespace GameRes
 /// </summary>
 public class ResourceSchemeJsonConverter : JsonConverter
 {
-    public override bool CanConvert(Type objectType)
+    public override bool CanConvert (Type objectType)
     {
         return typeof(GameRes.ResourceScheme).IsAssignableFrom(objectType);
     }
 
-    public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+    public override void WriteJson (JsonWriter writer, object value, JsonSerializer serializer)
     {
         if (value == null)
         {
@@ -583,21 +666,21 @@ public class ResourceSchemeJsonConverter : JsonConverter
         obj["$type"] = schemeType.AssemblyQualifiedName;
 
         // Try to serialize properties normally first
-        var properties = schemeType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-        var fields = schemeType.GetFields(BindingFlags.Public | BindingFlags.Instance);
+        var properties = schemeType.GetProperties (BindingFlags.Public | BindingFlags.Instance);
+        var fields = schemeType.GetFields (BindingFlags.Public | BindingFlags.Instance);
 
         var data = new JObject();
         bool hasNonSerializableData = false;
 
         // Serialize properties
-        foreach (var prop in properties.Where(p => p.CanRead && p.CanWrite))
+        foreach (var prop in properties.Where (p => p.CanRead && p.CanWrite))
         {
             try
             {
                 var propValue = prop.GetValue(value);
                 if (IsJsonSerializable(propValue))
                 {
-                    data[prop.Name] = JToken.FromObject(propValue, serializer);
+                    data[prop.Name] = JToken.FromObject (propValue, serializer);
                 }
                 else
                 {
@@ -615,10 +698,10 @@ public class ResourceSchemeJsonConverter : JsonConverter
         {
             try
             {
-                var fieldValue = field.GetValue(value);
-                if (IsJsonSerializable(fieldValue))
+                var fieldValue = field.GetValue (value);
+                if (IsJsonSerializable (fieldValue))
                 {
-                    data[field.Name] = JToken.FromObject(fieldValue, serializer);
+                    data[field.Name] = JToken.FromObject (fieldValue, serializer);
                 }
                 else
                 {
@@ -639,35 +722,35 @@ public class ResourceSchemeJsonConverter : JsonConverter
             using (var ms = new MemoryStream())
             {
                 var formatter = new BinaryFormatter();
-                formatter.Serialize(ms, value);
-                obj["binaryData"] = Convert.ToBase64String(ms.ToArray());
+                formatter.Serialize (ms, value);
+                obj["binaryData"] = Convert.ToBase64String (ms.ToArray());
             }
         }
 
         obj.WriteTo(writer);
     }
 
-    public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+    public override object ReadJson (JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
     {
-        var obj = JObject.Load(reader);
+        var obj = JObject.Load (reader);
 
         var typeName = obj["$type"]?.Value<string>();
-        if (string.IsNullOrEmpty(typeName))
+        if (string.IsNullOrEmpty (typeName))
             return null;
 
-        var type = Type.GetType(typeName);
+        var type = Type.GetType (typeName);
         if (type == null)
             return null;
 
         // First try to deserialize from binary data if present
         var binaryData = obj["binaryData"]?.Value<string>();
-        if (!string.IsNullOrEmpty(binaryData))
+        if (!string.IsNullOrEmpty (binaryData))
         {
             var bytes = Convert.FromBase64String(binaryData);
             using (var ms = new MemoryStream(bytes))
             {
                 var formatter = new BinaryFormatter();
-                return formatter.Deserialize(ms);
+                return formatter.Deserialize (ms);
             }
         }
 
@@ -675,26 +758,26 @@ public class ResourceSchemeJsonConverter : JsonConverter
         var data = obj["data"] as JObject;
         if (data != null)
         {
-            var instance = Activator.CreateInstance(type);
+            var instance = Activator.CreateInstance (type);
 
             // Set properties
             var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-            foreach (var prop in properties.Where(p => p.CanWrite))
+            foreach (var prop in properties.Where (p => p.CanWrite))
             {
                 var propData = data[prop.Name];
                 if (propData != null)
                 {
                     try
                     {
-                        var value = propData.ToObject(prop.PropertyType, serializer);
-                        prop.SetValue(instance, value);
+                        var value = propData.ToObject (prop.PropertyType, serializer);
+                        prop.SetValue (instance, value);
                     }
                     catch { }
                 }
             }
 
             // Set fields
-            var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance);
+            var fields = type.GetFields (BindingFlags.Public | BindingFlags.Instance);
             foreach (var field in fields)
             {
                 var fieldData = data[field.Name];
@@ -702,8 +785,8 @@ public class ResourceSchemeJsonConverter : JsonConverter
                 {
                     try
                     {
-                        var value = fieldData.ToObject(field.FieldType, serializer);
-                        field.SetValue(instance, value);
+                        var value = fieldData.ToObject (field.FieldType, serializer);
+                        field.SetValue (instance, value);
                     }
                     catch { }
                 }
@@ -715,9 +798,10 @@ public class ResourceSchemeJsonConverter : JsonConverter
         return null;
     }
 
-    private bool IsJsonSerializable(object value)
+    private bool IsJsonSerializable (object value)
     {
         return true;
+        /*
         if (value == null)
             return true;
 
@@ -733,7 +817,7 @@ public class ResourceSchemeJsonConverter : JsonConverter
         if (type.IsArray)
         {
             var elementType = type.GetElementType();
-            return IsJsonSerializableType(elementType);
+            return IsJsonSerializableType (elementType);
         }
 
         // Common generic collections
@@ -750,9 +834,10 @@ public class ResourceSchemeJsonConverter : JsonConverter
 
         // Check if type has DataContract or is a simple POCO
         return type.IsSerializable || type.GetCustomAttribute<DataContractAttribute>() != null;
+        */
     }
 
-    private bool IsJsonSerializableType(Type type)
+    private bool IsJsonSerializableType (Type type)
     {
         return type.IsPrimitive || type == typeof(string) || type == typeof(decimal) || 
                type == typeof(DateTime) || type == typeof(DateTimeOffset) || type == typeof(TimeSpan) ||

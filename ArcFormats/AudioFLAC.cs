@@ -1,8 +1,8 @@
 //! \file       AudioFLAC.cs
 //! \date       2024 Jan 15
-//! \brief      Free Lossless Audio Codec.
+//! \brief      Free Lossless Audio Codec format.
 //
-// Copyright (C) 2024 by morkt
+// Copyright (C) 2025 by morkt and others
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to
@@ -27,16 +27,17 @@ using System;
 using System.ComponentModel.Composition;
 using System.IO;
 using NAudio.Wave;
+using NAudio.MediaFoundation;
 
 namespace GameRes.Formats
 {
     [Export(typeof(AudioFormat))]
     public class FlacAudio : AudioFormat
     {
-        public override string Tag { get { return "FLAC"; } }
+        public override string         Tag { get { return "FLAC"; } }
         public override string Description { get { return "Free Lossless Audio Codec"; } }
-        public override uint Signature { get { return 0x43614C66; } } // 'fLaC'
-        public override bool CanWrite { get { return false; } }
+        public override uint     Signature { get { return 0x43614C66; } } // 'fLaC'
+        public override bool      CanWrite { get { return false; } }
 
         public FlacAudio()
         {
@@ -51,10 +52,8 @@ namespace GameRes.Formats
 
     public class FlacInput : SoundInput
     {
-        int m_bitrate = 0;
-        MediaFoundationReader m_reader;
-        string m_temp_file;
-        long m_file_length;
+        private StreamMediaFoundationReader m_reader;
+        private int m_bitrate;
 
         public override long Position
         {
@@ -62,7 +61,7 @@ namespace GameRes.Formats
             set { m_reader.Position = value; }
         }
 
-        public override bool CanSeek { get { return true; } }
+        public override bool CanSeek { get { return m_reader.CanSeek; } }
 
         public override int SourceBitrate
         {
@@ -73,41 +72,25 @@ namespace GameRes.Formats
 
         public FlacInput(Stream file) : base(file)
         {
-            m_temp_file = Path.GetTempFileName();
+            m_reader = new StreamMediaFoundationReader(file);
+            var format = m_reader.WaveFormat;
 
-            try
+            if (m_reader.TotalTime.TotalSeconds > 0)
+                m_bitrate = (int)(file.Length * 8 / m_reader.TotalTime.TotalSeconds);
+            else
+                m_bitrate = format.AverageBytesPerSecond * 8;
+
+            this.Format = new GameRes.WaveFormat
             {
-                using (var tempStream = File.Create(m_temp_file))
-                {
-                    file.CopyTo(tempStream);
-                    m_file_length = tempStream.Length;
-                }
+                FormatTag = (ushort)format.Encoding,
+                Channels = (ushort)format.Channels,
+                SamplesPerSecond = (uint)format.SampleRate,
+                BitsPerSample = (ushort)format.BitsPerSample,
+                BlockAlign = (ushort)format.BlockAlign,
+                AverageBytesPerSecond = (uint)format.AverageBytesPerSecond,
+            };
 
-                if (file.CanSeek)
-                    file.Position = 0;
-
-                m_reader = new MediaFoundationReader(m_temp_file);
-
-                var format = new GameRes.WaveFormat
-                {
-                    FormatTag = (ushort)m_reader.WaveFormat.Encoding,
-                    Channels = (ushort)m_reader.WaveFormat.Channels,
-                    SamplesPerSecond = (uint)m_reader.WaveFormat.SampleRate,
-                    BitsPerSample = (ushort)m_reader.WaveFormat.BitsPerSample,
-                    BlockAlign = (ushort)m_reader.BlockAlign,
-                    AverageBytesPerSecond = (uint)m_reader.WaveFormat.AverageBytesPerSecond,
-                };
-                this.Format = format;
-                this.PcmSize = m_reader.Length;
-
-                if (m_reader.TotalTime.TotalSeconds > 0)
-                    m_bitrate = (int)(m_file_length * 8 / m_reader.TotalTime.TotalSeconds);
-            }
-            catch
-            {
-                DeleteTempFile();
-                throw;
-            }
+            this.PcmSize = m_reader.Length;
         }
 
         public override int Read(byte[] buffer, int offset, int count)
@@ -115,31 +98,15 @@ namespace GameRes.Formats
             return m_reader.Read(buffer, offset, count);
         }
 
-        private void DeleteTempFile()
-        {
-            if (!string.IsNullOrEmpty(m_temp_file))
-            {
-                try
-                {
-                    File.Delete(m_temp_file);
-                }
-                catch {}
-                m_temp_file = null;
-            }
-        }
-
         #region IDisposable Members
-        bool m_disposed;
+        private bool _flac_disposed;
         protected override void Dispose(bool disposing)
         {
-            if (!m_disposed)
+            if (!_flac_disposed)
             {
                 if (disposing)
                     m_reader?.Dispose();
-
-                DeleteTempFile();
-
-                m_disposed = true;
+                _flac_disposed = true;
                 base.Dispose(disposing);
             }
         }

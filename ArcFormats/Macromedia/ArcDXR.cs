@@ -29,9 +29,12 @@ using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace GameRes.Formats.Macromedia
 {
@@ -41,7 +44,7 @@ namespace GameRes.Formats.Macromedia
         public override string         Tag => "DXR";
         public override string Description => "Macromedia Director resource archive";
         public override uint     Signature => SignatureXFIR; // 'XFIR'
-        public override bool  IsHierarchic => false;
+        public override bool  IsHierarchic => true;
         public override bool      CanWrite => false;
 
         public const uint SignatureXFIR = 0x52494658u;
@@ -50,23 +53,31 @@ namespace GameRes.Formats.Macromedia
         public DxrOpener ()
         {
             Extensions = new[] { "dxr", "cxt", "cct", "dcr", "dir", "exe" };
-            Signatures = new[] { SignatureXFIR, SignatureRIFX, 0x00905A4Du, 0u };
+            Signatures = new[] { SignatureXFIR, SignatureRIFX, 0x00905A4Du };
         }
 
         internal static readonly HashSet<string> RawChunks = new HashSet<string> {
             "RTE0", "RTE1", "FXmp", "VWFI", "VWSC", "Lscr", "STXT", "XMED", "File"
         };
 
+        internal static readonly HashSet<string> JsonExportChunks = new HashSet<string> {
+            "KEY*", "CAS*", "CASt", "Lctx", "LctX", "Lnam", "Lscr", "VWCF", "DRCF",
+            "MCsL", "VWLB", "VWFI", "VWSC"
+        };
+
         internal bool ConvertText = true;
+        internal bool ExportJson = true;
 
         public override ArcFile TryOpen (ArcView file)
         {
             long base_offset = 0;
             if (file.View.AsciiEqual (0, "MZ"))
                 base_offset = LookForXfir (file);
+
             uint signature = file.View.ReadUInt32 (base_offset);
             if (signature != SignatureXFIR && signature != SignatureRIFX)
                 return null;
+
             using (var input = file.CreateStream())
             {
                 ByteOrder ord = signature == SignatureXFIR ? ByteOrder.LittleEndian : ByteOrder.BigEndian;
@@ -77,38 +88,287 @@ namespace GameRes.Formats.Macromedia
                 if (!dir_file.Deserialize (context, reader))
                     return null;
 
-                var dir = new List<Entry> ();
+                var dir = new List<Entry>();
+
+                if (ExportJson)
+                    AddJsonExports (dir_file, dir);
+
                 if (dir_file.Codec != "APPL")
                     ImportMedia (dir_file, dir);
+
                 foreach (DirectorEntry entry in dir_file.Directory)
                 {
                     if (entry.Size != 0 && entry.Offset != -1 && RawChunks.Contains (entry.FourCC))
                     {
-                        entry.Name = string.Format ("{0:D6}.{1}", entry.Id, entry.FourCC.Trim());
+                        string folder = GetChunkFolder (entry.FourCC);
+                        entry.Name = $"{folder}/{entry.Id:D6}.{entry.FourCC.Trim()}";
+
                         if ("File" == entry.FourCC)
                         {
                             entry.Offset -= 8;
                             entry.Size   += 8;
                         }
+
+                        if (entry.FourCC == "XMED")
+                        {
+                            const int header_offset = 0xC;
+                            if (entry.Size > header_offset + 4)
+                            {
+                                var checkStream = OpenChunkStream (file, entry);
+                                var headerData = new byte[header_offset + 4];
+                                if (checkStream.Read (headerData, 0, headerData.Length) == headerData.Length)
+                                {
+                                    // Check for SWF signature (FWS/CWS/ZWS)
+                                    if ((headerData[header_offset] == 'F' || headerData[header_offset] == 'C' || headerData[header_offset] == 'Z') &&
+                                        headerData[header_offset + 1] == 'W' &&
+                                        headerData[header_offset + 2] == 'S')
+                                    {
+                                        var swfEntry = new DirectorEntry
+                                        {
+                                            Name = $"Media/{entry.Id:D6}.swf",
+                                            Type = "data",
+                                            Offset = entry.Offset + header_offset,
+                                            Size = entry.Size - header_offset,
+                                            UnpackedSize = entry.Size - header_offset,
+                                            IsPacked = false,
+                                            Id = entry.Id,
+                                            FourCC = entry.FourCC
+                                        };
+                                        dir.Add (swfEntry);
+                                        continue;
+                                    }
+                                }
+                            }
+
+                            entry.Name = $"Media/{entry.Id:D6}.xmed";
+                            entry.IsPacked = false;
+                            entry.UnpackedSize = entry.Size;
+                        }
+                        else if (entry.FourCC == "STXT" || entry.FourCC == "VWFI")
+                        {
+                            entry.IsPacked = false;
+                            entry.UnpackedSize = entry.Size;
+                        }
+
                         dir.Add (entry);
                     }
                 }
-                return new ArcFile (file, this, dir);
+
+                return new DirectorArchive (file, this, dir, dir_file);
             }
+        }
+
+        string GetChunkFolder (string fourCC)
+        {
+            switch (fourCC)
+            {
+                case "STXT":
+                    return "Texts/Chunks";
+                case "XMED":
+                    return "Media";
+                case "Lscr":
+                    return "Scripts/Chunks";
+                case "VWSC":
+                case "VWFI":
+                case "VWLB":
+                    return "Metadata/Chunks";
+                case "RTE0":
+                case "RTE1":
+                case "FXmp":
+                    return "Data/chunks";
+                case "File":
+                    return "Files";
+                default:
+                    return "Chunks/Misc";
+            }
+        }
+
+        void AddJsonExports (DirectorFile dir_file, List<Entry> dir)
+        {
+            dir.Add (new JsonEntry
+            {
+                Name = "Metadata/!director_summary.json",
+                Data = DirectorJsonExporter.ExportToJson (dir_file, true)
+            });
+
+            dir.Add (new JsonEntry
+            {
+                Name = "Metadata/!chunk_list.json",
+                Data = DirectorJsonExporter.ExportChunkListToJson (dir_file, true)
+            });
+
+            if (dir_file.Casts.Any (c => c.Members.Values.Any (m => m.Type == DataType.Script)))
+            {
+                dir.Add (new JsonEntry
+                {
+                    Name = "Metadata/!script_summary.json",
+                    Data = DirectorJsonExporter.ExportScriptSummaryToJson (dir_file, true)
+                });
+            }
+
+            dir.Add (new JsonEntry
+            {
+                Name = "Metadata/!media_summary.json",
+                Data = DirectorJsonExporter.ExportMediaSummaryToJson (dir_file, true)
+            });
+
+            foreach (var cast in dir_file.Casts)
+            {
+                foreach (var member in cast.Members.Values)
+                {
+                    if (ShouldExportAsJson (member))
+                    {
+                        var castName = SanitizeName (cast.Name, cast.CastId);
+                        var memberName = SanitizeName (member.Info?.Name, member.Id);
+                        string folder = GetMemberJsonFolder (member.Type);
+                        var fileName = $"{folder}/{castName}/{memberName}_{member.Id}.json";
+
+                        dir.Add (new JsonEntry
+                        {
+                            Name = fileName,
+                            Data = DirectorJsonExporter.ExportCastMemberToJson (member, true)
+                        });
+                    }
+                }
+            }
+
+            foreach (var entry in dir_file.Directory)
+            {
+                if (JsonExportChunks.Contains (entry.FourCC))
+                {
+                    var jsonData = ExportChunkAsJson (dir_file, entry);
+                    if (jsonData != null)
+                    {
+                        dir.Add (new JsonEntry
+                        {
+                            Name = $"Metadata/Chunks/{entry.Id:D6}_{entry.FourCC}.json",
+                            Data = jsonData
+                        });
+                    }
+                }
+            }
+        }
+
+        string GetMemberJsonFolder (DataType type)
+        {
+            switch (type)
+            {
+                case DataType.Script:
+                    return "Scripts/Metadata";
+                case DataType.Shape:
+                    return "Shapes/Metadata";
+                case DataType.Transition:
+                    return "Transitions/Metadata";
+                case DataType.Palette:
+                    return "Palettes/Metadata";
+                case DataType.Button:
+                    return "Buttons/Metadata";
+                case DataType.Font:
+                    return "Fonts/Metadata";
+                case DataType.Movie:
+                    return "Movies/Metadata";
+                default:
+                    return "Metadata/Misc";
+            }
+        }
+
+        bool ShouldExportAsJson (CastMember member)
+        {
+            switch (member.Type)
+            {
+                case DataType.Script:
+                case DataType.Shape:
+                case DataType.Transition:
+                case DataType.Palette:
+                case DataType.Button:
+                case DataType.Movie:
+                case DataType.Font:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        string ExportChunkAsJson (DirectorFile dir_file, DirectorEntry entry)
+        {
+            try
+            {
+                var json = new JObject();
+                json["id"] = entry.Id;
+                json["fourCC"] = entry.FourCC;
+                json["size"] = entry.Size;
+                json["offset"] = entry.Offset;
+
+                switch (entry.FourCC)
+                {
+                    case "KEY*":
+                        json["type"] = "KeyTable";
+                        json["entries"] = ExportKeyTable (dir_file.KeyTable);
+                        break;
+
+                    case "VWCF":
+                    case "DRCF":
+                        json["type"] = "Configuration";
+                        json["config"] = dir_file.Config.ToJson();
+                        break;
+
+                    case "VWLB":
+                        json["type"] = "Labels";
+                        break;
+
+                    case "VWFI":
+                        json["type"] = "FileInfo";
+                        break;
+
+                    default:
+                        return null;
+                }
+
+                return json.ToString (Formatting.Indented);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        JArray ExportKeyTable (KeyTable keyTable)
+        {
+            var entries = new JArray();
+            foreach (var entry in keyTable.Table)
+            {
+                if (entry.Id != 0)
+                {
+                    entries.Add (new JObject
+                    {
+                        ["id"] = entry.Id,
+                        ["castId"] = entry.CastId,
+                        ["fourCC"] = entry.FourCC
+                    });
+                }
+            }
+            return entries;
         }
 
         public override Stream OpenEntry (ArcFile arc, Entry entry)
         {
+            var jsonEntry = entry as JsonEntry;
+            if (jsonEntry != null && jsonEntry._data != null)
+                return new MemoryStream (jsonEntry._data);
+
             var snd = entry as SoundEntry;
             if (snd != null)
                 return OpenSound (arc, snd);
+
             var pent = entry as PackedEntry;
             if (null == pent)
                 return base.OpenEntry (arc, entry);
-            var input = OpenChunkStream (arc.File, pent);
+
             var ment = entry as DirectorEntry;
+            var input = OpenChunkStream (arc.File, ment);
             if (null == ment || !ConvertText || ment.FourCC != "STXT")
                 return input.AsStream;
+
             using (input)
             {
                 uint offset = Binary.BigEndian (input.ReadUInt32());
@@ -157,23 +417,77 @@ namespace GameRes.Formats.Macromedia
             var seen_ids = new HashSet<int>();
             foreach (var cast in dir_file.Casts)
             {
+                var castName = SanitizeName (cast.Name, cast.CastId);
                 foreach (var piece in cast.Members.Values)
                 {
                     if (seen_ids.Contains (piece.Id))
                         continue;
                     seen_ids.Add (piece.Id);
                     Entry entry = null;
-                    if (piece.Type == DataType.Bitmap)
-                        entry = ImportBitmap (piece, dir_file, cast);
-                    else if (piece.Type == DataType.Sound)
-                        entry = ImportSound (piece, dir_file);
+
+                    switch (piece.Type)
+                    {
+                        case DataType.Bitmap:
+                            entry = ImportBitmap (piece, dir_file, cast, castName);
+                            break;
+                        case DataType.Sound:
+                            entry = ImportSound (piece, dir_file, castName);
+                            break;
+                        case DataType.Text:
+                        case DataType.RichText:
+                            entry = ImportText (piece, dir_file, castName);
+                            break;
+                        case DataType.Script:
+                            if (piece.Script != null && ExportJson)
+                                entry = ImportScript (piece, dir_file, cast);
+                            break;
+                    }
+
                     if (entry != null && entry.Size > 0)
                         dir.Add (entry);
                 }
             }
         }
 
-        Entry ImportSound (CastMember sound, DirectorFile dir_file)
+        Entry ImportScript (CastMember script, DirectorFile dir_file, Cast cast)
+        {
+            var name = SanitizeName (script.Info?.Name ?? "Script", script.Id);
+            var castName = SanitizeName (cast.Name, cast.CastId);
+
+            var scriptData = new JObject();
+            scriptData["cast"] = castName;
+            scriptData["member"] = script.ToJson();
+
+            return new JsonEntry
+            {
+                Name = $"Scripts/{castName}/{name}.json",
+                Data = scriptData.ToString (Formatting.Indented)
+            };
+        }
+
+        Entry ImportText (CastMember text, DirectorFile dir_file, string castName)
+        {
+            var name = SanitizeName (text.Info?.Name, text.Id);
+            var stxt = dir_file.KeyTable.FindByCast (text.Id, "STXT");
+            if (stxt != null)
+            {
+                var chunk = dir_file.Index[stxt.Id];
+                return new DirectorEntry
+                {
+                    Name = $"Texts/{castName}/{name}.txt",
+                    Type = "text",
+                    Offset = chunk.Offset,
+                    Size = chunk.Size,
+                    UnpackedSize = chunk.UnpackedSize,
+                    IsPacked = chunk.IsPacked,
+                    Id = chunk.Id,
+                    FourCC = "STXT"
+                };
+            }
+            return null;
+        }
+
+        Entry ImportSound (CastMember sound, DirectorFile dir_file, string castName)
         {
             var name = sound.Info.Name;
             KeyTableEntry sndHrec = null, sndSrec = null;
@@ -182,10 +496,10 @@ namespace GameRes.Formats.Macromedia
                 if ("ediM" == elem.FourCC)
                 {
                     var ediM = dir_file.Index[elem.Id];
-                    name = SanitizeName(name, ediM.Id);
+                    name = SanitizeName (name, ediM.Id);
                     return new PackedEntry
                     {
-                        Name = name + ".ediM",
+                        Name = $"Audio/{castName}/{name}.mp3",  // ediM usually contains MP3
                         Type = "audio",
                         Offset       = ediM.Offset,
                         Size         = ediM.Size,
@@ -201,7 +515,7 @@ namespace GameRes.Formats.Macromedia
                         name = SanitizeName (name, snd.Id);
                         return new PackedEntry
                         {
-                            Name = name + ".snd",
+                            Name = $"Audio/{castName}/{name}.snd",
                             Type = "audio",
                             Offset = snd.Offset,
                             Size = snd.Size,
@@ -222,7 +536,7 @@ namespace GameRes.Formats.Macromedia
             name = SanitizeName (name, sndSrec.Id);
             return new SoundEntry
             {
-                Name   = name + ".snd",
+                Name   = $"Audio/{castName}/{name}.wav",
                 Type   = "audio",
                 Offset = sndS.Offset,
                 Size   = sndS.Size,
@@ -232,7 +546,7 @@ namespace GameRes.Formats.Macromedia
             };
         }
 
-        Entry ImportBitmap (CastMember bitmap, DirectorFile dir_file, Cast cast)
+        Entry ImportBitmap (CastMember bitmap, DirectorFile dir_file, Cast cast, string castName)
         {
             KeyTableEntry bitd = null, edim = null, alfa = null;
             foreach (var elem in dir_file.KeyTable.Table.Where (e => e.CastId == bitmap.Id))
@@ -252,7 +566,7 @@ namespace GameRes.Formats.Macromedia
                 entry.DeserializeHeader (bitmap.SpecificData);
                 var name = SanitizeName (bitmap.Info.Name, bitd.Id);
                 var chunk = dir_file.Index[bitd.Id];
-                entry.Name   = name + ".BITD";
+                entry.Name   = $"Images/{castName}/{name}.bmp";  // Will be converted to BMP
                 entry.Type   = "image";
                 entry.Offset = chunk.Offset;
                 entry.Size   = chunk.Size;
@@ -270,7 +584,7 @@ namespace GameRes.Formats.Macromedia
             {
                 var name = SanitizeName (bitmap.Info.Name, edim.Id);
                 var chunk = dir_file.Index[edim.Id];
-                entry.Name   = name + ".jpg";
+                entry.Name   = $"Images/{castName}/{name}.jpg";
                 entry.Type   = "image";
                 entry.Offset = chunk.Offset;
                 entry.Size   = chunk.Size;
@@ -282,7 +596,7 @@ namespace GameRes.Formats.Macromedia
             return entry;
         }
 
-        static readonly Regex ForbiddenCharsRe = new Regex (@"[:?*<>/\\]");
+        static readonly Regex ForbiddenCharsRe = new Regex(@"[:?*<>/\\]");
 
         string SanitizeName (string name, int id)
         {
@@ -298,7 +612,7 @@ namespace GameRes.Formats.Macromedia
         {
             var bent = entry as BitmapEntry;
             if (null == bent)
-                return base.OpenImage(arc, entry);
+                return base.OpenImage (arc, entry);
             if (entry.Name.HasExtension (".jpg"))
                 return OpenJpeg (arc, bent);
 
@@ -315,7 +629,7 @@ namespace GameRes.Formats.Macromedia
             {
                 switch (bent.Palette)
                 {
-                case 0:     palette = Palettes.SystemMac; break;
+                case  0:    palette = Palettes.SystemMac; break;
                 case -1:    palette = Palettes.Rainbow; break;
                 case -2:    palette = Palettes.Grayscale; break;
                 case -100:  palette = Palettes.WindowsDirector4; break;
@@ -323,7 +637,8 @@ namespace GameRes.Formats.Macromedia
                 case -101:  palette = Palettes.SystemWindows; break;
                 }
             }
-            var info = new BitdMetaData {
+            var info = new BitdMetaData
+            {
                 Width = (uint)(bent.Right - bent.Left),
                 Height = (uint)(bent.Bottom - bent.Top),
                 BPP = bent.BitDepth,
@@ -340,6 +655,7 @@ namespace GameRes.Formats.Macromedia
         {
             if (null == entry.AlphaRef)
                 return base.OpenImage (arc, entry);
+
             // jpeg with alpha-channel
             var input = arc.File.CreateStream (entry.Offset, entry.Size);
             try
@@ -361,7 +677,8 @@ namespace GameRes.Formats.Macromedia
         {
             using (var alpha = OpenChunkStream (file, entry))
             {
-                var alpha_info = new BitdMetaData {
+                var alpha_info = new BitdMetaData
+                {
                     Width = info.Width,
                     Height = info.Height,
                     BPP = 8,
@@ -378,7 +695,7 @@ namespace GameRes.Formats.Macromedia
             var colors = new Color[num_colors];
             for (int i = 0; i < data.Length; i += 6)
             {
-                colors[i/6] = Color.FromRgb (data[i], data[i+2], data[i+4]);
+                colors[i / 6] = Color.FromRgb (data[i], data[i + 2], data[i + 4]);
             }
             return new BitmapPalette (colors);
         }
@@ -413,16 +730,18 @@ namespace GameRes.Formats.Macromedia
                     return 0;
                 if (file.View.AsciiEqual (pos, "10JP") || file.View.AsciiEqual (pos, "59JP"))
                 {
-                    pos = file.View.ReadUInt32 (pos+4);
+                    pos = file.View.ReadUInt32 (pos + 4);
                 }
             }
             if (pos >= file.MaxOffset || !file.View.AsciiEqual (pos, "XFIR"))
                 return 0;
+
             // TODO threat 'LPPA' archives the normal way, like archives that contain entries.
             // the problem is, DXR archives contained within 'LPPA' have their offsets relative to executable file,
             // so have to figure out way to handle it.
-            if (!file.View.AsciiEqual (pos+8, "LPPA"))
+            if (!file.View.AsciiEqual (pos + 8, "LPPA"))
                 return pos;
+
             var appl = new DirectorFile();
             var context = new SerializationContext();
             using (var input = file.CreateStream())
@@ -436,13 +755,49 @@ namespace GameRes.Formats.Macromedia
                     // only the first XFIR entry is matched here, but archive may contain multiple sub-archives.
                     if (entry.FourCC == "File")
                     {
-                        if (file.View.AsciiEqual (entry.Offset-8, "XFIR")
+                        if (file.View.AsciiEqual (entry.Offset - 8, "XFIR")
                             && !file.View.AsciiEqual (entry.Offset, "artX"))
-                            return entry.Offset-8;
+                            return entry.Offset - 8;
                     }
                 }
                 return 0;
             }
+        }
+    }
+
+internal class DirectorArchive : ArcFile
+    {
+        public DirectorFile DirectorFile { get; }
+
+        public DirectorArchive (ArcView arc, ArchiveFormat impl, ICollection<Entry> dir, DirectorFile dirFile)
+            : base (arc, impl, dir)
+        {
+            DirectorFile = dirFile;
+        }
+    }
+
+    internal class JsonEntry : Entry
+    {
+        public byte[] _data;
+
+        public string Data
+        {
+            get => _data != null ? Encoding.UTF8.GetString (_data) : null;
+            set => _data = value != null ? Encoding.UTF8.GetBytes (value) : null;
+        }
+
+        public JsonEntry()
+        {
+            Type = "script";
+            Offset = 0;
+            base.Size = 0;
+        }
+
+        public void SetData (string data)
+        {
+            Data = data;
+            if (_data != null)
+                base.Size = (uint)_data.Length;
         }
     }
 
@@ -464,12 +819,14 @@ namespace GameRes.Formats.Macromedia
             using (var input = new MemoryStream (data, false))
             {
                 var reader = new Reader (input, ByteOrder.BigEndian);
+
                 DepthType = reader.ReadU8();
-                Flags  = reader.ReadU8();
-                Top    = reader.ReadI16();
-                Left   = reader.ReadI16();
-                Bottom = reader.ReadI16();
-                Right  = reader.ReadI16();
+                Flags     = reader.ReadU8();
+                Top       = reader.ReadI16();
+                Left      = reader.ReadI16();
+                Bottom    = reader.ReadI16();
+                Right     = reader.ReadI16();
+
                 if (data.Length > 0x16)
                 {
                     reader.Skip (0x0C);

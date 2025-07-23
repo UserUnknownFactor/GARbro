@@ -199,7 +199,7 @@ namespace GameRes
         static readonly ResourceInstance<ImageFormat> s_PngFormat  = new ResourceInstance<ImageFormat> ("PNG");
         static readonly ResourceInstance<ImageFormat> s_BmpFormat  = new ResourceInstance<ImageFormat> ("BMP");
         static readonly ResourceInstance<ImageFormat> s_TgaFormat  = new ResourceInstance<ImageFormat> ("TGA");
-        static readonly ResourceInstance<ImageFormat> s_GifFormat  = new ResourceInstance<ImageFormat>("GIF");
+        static readonly ResourceInstance<ImageFormat> s_GifFormat  = new ResourceInstance<ImageFormat> ("GIF");
 
         public static ImageFormat Jpeg => s_JpegFormat.Value;
         public static ImageFormat  Png => s_PngFormat.Value;

@@ -82,17 +82,29 @@ namespace GARbro.GUI
             Priority = priority;
         }
 
-        static char[] SeparatorCharacters = { '\\', '/', ':' };
+        private static readonly char[] SeparatorCharacters = { '\\', '/', ':' };
 
         /// <summary>
-        /// Same as Path.GetFileName, but ignores invalid charactes
+        /// Same as Path.GetFileName, but robustly ignores invalid characters
         /// </summary>
-        string SafeGetFileName (string filename)
+        string SafeGetFileName(string filename)
         {
-            var name_start = filename.LastIndexOfAny (SeparatorCharacters);
-            if (-1 == name_start)
+            if (string.IsNullOrEmpty(filename))
+                return string.Empty;
+
+            filename = filename.TrimEnd(SeparatorCharacters);
+
+            if (string.IsNullOrEmpty(filename))
+                return string.Empty;
+
+            var name_start = filename.LastIndexOfAny(SeparatorCharacters);
+            if (name_start == -1)
                 return filename;
-            return filename.Substring (name_start+1);
+
+            if (name_start == filename.Length - 1)
+                return string.Empty;
+
+            return filename.Substring(name_start + 1);
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

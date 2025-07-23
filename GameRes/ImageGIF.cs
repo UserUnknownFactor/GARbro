@@ -58,7 +58,7 @@ namespace GameRes
 
     public class GifMetaData : ImageMetaData
     {
-        public int FrameCount { get; set; } = 1;
+        public int  FrameCount { get; set; } = 1;
         public bool IsAnimated { get; set; } = false;
     }
 
@@ -133,10 +133,8 @@ namespace GameRes
                     HandleDisposal(canvasBuffer, canvasWidth, canvasHeight, prevInfo, backgroundColor);
                 }
 
-                // Composite current frame onto canvas
                 CompositeFrame(canvasBuffer, canvasWidth, canvasHeight, frame, info);
 
-                // Create a copy of the current canvas state
                 var frameBuffer = new byte[canvasBuffer.Length];
                 Array.Copy(canvasBuffer, frameBuffer, canvasBuffer.Length);
 
@@ -494,13 +492,11 @@ namespace GameRes
 
             if (image is AnimatedImageData animatedImage && animatedImage.IsAnimated)
             {
-                // Add all frames for animated GIF
                 foreach (var frame in animatedImage.Frames)
                     encoder.Frames.Add(BitmapFrame.Create(frame));
             }
             else
             {
-                // Single frame
                 encoder.Frames.Add(BitmapFrame.Create(image.Bitmap));
             }
 

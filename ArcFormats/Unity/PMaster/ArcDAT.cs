@@ -33,7 +33,7 @@ namespace GameRes.Formats.Unity.PMaster
 {
     internal class PMasterEntry : Entry
     {
-        public uint Key;
+        public uint DecryptionKey;
     }
 
     [Export(typeof(ArchiveFormat))]
@@ -47,83 +47,133 @@ namespace GameRes.Formats.Unity.PMaster
 
         public override ArcFile TryOpen (ArcView file)
         {
-            int count = 0;
-            for (int i = 0; i < 0x400; i += 4)
-                count += file.View.ReadInt32 (i);
-            if (!IsSaneCount (count))
-                return null;
-            uint index_length = (uint)count * 0x10;
-            if (index_length >= file.MaxOffset)
-                return null;
-            var index = file.View.ReadBytes (0x400, index_length);
-            DecryptData (index, file.View.ReadUInt32 (0xD4));
-
-            uint first_offset = index.ToUInt32 (4);
-            if (first_offset >= file.MaxOffset || first_offset <= (0x400 + index_length))
-                return null;
-            uint names_length = first_offset - (0x400 + index_length);
-            var names = file.View.ReadBytes (0x400 + index_length, names_length);
-            DecryptData (names, file.View.ReadUInt32 (0x5C));
-
-            int index_pos = 0;
-            var dir = new List<Entry> (count);
-            for (int i = 0; i < count; ++i)
+            try // this format is way too generic
             {
-                int name_pos = index.ToInt32 (index_pos);
-                var name = Binary.GetCString (names, name_pos);
-                var entry = Create<PMasterEntry> (name);
-                entry.Offset = index.ToUInt32 (index_pos+4);
-                entry.Size   = index.ToUInt32 (index_pos+8);
-                entry.Key    = index.ToUInt32 (index_pos+12);
-                if (!entry.CheckPlacement (file.MaxOffset))
+                if (file.MaxOffset < 0x400)
                     return null;
-                dir.Add (entry);
-                index_pos += 16;
+
+                int entryCount = 0;
+                for (int headerOffset = 0; headerOffset < 0x400; headerOffset += 4)
+                    entryCount += file.View.ReadInt32 (headerOffset);
+
+                if (!IsSaneCount (entryCount))
+                    return null;
+
+                uint indexSize = (uint)entryCount * 0x10;
+                if (indexSize >= file.MaxOffset || 0x400 + indexSize > file.MaxOffset)
+                    return null;
+
+                if (0xD4 + 4 > file.MaxOffset || 0x5C + 4 > file.MaxOffset)
+                    return null;
+
+                var encryptedIndex = file.View.ReadBytes (0x400, indexSize);
+                if (encryptedIndex == null || encryptedIndex.Length < indexSize)
+                    return null;
+
+                uint indexDecryptionKey = file.View.ReadUInt32 (0xD4);
+                DecryptData (encryptedIndex, indexDecryptionKey);
+
+                if (encryptedIndex.Length < 8)
+                    return null;
+
+                uint firstEntryOffset = encryptedIndex.ToUInt32 (4);
+                if (firstEntryOffset >= file.MaxOffset || firstEntryOffset <= (0x400 + indexSize))
+                    return null;
+
+                uint nameTableSize = firstEntryOffset - (0x400 + indexSize);
+                if (nameTableSize == 0 || 0x400 + indexSize + nameTableSize > file.MaxOffset)
+                    return null;
+
+                var encryptedNameTable = file.View.ReadBytes (0x400 + indexSize, nameTableSize);
+                if (encryptedNameTable == null || encryptedNameTable.Length < nameTableSize)
+                    return null;
+
+                uint nameTableDecryptionKey = file.View.ReadUInt32 (0x5C);
+                DecryptData(encryptedNameTable, nameTableDecryptionKey);
+
+                int currentIndexPosition = 0;
+                var directoryEntries = new List<Entry>(entryCount);
+                for (int entryIndex = 0; entryIndex < entryCount; ++entryIndex)
+                {
+                    if (currentIndexPosition + 16 > encryptedIndex.Length)
+                        return null;
+
+                    int nameOffset = encryptedIndex.ToInt32 (currentIndexPosition);
+                    if (nameOffset < 0 || nameOffset >= encryptedNameTable.Length)
+                        return null;
+
+                    var entryName = Binary.GetCString (encryptedNameTable, nameOffset);
+                    var entry = Create<PMasterEntry>(entryName);
+                    var entryOffset = encryptedIndex.ToUInt32 (currentIndexPosition + 4);
+                    entry.Offset = entryOffset;
+                    entry.Size = encryptedIndex.ToUInt32 (currentIndexPosition + 8);
+                    entry.DecryptionKey = encryptedIndex.ToUInt32 (currentIndexPosition + 12);
+
+                    currentIndexPosition += 16;
+                    if (string.IsNullOrEmpty(entryName))
+                        continue;
+                     if (!entry.CheckPlacement (file.MaxOffset))
+                        return null;
+
+                    directoryEntries.Add(entry);
+                }
+                return new ArcFile (file, this, directoryEntries);
             }
-            return new ArcFile (file, this, dir);
+            catch (ArgumentOutOfRangeException)
+            {
+                return null;
+            }
+            catch (IndexOutOfRangeException)
+            {
+                return null;
+            }
+            catch (OverflowException)
+            {
+                return null;
+            }
         }
 
         public override Stream OpenEntry (ArcFile arc, Entry entry)
         {
-            var pent = (PMasterEntry)entry;
-            var data = arc.File.View.ReadBytes (entry.Offset, entry.Size);
-            DecryptData (data, pent.Key);
-            return new BinMemoryStream (data, entry.Name);
+            var pmasterEntry = (PMasterEntry)entry;
+            var encryptedData = arc.File.View.ReadBytes (entry.Offset, entry.Size);
+            DecryptData (encryptedData, pmasterEntry.DecryptionKey);
+            return new BinMemoryStream (encryptedData, entry.Name);
         }
 
-        void DecryptData (byte[] data, uint seed)
+        void DecryptData (byte[] encryptedData, uint encryptionSeed)
         {
-            var key = GenerateKey (seed);
-            for (int i = 0; i < data.Length; i++)
+            var decryptionKey = GenerateDecryptionKey (encryptionSeed);
+            for (int byteIndex = 0; byteIndex < encryptedData.Length; byteIndex++)
             {
-                byte b = data[i];
-                b ^= key[i & 0xFF];
-                b += 0x4D;
-                b += key[i % 0x2B];
-                b -= key[i & 0xFF];
-                b ^= 0x23;
-                data[i] = b;
+                byte currentByte = encryptedData[byteIndex];
+                currentByte ^= decryptionKey[byteIndex & 0xFF];
+                currentByte += 0x4D;
+                currentByte += decryptionKey[byteIndex % 0x2B];
+                currentByte -= decryptionKey[byteIndex & 0xFF];
+                currentByte ^= 0x23;
+                encryptedData[byteIndex] = currentByte;
             }
         }
 
-        byte[] GenerateKey (uint seed)
+        byte[] GenerateDecryptionKey (uint encryptionSeed)
         {
-            var key = new byte[256];
-            uint n = seed * 2281 + 59455;
-            uint n2 = (n << 17) ^ n;
-            for (int i = 0; i < 256; i++)
+            var keyBytes = new byte[256];
+            uint randomValue = encryptionSeed * 2281 + 59455;
+            uint randomValue2 = (randomValue << 17) ^ randomValue;
+            for (int keyIndex = 0; keyIndex < 256; keyIndex++)
             {
-                n >>= 5;
-                n ^= n2;
-                n *= 471;
-                n -= seed;
-                n += n2;
-                n2 = n + 87;
-                n ^= n2 & 91;
-                key[i] = (byte)n;
-                n >>= 1;
+                randomValue >>= 5;
+                randomValue ^= randomValue2;
+                randomValue *= 471;
+                randomValue -= encryptionSeed;
+                randomValue += randomValue2;
+                randomValue2 = randomValue + 87;
+                randomValue ^= randomValue2 & 91;
+                keyBytes[keyIndex] = (byte)randomValue;
+                randomValue >>= 1;
             }
-            return key;
+            return keyBytes;
         }
     }
 }

@@ -53,55 +53,68 @@ namespace GameRes.Formats.Magi
             int count = file.View.ReadInt32 (4);
             if (!IsSaneCount (count))
                 return null;
+
             uint index_size = file.View.ReadUInt32 (0xC);
             if (index_size < 2 || index_size > file.MaxOffset)
                 return null;
 
             long base_offset = 0x118 + index_size;
 
-            using (var mem = file.CreateStream (0x118, index_size))
-            using (var z = new ZLibStream (mem, CompressionMode.Decompress))
-            using (var index = new BinaryStream (z, file.Name))
+            try // this format is too generic and is causing premature throws below
             {
-                var dir = new List<Entry> (count);
-                string cur_dir = "";
-                for (int i = 0; i < count; ++i)
+                using (var mem = file.CreateStream (0x118, index_size))
+                using (var z = new ZLibStream (mem, CompressionMode.Decompress))
+                using (var index = new BinaryStream (z, file.Name))
                 {
-                    int name_length = index.ReadInt32();
-                    if (name_length <= 0)
-                        return null;
-                    var name = index.ReadCString (name_length);
-                    if (version > 3)
-                    {
-                        bool is_dir = index.ReadInt32() != 0;
-                        if (is_dir)
-                        {
-                            cur_dir = name;
-                            index.ReadInt64();
-                            index.ReadInt32();
-                            index.ReadInt64();
-                            continue;
-                        }
-                        if (cur_dir.Length > 0)
-                            name = Path.Combine (cur_dir, name);
-                    }
-                    var entry = Create<PackedEntry> (name);
-                    entry.Offset        = index.ReadUInt32() + base_offset;
-                    entry.UnpackedSize  = index.ReadUInt32();
-                    index.ReadUInt32();
-                    uint is_packed      = index.ReadUInt32();
-                    uint packed_size    = index.ReadUInt32();
-                    entry.IsPacked = is_packed != 0 && packed_size != 0;
-                    if (entry.IsPacked)
-                        entry.Size = packed_size;
-                    else
-                        entry.Size = entry.UnpackedSize;
+                    var dir = new List<Entry>(count);
+                    string cur_dir = "";
 
-                    if (!entry.CheckPlacement (file.MaxOffset))
-                        return null;
-                    dir.Add (entry);
+                    for (int i = 0; i < count; ++i)
+                    {
+                        int name_length = index.ReadInt32();
+                        if (name_length <= 0)
+                            return null;
+                        var name = index.ReadCString (name_length);
+                        if (version > 3)
+                        {
+                            bool is_dir = index.ReadInt32() != 0;
+                            if (is_dir)
+                            {
+                                cur_dir = name;
+                                index.ReadInt64();
+                                index.ReadInt32();
+                                index.ReadInt64();
+                                continue;
+                            }
+                            if (cur_dir.Length > 0)
+                                name = Path.Combine (cur_dir, name);
+                        }
+                        var entry = Create<PackedEntry> (name);
+                        entry.Offset        = index.ReadUInt32() + base_offset;
+                        entry.UnpackedSize  = index.ReadUInt32();
+                        index.ReadUInt32();
+                        uint is_packed      = index.ReadUInt32();
+                        uint packed_size    = index.ReadUInt32();
+                        entry.IsPacked      = is_packed != 0 && packed_size > 0;
+                        if (entry.IsPacked)
+                            entry.Size = packed_size;
+                        else
+                            entry.Size = entry.UnpackedSize;
+
+                        if (!entry.CheckPlacement (file.MaxOffset))
+                            return null;
+                        dir.Add(entry);
+                    }
+                    return new ArcFile (file, this, dir);
                 }
-                return new ArcFile (file, this, dir);
+            }
+            catch (InvalidDataException)
+            {
+                return null;
+            }
+            catch (EndOfStreamException)
+            {
+                return null;
             }
         }
 

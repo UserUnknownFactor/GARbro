@@ -136,8 +136,8 @@ namespace GARbro
 #if DEBUG
                 throw;
 #endif
-                return false;
             }
+            return false;
         }
 
         void ExtractImage (ArcFile arc, Entry entry)

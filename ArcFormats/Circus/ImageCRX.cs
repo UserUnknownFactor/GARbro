@@ -47,8 +47,8 @@ namespace GameRes.Formats.Circus
     {
         public override string         Tag { get { return "CRX"; } }
         public override string Description { get { return "Circus image format"; } }
-        public override uint     Signature { get { return 0x47585243; } } // 'CRXG'
-        public override bool      CanWrite { get { return true; } }
+        public override uint     Signature { get { return  0x47585243; } } // 'CRXG'
+        public override bool      CanWrite { get { return  true; } }
 
         public override ImageMetaData ReadMetaData (IBinaryStream stream)
         {
@@ -83,16 +83,74 @@ namespace GameRes.Formats.Circus
 
         public override void Write (Stream file, ImageData image)
         {
-            throw new NotImplementedException ("CrxFormat.Write not implemented");
-        }
+            var header = new byte[0x14];
 
-        private static PixelFormat CheckFormat(int bpp)
+            var depth = (short)(24 == image.BPP ? 0 : 32 == image.BPP ? 1 : 2);
+            var compression = (ushort)3;
+            var flags = (ushort)17;
+            var mode = (ushort)0;
+
+            using (var memeStream = new MemoryStream (header))
+            {
+                using (var binaryWriter = new BinaryWriter (memeStream))
+                {
+                    binaryWriter.Write (Signature);
+                    binaryWriter.Write ((ushort)image.OffsetX);
+                    binaryWriter.Write ((ushort)image.OffsetY);
+                    binaryWriter.Write ((ushort)image.Width);
+                    binaryWriter.Write ((ushort)image.Height);
+                    binaryWriter.Write (compression);
+                    binaryWriter.Write (flags);
+                    binaryWriter.Write (depth);
+                    binaryWriter.Write (mode);
+                }
+            }
+
+            var metaData = ReadMetaData (BinaryStream.FromArray (header, ""));
+
+            var bitmap = image.Bitmap;
+            var pixelFormat = CheckFormat (image.BPP);
+
+            int stride = (int)(image.Width * pixelFormat.BitsPerPixel / 8 + 3) & ~3;
+
+            if (pixelFormat != bitmap.Format)
+            {
+                var converted_bitmap = new FormatConvertedBitmap();
+                converted_bitmap.BeginInit();
+                converted_bitmap.Source = image.Bitmap;
+                converted_bitmap.DestinationFormat = pixelFormat;
+                converted_bitmap.EndInit();
+                bitmap = converted_bitmap;
+            }
+
+            var data = new byte[image.Height * stride];
+            var row_data = new byte[stride];
+            var rect = new Int32Rect (0, 0, (int)image.Width, 1);
+
+            for (uint row = 0; row < image.Height; ++row)
+            {
+                bitmap.CopyPixels (rect, row_data, stride, 0);
+                rect.Y++;
+                row_data.CopyTo (data, row * stride);
+            }
+
+            using (var binaryWriter = new BinaryWriter (file))
+            {
+                binaryWriter.Write (header);
+                using (var writer = new Writer (data,
+                    binaryWriter, (CrxMetaData)metaData))
+                {
+                    writer.Write();
+                }
+            }
+        }
+        private static PixelFormat CheckFormat (int bpp)
         {
             switch (bpp)
             {
                 case 24: return PixelFormats.Bgr24;
                 case 32: return PixelFormats.Bgra32;
-                case 8: return PixelFormats.Indexed8;
+                case  8: return PixelFormats.Indexed8;
                 default: throw new InvalidFormatException();
             }
         }
@@ -116,16 +174,17 @@ namespace GameRes.Formats.Circus
 
             public Reader (IBinaryStream input, CrxMetaData info)
             {
-                m_width = (int)info.Width;
-                m_height = (int)info.Height;
-                m_bpp = info.BPP;
+                m_width       = (int)info.Width;
+                m_height      = (int)info.Height;
+                m_bpp         = info.BPP;
                 m_compression = info.Compression;
-                m_flags = info.CompressionFlags;
-                m_mode = info.Mode;
-                Format = CheckFormat(m_bpp);
-                m_stride = (m_width * m_bpp / 8 + 3) & ~3;
-                m_output = new byte[m_height*m_stride];
-                m_input = input;
+                m_flags       = info.CompressionFlags;
+                m_mode        = info.Mode;
+                Format        = CheckFormat (m_bpp);
+                m_stride      = (m_width * m_bpp / 8 + 3) & ~3;
+                m_output      = new byte[m_height*m_stride];
+                m_input       = input;
+
                 m_input.Position = 0x14;
                 if (8 == m_bpp)
                     ReadPalette (info.Colors);
@@ -135,13 +194,13 @@ namespace GameRes.Formats.Circus
             {
                 int color_size = 0x102 == colors ? 4 : 3;
                 if (colors > 0x100)
-                {
                     colors = 0x100;
-                }
+
                 int palette_size = colors * color_size;
                 var palette_data = new byte[palette_size];
                 if (palette_size != m_input.Read (palette_data, 0, palette_size))
                     throw new InvalidFormatException();
+
                 var palette = new Color[colors];
                 int color_pos = 0;
                 for (int i = 0; i < palette.Length; ++i)
@@ -199,9 +258,9 @@ namespace GameRes.Formats.Circus
             private void UnpackV1 ()
             {
                 byte[] window = new byte[0x10000];
-                int flag = 0;
-                int win_pos = 0;
-                int dst = 0;
+                int flag      = 0;
+                int win_pos   = 0;
+                int dst       = 0;
                 while (dst < m_output.Length)
                 {
                     flag >>= 1;
@@ -257,10 +316,10 @@ namespace GameRes.Formats.Circus
 
             private void UnpackV2 ()
             {
-                int pixel_size = m_bpp / 8;
-                int src_stride = m_width * pixel_size;
+                int pixel_size  = m_bpp / 8;
+                int src_stride  = m_width * pixel_size;
                 using (var zlib = new ZLibStream (m_input.AsStream, CompressionMode.Decompress, true))
-                using (var src = new BinaryReader (zlib))
+                using (var src  = new BinaryReader (zlib))
                 {
                     if (m_bpp >= 24)
                     {
@@ -362,7 +421,7 @@ namespace GameRes.Formats.Circus
             public BitmapPalette Palette { get; private set; }
             public int            Stride { get { return m_stride; } }
 
-            public Writer(byte[] input,
+            public Writer (byte[] input,
                 BinaryWriter output,
                 CrxMetaData info)
             {
@@ -458,7 +517,7 @@ namespace GameRes.Formats.Circus
                         {
 
                             byte ctl = 0;
-                            output.Write(ctl);
+                            output.Write (ctl);
 
                             int dst = y * m_stride;
                             int prev_row = dst - m_stride;
@@ -478,7 +537,7 @@ namespace GameRes.Formats.Circus
                                     }
                                     break;
                                 case 2:
-                                    output.Write(m_input, dst, pixel_size);
+                                    output.Write (m_input, dst, pixel_size);
 
                                     for (int x = pixel_size; x < src_stride; ++x)
                                     {

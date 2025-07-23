@@ -330,7 +330,7 @@ namespace GameRes
                     break;
                 if (string_buf.Length == size)
                 {
-                    Array.Resize (ref string_buf, checked(size*3/2));
+                    Array.Resize (ref string_buf, checked(size * 3/2));
                 }
                 string_buf[size++] = (byte)b;
             }
@@ -392,23 +392,35 @@ namespace GameRes
 
         public override void SetLength (long length)
         {
-            throw new NotSupportedException ("GameRes.ArcStream.SetLength method is not supported");
+            throw new NotSupportedException ("GameRes.ArcViewStream.SetLength method is not supported");
         }
 
         public override int Read (byte[] buffer, int offset, int count)
         {
+            if (buffer == null)
+                throw new ArgumentNullException (nameof (buffer));
+            if (offset < 0 || offset > buffer.Length)
+                throw new ArgumentOutOfRangeException (nameof (offset));
+            if (count < 0 || offset + count > buffer.Length)
+                throw new ArgumentOutOfRangeException (nameof (count));
+
             int read_from_buffer = ReadFromBuffer (buffer, offset, count);
             offset += read_from_buffer;
             count -= read_from_buffer;
             if (0 == count || m_position >= m_size)
                 return read_from_buffer;
+
             if (count < DefaultBufferSize)
             {
                 RefillBuffer();
-                count = Math.Min (count, m_buffer_len);
-                Buffer.BlockCopy (m_buffer, m_buffer_pos, buffer, offset, count);
-                m_buffer_pos += count;
-                return read_from_buffer + count;
+                if (m_buffer_len > 0)
+                {
+                    count = Math.Min (count, m_buffer_len);
+                    Buffer.BlockCopy (m_buffer, m_buffer_pos, buffer, offset, count);
+                    m_buffer_pos += count;
+                    return read_from_buffer + count;
+                }
+                return read_from_buffer;
             }
             else
             {
@@ -421,12 +433,12 @@ namespace GameRes
 
         public override void Write (byte[] buffer, int offset, int count)
         {
-            throw new NotSupportedException("GameRes.ArcStream.Write method is not supported");
+            throw new NotSupportedException("GameRes.ArcViewStream.Write method is not supported");
         }
 
         public override void WriteByte (byte value)
         {
-            throw new NotSupportedException("GameRes.ArcStream.WriteByte method is not supported");
+            throw new NotSupportedException("GameRes.ArcViewStream.WriteByte method is not supported");
         }
         #endregion
 

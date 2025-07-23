@@ -85,6 +85,7 @@
     <Compile Include="ImageBMP.cs" />
     <Compile Include="ImageDecoder.cs" />
     <Compile Include="ImageJPEG.cs" />
+    <Compile Include="ImageJPEG2K.cs" />
     <Compile Include="ImagePNG.cs" />
     <Compile Include="ImageTGA.cs" />
     <Compile Include="ImageTIFF.cs" />

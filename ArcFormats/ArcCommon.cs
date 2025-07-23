@@ -78,6 +78,33 @@ namespace GameRes.Formats
                 return ImageFormat.Jpeg;
             if (0x38464947 == signature || 0x39464947 == signature) // GIF
                 return ImageFormat.Gif;
+            /*
+            if (0x002A4949 == signature || 0x2A004D4D == signature) // TIFF
+                return ImageFormat.Tiff;
+            if (0x20534444 == signature) // 'DDS '
+                return ImageFormat.Dds;
+
+            // Audio formats
+            if (0x03334449 == signature) // 'ID3\x03'
+                return Mp3Audio.Instance;
+            if ((signature & 0xFFE0) == 0xFFE0) // MP3 frame sync
+                return Mp3Audio.Instance;
+            if (0x43614C66 == signature) // 'fLaC'
+                return FlacAudio.Instance;
+
+            // Archive formats (if supported)
+            if (0x04034B50 == signature || 0x06054B50 == signature) // ZIP
+                return ZipOpener.Instance;
+
+            if (0x21726152 == signature) // 'Rar!'
+                return RarOpener.Instance;
+            if (0xAFBC7A37 == signature) // '7z\xBC\xAF'
+                return 7zOpener.Instance;
+            if (0x685A42 == (signature & 0xFFFFFF)) // 'BZh' - BZip2
+                return BZip2Opener.Instance;
+            if (0x8B1F == (signature & 0xFFFF)) // GZip - only 2 bytes
+                return GZipOpener.Instance;
+            */
 
             // Fall back to catalog lookup
             var res = FormatCatalog.Instance.LookupSignature (signature);

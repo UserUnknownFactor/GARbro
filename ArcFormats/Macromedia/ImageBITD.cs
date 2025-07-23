@@ -36,7 +36,7 @@ namespace GameRes.Formats.Macromedia
 {
     internal class BitdMetaData : ImageMetaData
     {
-        public byte DepthType;
+        public byte DepthType = 0;
     }
 
     internal class BitdDecoder : IImageDecoder

@@ -575,6 +575,7 @@
     <Compile Include="Cri\AudioHCA.cs" />
     <Compile Include="Cri\BigEndianReader.cs" />
     <Compile Include="Cri\ImageSPC.cs" />
+    <Compile Include="Astc.cs" />
     <Compile Include="Cri\ImageXTX.cs" />
     <Compile Include="DxLib\ArcMED.cs" />
     <Compile Include="DxLib\WidgetSCR.xaml.cs">
@@ -1090,6 +1091,7 @@
     <Compile Include="AudioOGG.cs" />
     <Compile Include="AudioFLAC.cs" />
     <Compile Include="LzssStream.cs" />
+    <Compile Include="ZeroNovel\ArcARCH.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\Settings.Designer.cs">
       <AutoGen>True</AutoGen>

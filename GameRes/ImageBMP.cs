@@ -37,8 +37,8 @@ namespace GameRes
 {
     public class BmpMetaData : ImageMetaData
     {
-        public uint ImageLength;
-        public uint ImageOffset;
+        public uint ImageLength = 0;
+        public uint ImageOffset = 0;
     }
 
     public interface IBmpExtension
