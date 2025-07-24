@@ -72,13 +72,10 @@ namespace GameRes
             m_text = new List<ScriptLine>();
             Metadata = new Dictionary<string, object>();
 
-            // Detect newline format
             DetectNewLineFormat(text);
 
             if (!string.IsNullOrEmpty(text) && type == ScriptType.PlainText)
-            {
                 ParsePlainText(text);
-            }
         }
 
         public ScriptData(IEnumerable<ScriptLine> lines, ScriptType type = ScriptType.Dialogue)
@@ -117,14 +114,10 @@ namespace GameRes
                         i++; // Skip the \n
                     }
                     else
-                    {
                         crCount++;
-                    }
                 }
                 else if (text[i] == '\n')
-                {
                     lfCount++;
-                }
             }
 
             // Determine the predominant newline format
@@ -145,13 +138,9 @@ namespace GameRes
 
             string[] lines;
             if (!string.IsNullOrEmpty(NewLineFormat) && text.Contains(NewLineFormat))
-            {
                 lines = text.Split(new[] { NewLineFormat }, StringSplitOptions.None);
-            }
             else
-            {
                 lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-            }
 
             uint id = 0;
             foreach (var line in lines)
@@ -172,19 +161,13 @@ namespace GameRes
 
                         // Don't add newline after the last line unless original had it
                         if (i < m_text.Count - 1)
-                        {
                             writer.Write(NewLineFormat);
-                        }
-                        else if (RawText.EndsWith(NewLineFormat) || RawText.EndsWith("\n") || RawText.EndsWith("\r"))
-                        {
+                        else if (RawText.EndsWith(NewLineFormat) || RawText.EndsWith("\n"))
                             writer.Write(NewLineFormat);
-                        }
                     }
                 }
                 else
-                {
                     writer.Write(RawText);
-                }
             }
         }
 
@@ -205,14 +188,10 @@ namespace GameRes
         {
             switch (NewLineFormat)
             {
-                case "\r\n":
-                    return "CRLF (Windows)";
-                case "\n":
-                    return "LF (Unix/Linux)";
-                case "\r":
-                    return "CR (Classic Mac)";
-                default:
-                    return "Unknown";
+                case "\r\n":  return "CRLF (Windows)";
+                case "\n":    return "LF (Unix/Linux)";
+                case "\r":    return "CR (Classic Mac)";
+                default:      return "Unknown";
             }
         }
     }
@@ -252,7 +231,7 @@ namespace GameRes
         /// <summary>
         /// Detects encoding of text data
         /// </summary>
-        protected virtual Encoding DetectEncoding(byte[] data, int length = -1)
+        public static Encoding DetectEncoding(byte[] data, int length = -1)
         {
             if (length < 0)
                 length = data.Length;
@@ -272,11 +251,10 @@ namespace GameRes
             if (IsShiftJis(data, length))
                 return Encoding.GetEncoding(932); // Shift-JIS
 
-            // Default
             return Encoding.Default;
         }
 
-        private bool IsUtf8(byte[] data, int length)
+        private static bool IsUtf8(byte[] data, int length)
         {
             try
             {
@@ -290,7 +268,7 @@ namespace GameRes
             }
         }
 
-        private bool IsShiftJis(byte[] data, int length)
+        private static bool IsShiftJis(byte[] data, int length)
         {
             for (int i = 0; i < length; i++)
             {

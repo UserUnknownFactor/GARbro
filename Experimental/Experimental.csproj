@@ -158,6 +158,8 @@
     <Compile Include="RPGMaker\ArcRGSS.cs" />
     <Compile Include="RPGMaker\AudioRPGMV.cs" />
     <Compile Include="RPGMaker\ImageRPGMV.cs" />
+    <Compile Include="RPGMaker\Twofish.cs" />
+    <Compile Include="RPGMaker\EncPGMMV.cs" />
     <Compile Include="Artemis\ShiftReduceParserCode.cs" />
     <Compile Include="SakanaGL\ArcSX.cs" />
     <Compile Include="WebP\ImageWEBP.cs" />
