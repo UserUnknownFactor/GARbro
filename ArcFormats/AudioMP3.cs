@@ -1,6 +1,7 @@
 using System.ComponentModel.Composition;
 using System.IO;
 using NAudio.Wave;
+using NAudio.MediaFoundation;
 
 namespace GameRes.Formats
 {
@@ -44,6 +45,11 @@ namespace GameRes.Formats
             return m_reader.Read (buffer, offset, count);
         }
 
+        public bool CanCopyDirectly ()
+        {
+            return Source.CanSeek && Source.CanRead;
+        }
+
         #region IDisposable Members
         bool _mp3_disposed;
         protected override void Dispose (bool disposing)
@@ -66,16 +72,22 @@ namespace GameRes.Formats
     {
         public override string         Tag { get { return "MP3"; } }
         public override string Description { get { return "MPEG Layer 3 audio format"; } }
-        public override uint     Signature { get { return 0; } }
-        public override bool      CanWrite { get { return false; } }
+        public override uint     Signature { get { return  0; } }
+        public override bool      CanWrite { get { return  true; } }
 
         const int SyncSearchThreshold = 0x300;
+
+        static Mp3Audio()
+        {
+            MediaFoundationApi.Startup();
+        }
 
         public override SoundInput TryOpen (IBinaryStream file)
         {
             var header = file.ReadHeader (10).ToArray();
             long start_offset = SkipId3Tag (header);
             int sync_pos = 0;
+
             if (0 != start_offset)
             {
                 file.Position = start_offset;
@@ -90,10 +102,66 @@ namespace GameRes.Formats
                 if (-1 == sync_pos)
                     return null;
             }
+
             if (0xFF != header[sync_pos] || 0xE2 != (header[sync_pos+1] & 0xE6) || 0xF0 == (header[sync_pos+2] & 0xF0))
                 return null;
+
             file.Position = 0;
             return new Mp3Input (file.AsStream);
+        }
+
+        public override void Write (SoundInput source, Stream output)
+        {
+            var mp3Source = source as Mp3Input;
+            if (mp3Source != null && mp3Source.CanCopyDirectly())
+                CopyMp3Direct (mp3Source, output);
+            else
+                EncodePcmToMp3 (source, output);
+        }
+
+        private void CopyMp3Direct (Mp3Input source, Stream output)
+        {
+            source.Source.Position = 0;
+
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = source.Source.Read (buffer, 0, buffer.Length)) > 0)
+                output.Write (buffer, 0, bytesRead);
+            output.Flush();
+        }
+
+        private void EncodePcmToMp3 (SoundInput source, Stream output, int bitrate = 320000)
+        {
+            string tempFile = Path.GetTempFileName();
+            string mp3TempFile = Path.ChangeExtension (tempFile, ".mp3");
+
+            try
+            {
+                var format = source.Format;
+                var waveFormat = new NAudio.Wave.WaveFormat(
+                    (int)format.SamplesPerSecond,
+                    format.BitsPerSample,
+                    format.Channels
+                );
+
+                using (var reader = new RawSourceWaveStream (source, waveFormat))
+                {
+                    MediaFoundationEncoder.EncodeToMp3 (reader, mp3TempFile, bitrate);
+                }
+
+                using (var mp3File = File.OpenRead (mp3TempFile))
+                {
+                    mp3File.CopyTo (output);
+                }
+                output.Flush();
+            }
+            finally
+            {
+                if (File.Exists (tempFile))
+                    File.Delete (tempFile);
+                if (File.Exists (mp3TempFile))
+                    File.Delete (mp3TempFile);
+            }
         }
 
         long SkipId3Tag (byte[] buffer)

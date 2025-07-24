@@ -231,6 +231,7 @@
     <Compile Include="Xuse\ArcNT.cs" />
     <Compile Include="Xuse\ArcWVB.cs" />
     <Compile Include="Zyx\ImageXMG.cs" />
+    <Compile Include="AudioAAC.cs" />
     <Compile Include="AudioAIFF.cs" />
     <Compile Include="Basil\ArcMIF.cs" />
     <Compile Include="Basil\AudioWHC.cs" />

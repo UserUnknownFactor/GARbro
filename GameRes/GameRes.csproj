@@ -91,6 +91,11 @@
     <Compile Include="ImageTIFF.cs" />
     <Compile Include="ImageGIF.cs" />
     <Compile Include="Video.cs" />
+    <Compile Include="VideoMP4.cs" />
+    <Compile Include="VideoWEBM.cs" />
+    <Compile Include="VideoAVI.cs" />
+    <Compile Include="VideoMOV.cs" />
+    <Compile Include="VideoMKV.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\Settings.Designer.cs">
       <AutoGen>True</AutoGen>

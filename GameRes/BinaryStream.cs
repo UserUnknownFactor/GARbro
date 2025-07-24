@@ -859,17 +859,17 @@ namespace GameRes
 
         public override void SetLength (long length)
         {
-            throw new NotSupportedException ("BinStream.SetLength method is not supported");
+            throw new NotSupportedException ("BinMemoryStream.SetLength method is not supported");
         }
 
         public override void Write (byte[] buffer, int offset, int count)
         {
-            throw new NotSupportedException ("BinStream.Write method is not supported");
+            throw new NotSupportedException ("BinMemoryStream.Write method is not supported");
         }
 
         public override void WriteByte (byte value)
         {
-            throw new NotSupportedException ("BinStream.WriteByte method is not supported");
+            throw new NotSupportedException ("BinMemoryStream.WriteByte method is not supported");
         }
         #endregion
     }

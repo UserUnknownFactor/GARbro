@@ -39,6 +39,7 @@ namespace GameRes.Formats.Google
         public override string         Tag { get { return "WEBP"; } }
         public override string Description { get { return "Google WebP image format"; } }
         public override uint     Signature { get { return 0; } }
+        public override bool      CanWrite { get { return true; } }
 
         public override ImageMetaData ReadMetaData (IBinaryStream stream)
         {
@@ -145,13 +146,60 @@ namespace GameRes.Formats.Google
             return new ImageData (bitmap, info);
         }
 
-        public override void Write (Stream file, ImageData image)
+        public override void Write(Stream file, ImageData image)
         {
-            throw new NotImplementedException ("WebPFormat.Write not implemented");
+            LibWebPLoader.Load();
+
+            var bitmap = image.Bitmap;
+            if (bitmap.Format != PixelFormats.Bgra32)
+            {
+                bitmap = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
+            }
+
+            int width = bitmap.PixelWidth;
+            int height = bitmap.PixelHeight;
+            int stride = width * 4;
+            var pixels = new byte[stride * height];
+            bitmap.CopyPixels(pixels, stride, 0);
+
+            //float quality = 90.0f;
+
+            unsafe
+            {
+                fixed (byte* data = pixels)
+                {
+                    IntPtr output;
+
+                    var size = WebPEncodeLosslessBGRA((IntPtr)data, width, height, stride, /*quality,*/ out output);
+                    if (size == UIntPtr.Zero || output == IntPtr.Zero)
+                        throw new InvalidOperationException("WebP image encoder failed.");
+
+                    try
+                    {
+                        int outputSize = (int)size;
+                        var encoded = new byte[outputSize];
+                        Marshal.Copy(output, encoded, 0, outputSize);
+                        file.Write(encoded, 0, outputSize);
+                    }
+                    finally
+                    {
+                        WebPFree(output);
+                    }
+                }
+            }
         }
 
         [DllImport ("libwebp.dll", EntryPoint = "WebPDecodeBGRAInto", CallingConvention = CallingConvention.Cdecl)]
-        public static extern IntPtr WebPDecodeBGRAInto ([InAttribute()] IntPtr data, UIntPtr data_size, IntPtr output_buffer, UIntPtr output_buffer_size, int output_stride);
+        static extern IntPtr WebPDecodeBGRAInto ([InAttribute()] IntPtr data, UIntPtr data_size, IntPtr output_buffer, UIntPtr output_buffer_size, int output_stride);
+
+        [DllImport("libwebp.dll", EntryPoint = "WebPEncodeBGRA", CallingConvention = CallingConvention.Cdecl)]
+        static extern UIntPtr WebPEncodeBGRA(IntPtr bgra, int width, int height, int stride, float quality_factor, out IntPtr output);
+
+        [DllImport("libwebp.dll", EntryPoint = "WebPEncodeLosslessBGRA", CallingConvention = CallingConvention.Cdecl)]
+        static extern UIntPtr WebPEncodeLosslessBGRA(IntPtr bgra, int width, int height, int stride, out IntPtr output);
+
+        [DllImport("libwebp.dll", EntryPoint = "WebPFree", CallingConvention = CallingConvention.Cdecl)]
+        static extern void WebPFree(IntPtr pointer);
     }
 
     internal static class LibWebPLoader
@@ -168,6 +216,7 @@ namespace GameRes.Formats.Google
         {
             if (loaded)
                 return;
+
             var folder = Path.GetDirectoryName (Assembly.GetExecutingAssembly().Location);
             folder = Path.Combine (folder, (IntPtr.Size == 4) ? "x86" : "x64");
             var fullPath = Path.Combine (folder, "libwebp.dll");
@@ -175,6 +224,7 @@ namespace GameRes.Formats.Google
             var handle = LoadLibraryEx (fullPath, IntPtr.Zero, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
             if (IntPtr.Zero == handle)
                 throw new Win32Exception (Marshal.GetLastWin32Error());
+
             loaded = true;
         }
     }

@@ -340,7 +340,7 @@ namespace GameRes.Formats.Macromedia
                 return base.OpenEntry (arc, entry);
 
             var ment = entry as DirectorEntry;
-            var input = OpenChunkStream (arc.File, ment);
+            var input = OpenChunkStream (arc.File, pent);
             if (null == ment || !ConvertText || ment.FourCC != "STXT")
                 return input.AsStream;
 
@@ -358,9 +358,11 @@ namespace GameRes.Formats.Macromedia
         {
             if (null == entry.Header)
                 return base.OpenEntry (arc, entry);
+
             var header = new byte[entry.Header.UnpackedSize];
             using (var input = OpenChunkStream (arc.File, entry.Header))
                 input.Read (header, 0, header.Length);
+
             var format = entry.DeserializeHeader (header);
             var riff = new MemoryStream (0x2C);
             WaveAudio.WriteRiffHeader (riff, format, entry.Size);
