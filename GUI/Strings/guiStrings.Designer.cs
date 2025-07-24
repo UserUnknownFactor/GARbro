@@ -847,7 +847,7 @@ namespace GARbro.GUI.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Playing {0} / {3} / {2}bps / {1}Hz.
+        ///   Looks up a localized string similar to Playing {0} / {3} / {2}kbps / {1}Hz.
         /// </summary>
         public static string MsgPlaying {
             get {

@@ -272,6 +272,7 @@ namespace GameRes.Formats.Amaterasu
             var grp = s_grp_format.Value;
             if (null == grp) // probably never happens
                 throw new FileFormatException ("GRP image encoder not available");
+
             bool is_grp = grp.Signature == input.Signature;
             input.Position = 0;
             var start = output.Position;
@@ -310,20 +311,21 @@ namespace GameRes.Formats.Amaterasu
     public class AmiScriptData : ScriptData
     {
         public uint Id;
-        public uint Type;
+        public uint AmiType;
     }
 
     [Export(typeof(ScriptFormat))]
     public class ScrFormat : GenericScriptFormat
     {
-        public override string Tag { get { return "SCR/AMI"; } }
-        public override string Description { get { return Strings.arcStrings.SCRDescription; } }
-        public override uint Signature { get { return 0x00524353; } }
+        public override string         Tag { get { return "SCR/AMI"; } }
+        public override string Description { get { return  Strings.arcStrings.SCRDescription; } }
+        public override uint     Signature { get { return  0x00524353; } }
 
         public override ScriptData Read (string name, Stream stream)
         {
             if (Signature != FormatCatalog.ReadSignature (stream))
                 return null;
+
             uint script_id = Convert.ToUInt32 (name, 16);
             uint max_offset = (uint)Math.Min (stream.Length, 0xffffffff);
 
@@ -332,7 +334,7 @@ namespace GameRes.Formats.Amaterasu
                 uint script_type = file.ReadUInt32();
                 var script = new AmiScriptData {
                     Id = script_id,
-                    Type = script_type
+                    AmiType = script_type
                 };
                 uint count = file.ReadUInt32();
                 for (uint i = 0; i < count; ++i)
@@ -340,6 +342,7 @@ namespace GameRes.Formats.Amaterasu
                     uint offset = file.ReadUInt32();
                     if (offset >= max_offset)
                         throw new InvalidFormatException ("Invalid offset in script data file");
+
                     int size = file.ReadInt32();
                     uint id = file.ReadUInt32();
                     var header_pos = file.BaseStream.Position;
@@ -347,9 +350,9 @@ namespace GameRes.Formats.Amaterasu
                     byte[] line = file.ReadBytes (size);
                     if (line.Length != size)
                         throw new InvalidFormatException ("Premature end of file");
-                    string text = Encodings.cp932.GetString (line);
 
-                    script.TextLines.Add (new ScriptLine { Id = id, Text = text });
+                    string text = Encodings.cp932.GetString (line);
+                    script.TextLines.Add (new ScriptLine (id, text));
                     file.BaseStream.Position = header_pos;
                 }
                 return script;
@@ -359,10 +362,8 @@ namespace GameRes.Formats.Amaterasu
         public string GetName (ScriptData script_data)
         {
             var script = script_data as AmiScriptData;
-            if (null != script)
-                return script.Id.ToString ("x8");
-            else
-                return null;
+            return null != script ? script.Id.ToString("x8") : null;
+
         }
 
         struct IndexEntry
@@ -375,10 +376,11 @@ namespace GameRes.Formats.Amaterasu
             var script = script_data as AmiScriptData;
             if (null == script)
                 throw new ArgumentException ("Illegal ScriptData", "script_data");
+
             using (var file = new BinaryWriter (stream, Encodings.cp932, true))
             {
                 file.Write (Signature);
-                file.Write (script.Type);
+                file.Write (script.AmiType);
                 uint count = (uint)script.TextLines.Count;
                 file.Write (count);
                 var index_pos = file.BaseStream.Position;

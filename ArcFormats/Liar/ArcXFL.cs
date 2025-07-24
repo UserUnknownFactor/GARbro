@@ -193,7 +193,7 @@ namespace GameRes.Formats.Liar
                 {
                     file.BaseStream.Position = text_offset + index[i];
                     string text = StreamExtension.ReadCString (file.BaseStream);
-                    script.TextLines.Add (new ScriptLine { Id = (uint)i, Text = text });
+                    script.TextLines.Add (new ScriptLine((uint)i, text ));
                 }
                 long footer_pos = text_offset + text_size;
                 file.BaseStream.Position = footer_pos;

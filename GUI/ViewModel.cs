@@ -53,8 +53,36 @@ namespace GARbro.GUI
         public EntryViewModel (Entry entry, int priority)
         {
             Source = entry;
-            Name = SafeGetFileName (entry.Name);
+            Name = GetRelativePath(entry.Name);
             Priority = priority;
+        }
+
+        private string GetRelativePath(string fullPath)
+        {
+            if (string.IsNullOrEmpty(fullPath) || fullPath == "..")
+                return fullPath;
+
+            if (!Path.IsPathRooted(fullPath))
+                return SafeGetFileName(fullPath);
+            
+            try
+            {
+                string currentDir = VFS.Top.CurrentDirectory;
+                if (string.IsNullOrEmpty(currentDir))
+                    currentDir = Directory.GetCurrentDirectory();
+                
+                Uri currentUri = new Uri(currentDir + Path.DirectorySeparatorChar);
+                Uri fileUri = new Uri(fullPath);
+                
+                if (currentUri.IsBaseOf(fileUri))
+                {
+                    string relativePath = currentUri.MakeRelativeUri(fileUri).ToString();
+                    return relativePath.Replace('/', Path.DirectorySeparatorChar);
+                }
+            }
+            catch { }
+
+            return SafeGetFileName(fullPath);
         }
 
         private static readonly char[] SeparatorCharacters = { '\\', '/', ':' };

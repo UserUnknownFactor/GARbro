@@ -453,7 +453,7 @@ Overwrite?</value>
     <value>Destination directory</value>
   </data>
   <data name="MsgPlaying" xml:space="preserve">
-    <value>Playing {0} / {3} / {2}bps / {1}Hz</value>
+    <value>Playing {0} / {3} / {2}kbps / {1}Hz</value>
     <comment>{0}=filename, {1}=sampling rate, {2}=bitrate, {3}=total time </comment>
   </data>
   <data name="LabelDevSite" xml:space="preserve">
