@@ -10,13 +10,13 @@ tags
 *.vsp
 *;*
 *~
-SchemeBuilder
 Makefile
 packages
 .nuget
+.backup
 .vs
 *.py
 *.rb
 *.ksy
 *.user
-GARbro-Mod*.zip
+GARbro*.zip

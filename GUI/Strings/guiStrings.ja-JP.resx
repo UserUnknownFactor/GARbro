@@ -568,7 +568,7 @@ Overwrite?</comment>
     <comment>Destination directory</comment>
   </data>
   <data name="MsgPlaying" xml:space="preserve">
-    <value>{0} / {3} / {2}bps / {1}Hz を再生中</value>
+    <value>{0} / {3} / {2}kbps / {1}Hz を再生中</value>
     <comment>{0}=filename, {1}=sampling rate, {2}=bitrate, {3}=total time </comment>
   </data>
   <data name="LabelDevSite" xml:space="preserve">

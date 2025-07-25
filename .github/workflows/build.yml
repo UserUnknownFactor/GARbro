@@ -33,37 +33,24 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PROGRAM_NAME }}-beta-${{ steps.vars.outputs.sha_short }}
-          path: bin/Release
+          path: bin/Release/net48
+
+      - name: Get the versioned name
+        id: get_version
+        run: echo "VERSIONED=${{ env.PROGRAM_NAME }}_${GITHUB_REF#refs/*/}.zip" >> $GITHUB_OUTPUT
+        shell: bash
 
       - name: Create release zip
         if: startsWith(github.ref, 'refs/tags/') && contains(github.ref, '.')
-        run: |
-          $tag = "${{ github.ref_name }}"
-          if ($tag -match '^\d+\.\d+\.\d+\.\d+$') {
-            $releaseDir = "release-files"
-            New-Item -ItemType Directory -Force -Path $releaseDir
-            Get-ChildItem -Path "bin/Release" -Recurse | Where-Object {
-              $_.Extension -ne '.pdb' -and !$_.PSIsContainer
-            } | ForEach-Object {
-              $relativePath = $_.FullName.Substring((Get-Item "bin/Release").FullName.Length + 1)
-              $destPath = Join-Path $releaseDir $relativePath
-              $destDir = Split-Path $destPath -Parent
-              if (!(Test-Path $destDir)) {
-                New-Item -ItemType Directory -Force -Path $destDir | Out-Null
-              }
-              Copy-Item $_.FullName -Destination $destPath
-            }
-            Compress-Archive -Path "$releaseDir/*" -DestinationPath "${{ env.PROGRAM_NAME }}-v$tag.zip"
-            Remove-Item -Path $releaseDir -Recurse -Force
-          }
         shell: pwsh
+        run: |
+          Compress-Archive -Path bin/Release/net48/* -DestinationPath ${{ steps.get_version.outputs.VERSIONED }} -CompressionLevel Optimal
 
       - name: Create release
         if: startsWith(github.ref, 'refs/tags/') && contains(github.ref, '.')
-        uses: softprops/action-gh-release@v2
+        uses: svenstaro/upload-release-action@v2
         with:
-          name: ${{ env.PROGRAM_NAME }} ${{ github.ref_name }}
-          files: ${{ env.PROGRAM_NAME }}-v${{ github.ref_name }}.zip
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref }}
+          file: ${{ steps.get_version.outputs.VERSIONED }}
+          overwrite: true

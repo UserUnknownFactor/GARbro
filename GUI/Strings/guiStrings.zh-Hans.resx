@@ -453,7 +453,7 @@
     <value>目标文件夹</value>
   </data>
   <data name="MsgPlaying" xml:space="preserve">
-    <value>正在播放 {0} / {3} / {2}bps / {1}Hz</value>
+    <value>正在播放 {0} / {3} / {2}kbps / {1}Hz</value>
     <comment>{0}=filename, {1}=sampling rate, {2}=bitrate, {3}=total time </comment>
   </data>
   <data name="CtxMenuSelectByMask" xml:space="preserve">

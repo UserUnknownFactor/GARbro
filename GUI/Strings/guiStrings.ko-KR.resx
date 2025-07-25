@@ -453,7 +453,7 @@
     <value>출력 폴더</value>
   </data>
   <data name="MsgPlaying" xml:space="preserve">
-    <value>{0} 재생중 / {3} / {2}bps / {1}Hz</value>
+    <value>{0} 재생중 / {3} / {2}kbps / {1}Hz</value>
     <comment>{0}=파일이름, {1}=sampling rate, {2}=bitrate, {3}=총 시간 </comment>
   </data>
   <data name="LabelDevSite" xml:space="preserve">

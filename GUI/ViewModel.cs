@@ -64,20 +64,25 @@ namespace GARbro.GUI
 
             if (!Path.IsPathRooted(fullPath))
                 return SafeGetFileName(fullPath);
-            
+
             try
             {
                 string currentDir = VFS.Top.CurrentDirectory;
                 if (string.IsNullOrEmpty(currentDir))
                     currentDir = Directory.GetCurrentDirectory();
-                
-                Uri currentUri = new Uri(currentDir + Path.DirectorySeparatorChar);
-                Uri fileUri = new Uri(fullPath);
-                
-                if (currentUri.IsBaseOf(fileUri))
+
+                currentDir = Path.GetFullPath(currentDir);
+                fullPath = Path.GetFullPath(fullPath);
+
+                if (fullPath.StartsWith(currentDir, StringComparison.OrdinalIgnoreCase))
                 {
-                    string relativePath = currentUri.MakeRelativeUri(fileUri).ToString();
-                    return relativePath.Replace('/', Path.DirectorySeparatorChar);
+                    string relativePath = fullPath.Substring(currentDir.Length);
+                    if (relativePath.StartsWith(Path.DirectorySeparatorChar.ToString()) || 
+                        relativePath.StartsWith(Path.AltDirectorySeparatorChar.ToString()))
+                    {
+                        relativePath = relativePath.Substring(1);
+                    }
+                    return relativePath;
                 }
             }
             catch { }
@@ -85,7 +90,7 @@ namespace GARbro.GUI
             return SafeGetFileName(fullPath);
         }
 
-        private static readonly char[] SeparatorCharacters = { '\\', '/', ':' };
+        private static readonly char[] SeparatorCharacters = { '\\', '/' };
 
         /// <summary>
         /// Same as Path.GetFileName, but robustly ignores invalid characters

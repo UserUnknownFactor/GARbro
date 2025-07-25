@@ -1,27 +1,4 @@
-﻿// Game Resource Browser
-//
-// Copyright (C) 2014-2017 by morkt
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to
-// deal in the Software without restriction, including without limitation the
-// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-// sell copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
-//
-
-using System;
+﻿using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Collections.Specialized;
@@ -37,12 +14,12 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
-using Microsoft.VisualBasic.FileIO;
 using GARbro.GUI.Properties;
 using GARbro.GUI.Strings;
 using GameRes;
 using Rnd.Windows;
 using Microsoft.Win32;
+using System.Runtime.InteropServices;
 using NAudio.Wave;
 
 namespace GARbro.GUI
@@ -1128,7 +1105,7 @@ namespace GARbro.GUI
                 {
                     string item_name = Path.Combine (CurrentPath, items.First().Name);
                     Trace.WriteLine (item_name, "DeleteItemExec");
-                    FileSystem.DeleteFile (item_name, UIOption.AllDialogs, RecycleOption.SendToRecycleBin);
+                    FileOperationHelper.DeleteToRecycleBin(item_name, true); // true = show dialogs
                     DeleteItem (lv_GetCurrentContainer());
                     SetStatusText (string.Format(guiStrings.MsgDeletedItem, item_name));
                 }
@@ -1570,5 +1547,45 @@ namespace GARbro.GUI
         public static readonly RoutedCommand Descend = new RoutedCommand();
         public static readonly RoutedCommand Ascend = new RoutedCommand();
         public static readonly RoutedCommand ScaleImage = new RoutedCommand();
+    }
+
+    public static class FileOperationHelper
+    {
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        private struct SHFILEOPSTRUCT
+        {
+            public IntPtr hwnd;
+            public uint wFunc;
+            public string pFrom;
+            public string pTo;
+            public ushort fFlags;
+            public bool fAnyOperationsAborted;
+            public IntPtr hNameMappings;
+            public string lpszProgressTitle;
+        }
+
+        private const uint FO_DELETE = 0x0003;
+        private const ushort FOF_ALLOWUNDO = 0x0040;       // Send to Recycle Bin
+        private const ushort FOF_NOCONFIRMATION = 0x0010;  // No confirmation dialog
+
+        // NOTE: this project is Windows-only so this works better than VisualBasic .NET dependency
+        [DllImport("shell32.dll", CharSet = CharSet.Auto)]
+        private static extern int SHFileOperation(ref SHFILEOPSTRUCT FileOp);
+
+        public static void DeleteToRecycleBin(string path, bool showDialog = true)
+        {
+            var fileOp = new SHFILEOPSTRUCT
+            {
+                wFunc = FO_DELETE,
+                pFrom = path + '\0' + '\0', // Double null-terminated
+                fFlags = FOF_ALLOWUNDO
+            };
+
+            if (!showDialog)
+            {
+                fileOp.fFlags |= FOF_NOCONFIRMATION; // Remove FOF_NOCONFIRMATION if you want dialogs
+            }
+            SHFileOperation(ref fileOp);
+        }
     }
 }
