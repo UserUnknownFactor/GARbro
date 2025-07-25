@@ -55,7 +55,7 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
 
-  <!-- NuGet packages -->
+  <!-- References -->
   <ItemGroup>
     <Reference Include="PresentationCore" />
     <Reference Include="System.ComponentModel.Composition" />

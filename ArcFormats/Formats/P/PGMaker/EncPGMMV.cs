@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
-using System.Text;
 using GameRes.Cryptography;
 using GameRes.Utility;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace GameRes.Formats.PGMM
 {
@@ -61,41 +63,21 @@ namespace GameRes.Formats.PGMM
 
         private static string FindInfoJson(string filePath)
         {
-            var dir = Path.GetDirectoryName(filePath);
-            var parentDir = Path.GetDirectoryName(dir);
-            if (parentDir != null)
+            var currentDir = Path.GetDirectoryName(filePath);
+
+            while (!string.IsNullOrEmpty(currentDir))
             {
-                var grandParentDir = Path.GetDirectoryName(parentDir);
+                var infoPath = Path.Combine(currentDir, "data", "info.json");
+                if (VFS.FileExists(infoPath))
+                    return infoPath;
 
-                if (Path.GetFileName(parentDir) == "Resources")
-                {
-                    var dataPath = Path.Combine(parentDir, "data");
-                    var infoPath = Path.Combine(dataPath, "info.json");
-                    if (VFS.FileExists(infoPath))
-                        return infoPath;
-                }
+                var parentDir = Path.GetDirectoryName(currentDir);
 
-                if (grandParentDir != null)
-                {
-                    var resourcesPath = Path.Combine(grandParentDir, "Resources");
-                    var dataPath = Path.Combine(resourcesPath, "data");
-                    var infoPath = Path.Combine(dataPath, "info.json");
-                    if (VFS.FileExists(infoPath))
-                        return infoPath;
-                }
-            }
+                // Stop if we've reached the root or parent is the same as current
+                if (parentDir == currentDir)
+                    break;
 
-            var currentDataPath = Path.Combine(dir, "data");
-            var currentInfoPath = Path.Combine(currentDataPath, "info.json");
-            if (VFS.FileExists(currentInfoPath))
-                return currentInfoPath;
-
-            if (parentDir != null)
-            {
-                currentDataPath = Path.Combine(parentDir, "data");
-                currentInfoPath = Path.Combine(currentDataPath, "info.json");
-                if (VFS.FileExists(currentInfoPath))
-                    return currentInfoPath;
+                currentDir = parentDir;
             }
 
             return null;
@@ -105,20 +87,8 @@ namespace GameRes.Formats.PGMM
         {
             try
             {
-                var keyIndex = jsonText.IndexOf("\"key\"");
-                if (keyIndex == -1) return null;
-
-                var colonIndex = jsonText.IndexOf(":", keyIndex);
-                if (colonIndex == -1) return null;
-
-                var valueStart = jsonText.IndexOf("\"", colonIndex);
-                if (valueStart == -1) return null;
-                valueStart++;
-
-                var valueEnd = jsonText.IndexOf("\"", valueStart);
-                if (valueEnd == -1) return null;
-
-                return jsonText.Substring(valueStart, valueEnd - valueStart);
+                var jsonObject = JObject.Parse(jsonText);
+                return jsonObject["key"]?.ToString();
             }
             catch
             {
@@ -300,7 +270,7 @@ namespace GameRes.Formats.PGMM
             };
 
             var decrypted = PgmmDecryptor.DecryptData(file, decryptInfo);
-            
+
             using (var stream = new BinMemoryStream(decrypted))
             {
                 var format = ImageFormat.FindFormat(stream);
@@ -380,7 +350,7 @@ namespace GameRes.Formats.PGMM
         public override ScriptData Read(string name, Stream file)
         {
             var binaryStream = file as IBinaryStream ?? new BinaryStream(file, name);
-            
+
             var header = binaryStream.ReadHeader(4);
             if (!header.AsciiEqual(0, "enc"))
                 return null;

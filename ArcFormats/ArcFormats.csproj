@@ -50,8 +50,9 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
 
-  <!-- NuGet packages -->
+  <!-- References -->
   <ItemGroup>
+    <Reference Include="WindowsBase" />
     <Reference Include="System.IO.Compression" />
     <PackageReference Include="Crc32C.NET" Version="1.0.5.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
@@ -77,7 +78,7 @@
     <ProjectReference Include="..\NVorbis\NVorbis.csproj" />
   </ItemGroup>
 
-  <!-- Exclude specific files (as commented out in original) -->
+  <!-- Exclude specific files -->
   <ItemGroup>
     <Page Remove="Ikura\CreateMpxWidget.xaml" />
     <Compile Remove="Ikura\CreateMpxWidget.xaml.cs" />

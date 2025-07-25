@@ -50,15 +50,33 @@ namespace GameRes
             Source.Flush();
         }
 
-        public override long Seek(long offset, SeekOrigin origin)
+        public override long Seek(long offset, SeekOrigin origin = SeekOrigin.Current)
         {
-            if (origin == SeekOrigin.Begin)
-                Position = offset;
-            else if (origin == SeekOrigin.Current)
-                Position += offset;
-            else
-                Position = Length + offset;
-            return Position;
+            long newPosition;
+
+            switch (origin)
+            {
+            case SeekOrigin.Begin:
+                newPosition = offset;
+                break;
+            case SeekOrigin.End:
+                newPosition = Length + offset;
+                break;
+            case SeekOrigin.Current:
+            default:
+                newPosition = Position + offset;
+                break;
+            }
+
+            if (newPosition < 0)
+                newPosition = 0;
+                //throw new IOException("Seek operation would position to negatove offset");
+            else if (newPosition > Length)
+                newPosition = Length;
+                //throw new IOException("Seek operation would position beyond stream length");
+
+            Position = newPosition;
+            return newPosition;
         }
 
         public override void SetLength (long length)

@@ -1,11 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
   <!-- Main project properties -->
   <PropertyGroup>
-    <AssemblyTitle>GARbro GUI tool</AssemblyTitle>
+    <AssemblyTitle>GARbro</AssemblyTitle>
     <AssemblyName>GARbro.GUI</AssemblyName>
     <Copyright>morkt, crskycode and other contributors</Copyright>
-    <Description>GARbro GUI tool</Description>
-    <Version>1.0.2</Version>
+    <Description>GARbro GUI version</Description>
+    <Version>1.1.0</Version>
+
     <AssemblyVersion>$([System.DateTime]::Today.ToString('yy.MM.dd'))</AssemblyVersion>
 
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -13,7 +14,6 @@
     <OutputType>WinExe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>GARbro.GUI</RootNamespace>
-    <AssemblyName>GARbro.GUI</AssemblyName>
     <TargetFramework>net48</TargetFramework>
     <FileAlignment>512</FileAlignment>
     <WarningLevel>4</WarningLevel>
@@ -22,14 +22,11 @@
     <Install>true</Install>
     <InstallFrom>Disk</InstallFrom>
     <UpdateEnabled>false</UpdateEnabled>
-    <UpdateMode>Foreground</UpdateMode>
-    <UpdateInterval>7</UpdateInterval>
-    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
     <UpdatePeriodically>false</UpdatePeriodically>
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
     <ApplicationRevision>0</ApplicationRevision>
-    <ApplicationVersion>1.0.1.%2a</ApplicationVersion>
+    <ApplicationVersion>1.1.0.%2a</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <PublishWizardCompleted>true</PublishWizardCompleted>
     <BootstrapperEnabled>true</BootstrapperEnabled>
@@ -78,7 +75,7 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
 
-  <!-- NuGet packages -->
+  <!-- References -->
   <ItemGroup>
     <PackageReference Include="NAudio" Version="1.10.0" />
     <PackageReference Include="WindowsAPICodePack-Core" Version="1.1.2" />

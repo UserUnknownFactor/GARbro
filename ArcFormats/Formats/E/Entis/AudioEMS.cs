@@ -11,10 +11,10 @@ namespace GameRes.Formats.Entis
         public CvType   Transformation;     // field_04
         public EriCode  Architecture;       // field_08
         public int      ChannelCount;       // field_0C
-        public uint     SamplesPerSec;      // field_10
+        public uint     SamplesPerSecond;   // field_10
         public uint     BlocksetCount;      // field_14
         public int      SubbandDegree;      // field_18
-        public int      AllSampleCount;     // field_1C
+        public int      TotalSampleCount;   // field_1C
         public int      LappedDegree;       // field_20
     }
 
@@ -23,7 +23,7 @@ namespace GameRes.Formats.Entis
     {
         public override string         Tag { get { return "EMS"; } }
         public override string Description { get { return "EMSAC compressed audio format"; } }
-        public override uint     Signature { get { return 0x69746E45; } } // 'Entis'
+        public override uint     Signature { get { return  0x69746E45; } } // 'Entis'
 
         public override SoundInput TryOpen (IBinaryStream file)
         {
@@ -32,10 +32,12 @@ namespace GameRes.Formats.Entis
                 return null;
             if (!header.AsciiEqual (0x10, "EMSAC-Sound-2"))
                 return null;
+
             var decoder = new EmsacDecoder (file);
             var pcm = decoder.Decode();
             var sound = new RawPcmInput (pcm, decoder.Format);
             file.Dispose();
+
             return sound;
         }
     }
@@ -44,11 +46,15 @@ namespace GameRes.Formats.Entis
     {
         Stream          m_input;
         EmsacSoundInfo  m_info;
-        long            m_stream_pos;
+        long            m_streamPosition;
         WaveFormat      m_format;
+        EmsacExpansion  m_expansion;
+        int             m_lappedSubbandSize;
+        int             m_version;
+        EriCode         m_architecture;
 
         public WaveFormat Format { get { return m_format; } }
-        
+
         const ushort BitsPerSample = 16;
 
         public EmsacDecoder (IBinaryStream input)
@@ -62,30 +68,34 @@ namespace GameRes.Formats.Entis
             using (var erif = new EriFile (m_input))
             {
                 ReadHeader (erif);
-                int total_bytes = m_info.AllSampleCount * BitsPerSample / 8;
-                var output = new MemoryStream (total_bytes);
+                int totalBytes = m_info.TotalSampleCount * BitsPerSample / 8;
+                var output = new MemoryStream (totalBytes);
                 try
                 {
-                    var buffer = new byte[0x10000];
-                    var decoded = new byte[0x10000];
-                    erif.BaseStream.Position = m_stream_pos;
-                    while (total_bytes > 0)
+                    var inputBuffer = new byte[0x10000];
+                    var decodedBuffer = new byte[0x10000];
+                    erif.BaseStream.Position = m_streamPosition;
+
+                    while (totalBytes > 0)
                     {
                         var section = erif.ReadSection();
                         if (section.Id != "SoundStm")
                             break;
-                        int stm_length = (int)section.Length;
-                        if (stm_length > buffer.Length)
-                            buffer = new byte[stm_length];
-                        erif.Read (m_buffer, 0, stm_length);
-                        int length = m_buffer.ToInt32 (4) * m_lappedSubband;
-                        if (length > decoded.Length)
-                            decoded = new byte[length];
 
-                        DecodeBlock (buffer, decoded);
-                        length = Math.Min (length, total_bytes);
-                        output.Write (decoded, 0, length);
-                        total_bytes -= length;
+                        int streamLength = (int)section.Length;
+                        if (streamLength > inputBuffer.Length)
+                            inputBuffer = new byte[streamLength];
+
+                        erif.Read (inputBuffer, 0, streamLength);
+                        int decodedLength = inputBuffer.ToInt32 (4) * m_lappedSubbandSize;
+
+                        if (decodedLength > decodedBuffer.Length)
+                            decodedBuffer = new byte[decodedLength];
+
+                        DecodeBlock (inputBuffer, decodedBuffer);
+                        int bytesToWrite = Math.Min (decodedLength, totalBytes);
+                        output.Write (decodedBuffer, 0, bytesToWrite);
+                        totalBytes -= bytesToWrite;
                     }
                 }
                 catch (EndOfStreamException) { /* ignore EOF errors */ }
@@ -96,133 +106,172 @@ namespace GameRes.Formats.Entis
 
         void DecodeBlock (byte[] input, byte[] output)
         {
-            if (m_exp.Version > 0x20100)
+            if (m_expansion.Version > 0x20100)
                 throw new InvalidFormatException ("Not supported EMSAC version.");
-            int channels = m_exp.ChannelCount;
-            if (0 == channels || channels > 2)
+
+            int channelCount = m_expansion.ChannelCount;
+            if (0 == channelCount || channelCount > 2)
                 throw new InvalidFormatException ("Invalid number of channels.");
-            int subband_degree = 0;
-            int v84 = 1;
-            bool use_dct = 0 != (m_exp.Transformation & 1);
-            if (use_dct)
+
+            int subbandDegree = 0;
+            int subbandMultiplier = 1;
+            bool useDct = 0 != (m_expansion.Transformation & CvType.DCT_ERI);
+
+            if (useDct)
             {
-                subband_degree = m_exp.SubbandDegree;
-                v84 <<= subband_degree;
+                subbandDegree = m_expansion.SubbandDegree;
+                subbandMultiplier <<= subbandDegree;
             }
-            int subband = 1 << subband_degree;
-            int sample_count = input.ToInt32 (4);
-            int samples_per_channel = sample_count / channels;
-            if (0 == samples_per_channel)
+
+            int subbandSize = 1 << subbandDegree;
+            int sampleCount = input.ToInt32 (4);
+            int samplesPerChannel = sampleCount / channelCount;
+
+            if (0 == samplesPerChannel)
                 throw new InvalidFormatException ("Invalid number of samples.");
-            int v85 = samples_per_channel;
-            var v73 = new int[channels][];
-            var v75 = new int[subband]; // workBuf
-            var v74 = new int[subband]; // weightTable
-            var v13 = new int[subband * channels]; // internalBuf
-            var sampleBuf = new short[sample_count];
-            for (int i = 0; i < channels; ++i)
+
+            var channelBuffers = new int[channelCount][];
+            var workBuffer     = new int[subbandSize];
+            var weightTable    = new int[subbandSize];
+            var sampleBuffer   = new short[sampleCount];
+
+            for (int i = 0; i < channelCount; ++i)
             {
-                v73[i] = new int[subband];
+                channelBuffers[i] = new int[subbandSize];
             }
-            int dst = 0;
-            int src = 8;
-            int v77 = src + sample_count;
-            object sym_table;
-            var v16 = CreateDecoderSymbolTable (input, v77, out sym_table);
-            for (int i = 0; i < samples_per_channel; ++i)
+
+            int outputPos = 0;
+            int inputPos = 8;
+            int symbolTableOffset = inputPos + sampleCount;
+
+            // Create decoder symbol table
+            var decoder = CreateDecoderContext (input, symbolTableOffset);
+
+            for (int block = 0; block < samplesPerChannel; ++block)
             {
-                for (int c = 0; c < channels; ++c)
+                // Decode each channel
+                for (int channel = 0; channel < channelCount; ++channel)
                 {
-                    var v72 = v73[c];
-                    int v19 = DecodeSymbols (v16, sym_table, v75, subband);
-                    if (v19 < subband)
+                    var channelData = channelBuffers[channel];
+                    int symbolsDecoded = DecodeSymbols (decoder, workBuffer, subbandSize);
+
+                    if (symbolsDecoded < subbandSize)
                         throw new InvalidFormatException();
-                    byte code = input[src++];
-                    InverseQuantumize (v74, v75, subband, code);
-                    if (use_dct)
-                    {
-                        InverseDCT (v72, v74, 2, subband_degree);
-                    }
+
+                    byte quantizationCode = input[inputPos++];
+                    InverseQuantize (weightTable, workBuffer, subbandSize, quantizationCode);
+
+                    if (useDct)
+                        InverseDCT (channelData, weightTable, 2, subbandDegree);
                     else
-                    {
-                        Buffer.BlockCopy (v74, v72, 4 * subband);
-                    }
+                        Buffer.BlockCopy (weightTable, 0, channelData, 0, 4 * subbandSize);
                 }
-                int cur_pos = dst;
-                for (int c = 0; c < channels; ++c)
+
+                // Convert to samples
+                int currentPos = outputPos;
+                for (int channel = 0; channel < channelCount; ++channel)
                 {
-                    int pos = cur_pos;
-                    var v32 = v73[c];
-                    for (int i = 0; i < subband; ++i)
+                    int pos = currentPos;
+                    var channelData = channelBuffers[channel];
+
+                    for (int i = 0; i < subbandSize; ++i)
                     {
-                        int v34 = v32[i];
-                        int v35 = v34;
-                        int v36 = v34 >> 23;
-                        int v37 = v34 & 0x7FFFFF | 0x800000;
-                        int v38 = v35 >> 31;
-                        int v39 = -((byte)v36 - 150);
-                        if (v39 > 8)
+                        int floatValue = channelData[i];
+                        int sign = floatValue >> 31;
+                        int exponent = (floatValue >> 23) & 0xFF;
+                        int mantissa = floatValue & 0x7FFFFF | 0x800000;
+                        int shift = 150 - exponent;
+                        int sample;
+
+                        if (shift > 8)
                         {
-                            if (v39 <= 31)
-                                v40 = v38 ^ (v38 + __CFSHR__(v37, v39) + (v37 >> v39));
+                            if (shift <= 31)
+                                sample = sign ^ (sign + (mantissa >> shift));
                             else
-                                v40 = 0;
+                                sample = 0;
                         }
                         else
                         {
-                            v40 = v38 ^ (v38 + 0x7FFF);
+                            sample = sign ^ (sign + 0x7FFF);
                         }
-                        sampleBuf[pos] = (short)v40;
-                        pos += channels;
+
+                        sampleBuffer[pos] = (short)sample;
+                        pos += channelCount;
                     }
-                    ++cur_pos;
+                    ++currentPos;
                 }
-                dst += channels * subband;
+                outputPos += channelCount * subbandSize;
             }
-            dst = 0;
-            for (int c = 0; c < channels; ++c)
+
+            // Apply differential decoding
+            ApplyDifferentialDecoding (sampleBuffer, samplesPerChannel, channelCount, subbandSize);
+
+            // Copy to output
+            Buffer.BlockCopy (sampleBuffer, 0, output, 0, sampleCount * 2);
+        }
+
+        void ApplyDifferentialDecoding (short[] samples, int samplesPerChannel, int channelCount, int subbandSize)
+        {
+            int step = channelCount * subbandSize;
+
+            for (int channel = 0; channel < channelCount; ++channel)
             {
-                int src = c;
-                short diff = (short)(m_exp.CompState[c] - sampleBuf[src]);
-                int pos = 0;
-                for (int i = 0; i < 12; ++i)
+                int pos = channel;
+                short difference = (short)(m_expansion.CompressionState[channel] - samples[pos]);
+
+                // Apply initial difference
+                for (int i = 0; i < 12 && i < samplesPerChannel; ++i)
                 {
-                    int sample = diff + sampleBuf[src+pos];
-                    sampleBuf[src+pos] = Clamp (sample);
-                    pos += channels;
-                    diff >>= 1;
+                    int sample = difference + samples[pos];
+                    samples[pos] = Clamp (sample);
+                    pos += channelCount;
+                    difference >>= 1;
                 }
-                int v48 = samples_per_channel - 1;
-                for (int i = 1; i < samples_per_channel; ++i)
+
+                // Process remaining samples
+                pos = channel + step;
+                for (int i = 1; i < samplesPerChannel && pos < samples.Length; ++i)
                 {
-                    v42 = (_WORD *)((char *)v42 + (step << subbandDegree));
-                    v49 = v42[step / 2] + v42[-step / 2] - v42[-step] - *v42;
-                    v70 = (short)(v49 + v42[-step / 2] + *v42) >> 1;
-                    v50 = (short)(v42[-step / 2] + *v42 - v49) >> 1;
-                    v52 = -step;
-                    v53 = (short)(v50 - v42[-step / 2]);
-                    for (int j = 0; j < 12; ++j)
+                    if (pos - step >= 0 && pos + step / 2 < samples.Length)
                     {
-                        int v54 = v53 + *(_WORD *)((char *)v42 + v52);
-                        *(_WORD *)((char *)v42 + v52) = Clamp (v54);
-                        v52 -= step;
-                        v53 >>= 1;
+                        int prediction = samples[pos + step / 2] + samples[pos - step / 2] 
+                                       - samples[pos - step] - samples[pos];
+                        int average1 = (short)(prediction + samples[pos - step / 2] + samples[pos]) >> 1;
+                        int average2 = (short)(samples[pos - step / 2] + samples[pos] - prediction) >> 1;
+
+                        // Update previous samples
+                        short diff1 = (short)(average2 - samples[pos - step / 2]);
+                        int prevPos = pos - step;
+                        for (int j = 0; j < 12 && prevPos >= 0; ++j)
+                        {
+                            int updatedSample = diff1 + samples[prevPos];
+                            samples[prevPos] = Clamp (updatedSample);
+                            prevPos -= step;
+                            diff1 >>= 1;
+                        }
+
+                        // Update future samples
+                        short diff2 = (short)(average1 - samples[pos]);
+                        int nextPos = pos;
+                        for (int j = 0; j < 12 && nextPos < samples.Length; ++j)
+                        {
+                            int updatedSample = diff2 + samples[nextPos];
+                            samples[nextPos] = Clamp (updatedSample);
+                            nextPos += step;
+                            diff2 >>= 1;
+                        }
                     }
-                    v55 = 0;
-                    v57 = (short)(v70 - *v42);
-                    for (int j = 0; j < 12; ++j)
-                    {
-                        int v58 = v57 + *(_WORD *)((char *)v42 + v55);
-                        *(_WORD *)((char *)v42 + v55) = Clamp (v58);
-                        v55 += step;
-                        v57 >>= 1;
-                    }
+                    pos += step;
                 }
-                int v59 = 2 * *(_WORD *)((char *)v42 + (step << subbandDegree) - step)
-                          - *(_WORD *)((char *)v42 + (step << subbandDegree) - 2 * step);
-                m_exp.CompState[c] = Clamp (v59);
+
+                // Update compression state
+                int lastPos = channel + (samplesPerChannel - 1) * step;
+                if (lastPos - step >= 0 && lastPos - 2 * step >= 0)
+                {
+                    int finalValue = 2 * samples[lastPos - step] - samples[lastPos - 2 * step];
+                    m_expansion.CompressionState[channel] = Clamp (finalValue);
+                }
             }
-            Buffer.BlockCopy (sampleBuf, 0, output, 0, sample_count * 2);
         }
 
         static short Clamp (int sample)
@@ -238,67 +287,83 @@ namespace GameRes.Formats.Entis
         {
             var section = erif.ReadSection();
             if (section.Id != "Header  " || section.Length <= 0 || section.Length > int.MaxValue)
-                return null;
-            m_stream_pos = erif.BaseStream.Position + section.Length;
+                throw new InvalidFormatException ("Invalid header section");
+
+            m_streamPosition = erif.BaseStream.Position + section.Length;
             section = erif.ReadSection();
             if (section.Id != "FileHdr" || section.Length < 8)
-                return null;
-            var file_hdr = new byte[section.Length];
-            erif.Read (file_hdr, 0, file_hdr.Length);
-            if (0 == (file_hdr[5] & 1))
-                return null;
+                throw new InvalidFormatException ("Invalid file header");
+
+            var fileHeader = new byte[section.Length];
+            erif.Read (fileHeader, 0, fileHeader.Length);
+            if (0 == (fileHeader[5] & 1))
+                throw new InvalidFormatException ("Invalid file header flags");
+
             section = erif.ReadSection();
             if (section.Id != "SoundInf" || section.Length < 0x24)
-                return null;
+                throw new InvalidFormatException ("Invalid sound info section");
 
             var info = new EmsacSoundInfo();
-            info.Version        = erif.ReadInt32();
-            info.Transformation = (CvType)erif.ReadInt32();
-            info.Architecture   = (EriCode)erif.ReadInt32();
-            info.ChannelCount   = erif.ReadInt32();
-            info.SamplesPerSec  = erif.ReadUInt32();
-            info.BlocksetCount  = erif.ReadUInt32();
-            info.SubbandDegree  = erif.ReadInt32();
-            info.AllSampleCount = erif.ReadInt32();
-            info.LappedDegree   = erif.ReadInt32();
+            info.Version            = erif.ReadInt32();
+            info.Transformation     = (CvType)erif.ReadInt32();
+            info.Architecture       = (EriCode)erif.ReadInt32();
+            info.ChannelCount       = erif.ReadInt32();
+            info.SamplesPerSecond   = erif.ReadUInt32();
+            info.BlocksetCount      = erif.ReadUInt32();
+            info.SubbandDegree      = erif.ReadInt32();
+            info.TotalSampleCount   = erif.ReadInt32();
+            info.LappedDegree       = erif.ReadInt32();
+
             SetSoundInfo (info);
             SetWaveFormat (info);
 
-            erif.BaseStream.Position = m_stream_pos;
-            var stream_size = erif.FindSection ("Stream  ");
-            m_stream_pos = erif.BaseStream.Position;
+            erif.BaseStream.Position = m_streamPosition;
+            var streamSize = erif.FindSection ("Stream  ");
+            m_streamPosition = erif.BaseStream.Position;
         }
-
-        EmsacExpansion  m_exp;
-        int             m_lappedSubband;
-        int             m_version;
-        EriCode         m_field_98;
-        int             m_field_9C;
-        int             m_field_A0;
-        int             m_field_A4;
 
         void SetSoundInfo (EmsacSoundInfo info)
         {
             m_info = info;
-            m_exp = new EmsacExpansion (info);
+            m_expansion = new EmsacExpansion (info);
             m_version = info.Version;
-            m_field_98 = info.Architecture;
-            m_field_9C = 133;
-            m_field_A0 = -1;
-            m_field_A4 = 0;
-            int subband = 2 << info.SubbandDegree;
-            m_lappedSubband = subband << info.LappedDegree;
+            m_architecture = info.Architecture;
+
+            int subbandSize = 2 << info.SubbandDegree;
+            m_lappedSubbandSize = subbandSize << info.LappedDegree;
         }
 
         void SetWaveFormat (EmsacSoundInfo info)
         {
-            int pcm_bitrate = (int)(m_info.SamplesPerSec * 16 * m_info.ChannelCount);
-            m_format.FormatTag                = 1;
-            m_format.Channels                 = (ushort)ChannelCount;
-            m_format.SamplesPerSecond         = m_info.SamplesPerSec;
-            m_format.BitsPerSample            = (ushort)BitsPerSample;
-            m_format.BlockAlign               = (ushort)(BitsPerSample/8*format.Channels);
-            m_format.AverageBytesPerSecond    = (uint)pcm_bitrate/8;
+            int pcmBitrate = (int)(info.SamplesPerSecond * BitsPerSample * info.ChannelCount);
+            m_format = new WaveFormat();
+
+            m_format.FormatTag              = 1;
+            m_format.Channels               = (ushort)info.ChannelCount;
+            m_format.SamplesPerSecond       = info.SamplesPerSecond;
+            m_format.BitsPerSample          = BitsPerSample;
+            m_format.BlockAlign             = (ushort)(BitsPerSample / 8 * m_format.Channels);
+            m_format.AverageBytesPerSecond  = (uint)(pcmBitrate / 8);
+        }
+
+        object CreateDecoderContext (byte[] input, int offset)
+        {
+            throw new NotImplementedException();
+        }
+
+        int DecodeSymbols (object decoder, int[] output, int count)
+        {
+            throw new NotImplementedException();
+        }
+
+        void InverseQuantize (int[] output, int[] input, int count, byte quantizationCode)
+        {
+            throw new NotImplementedException();
+        }
+
+        void InverseDCT (int[] output, int[] input, int stride, int degree)
+        {
+            throw new NotImplementedException();
         }
     }
 
@@ -309,7 +374,7 @@ namespace GameRes.Formats.Entis
         public int      ChannelCount;       // field_8
         public int      SubbandDegree;      // field_C
         public int      LappedDegree;       // field_10
-        public short[]  CompState = new short[16];
+        public short[]  CompressionState = new short[16];
 
         public EmsacExpansion (EmsacSoundInfo info)
         {
