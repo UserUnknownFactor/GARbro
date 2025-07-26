@@ -10,6 +10,7 @@ using GameRes.Compression;
 
 namespace GameRes.Formats.Macromedia
 {
+    #region Entry classes
     internal class SwfEntry : Entry
     {
         public SwfChunk     Chunk;
@@ -26,6 +27,7 @@ namespace GameRes.Formats.Macromedia
     {
         public List<SwfChunk> SpriteChunks { get; set; } = new List<SwfChunk>();
     }
+    #endregion
 
     [Export(typeof(ArchiveFormat))]
     public class SwfOpener : ArchiveFormat
@@ -74,13 +76,10 @@ namespace GameRes.Formats.Macromedia
                         };
 
                         if (sprite_stack.Count > 0)
-                        {
                             sprite_stack.Peek().Children.Add(sprite_entry);
-                        }
                         else
-                        {
                             AddToResourceGroup(resource_groups, "Sprites", sprite_entry);
-                        }
+
                         sprite_stack.Push(sprite_entry);
                     }
                     else if (chunk.Type == Types.End && sprite_stack.Count > 0)
@@ -156,6 +155,7 @@ namespace GameRes.Formats.Macromedia
                 return string.Format ("{0}_{1}.{2}", baseName, prefix, extension);
         }
 
+        #region String Representations of Types
         private string GetResourcePrefix (Types type)
         {
             switch (type)
@@ -248,6 +248,7 @@ namespace GameRes.Formats.Macromedia
                     return "Other";
             }
         }
+        #endregion
 
         private void AddToResourceGroup (Dictionary<string, List<Entry>> groups, string groupName, Entry entry)
         {
@@ -315,14 +316,11 @@ namespace GameRes.Formats.Macromedia
             return result;
         }
 
-        public override Stream OpenEntry (ArcFile arc, Entry entry)
+        internal static bool IsSoundStream(SwfChunk chunk)
         {
-            var swent = (SwfEntry)entry;
-
-            Extractor extract;
-            if (!ExtractMap.TryGetValue (swent.Chunk.Type, out extract))
-                extract = ExtractChunk;
-            return extract (swent);
+            return chunk.Type == Types.SoundStreamHead
+                || chunk.Type == Types.SoundStreamHead2
+                || chunk.Type == Types.SoundStreamBlock;
         }
 
         static string GetTypeFromId (Types type_id)
@@ -366,71 +364,10 @@ namespace GameRes.Formats.Macromedia
             return new BinMemoryStream (chunk.Data, 2, chunk.Length-2);
         }
 
-        public override IImageDecoder OpenImage (ArcFile arc, Entry entry)
-        {
-            var swent = (SwfEntry)entry;
-            switch (swent.Chunk.Type)
-            {
-            case Types.DefineBitsLossless:
-            case Types.DefineBitsLossless2:
-                return new LosslessImageDecoder (swent.Chunk);
-            case Types.DefineBitsJpeg2:
-                return new SwfJpeg2Decoder (swent.Chunk);
-            case Types.DefineBitsJpeg3:
-                return new SwfJpeg3Decoder (swent.Chunk);
-            case Types.DefineBitsJpeg:
-                return OpenBitsJpeg (swent.Chunk);
-            default:
-                return base.OpenImage (arc, entry);
-            }
-        }
-
-        IImageDecoder OpenBitsJpeg (SwfChunk chunk)
-        {
-            int jpeg_pos = 0;
-            for (int i = 0; i < chunk.Data.Length - 2; ++i)
-            {
-                if (chunk.Data[i] == 0xFF && chunk.Data[i+1] == 0xD8)
-                {
-                    jpeg_pos = i;
-                    break;
-                }
-            }
-            var input = new BinMemoryStream (chunk.Data, jpeg_pos, chunk.Data.Length - jpeg_pos);
-            return ImageFormatDecoder.Create (input);
-        }
-
-        static Stream ExtractJpeg2(SwfEntry entry)
-        {
-            var chunk = entry.Chunk;
-            int jpeg_pos = 2; // Start after ID
-
-            for (int i = 2; i < chunk.Data.Length - 1; i++)
-            {
-                // Find JPEG SOI marker
-                if (chunk.Data[i] == 0xFF && chunk.Data[i + 1] == 0xD8)
-                {
-                    jpeg_pos = i + 2;
-                    break;
-                }
-            }
-
-            return new BinMemoryStream(chunk.Data, jpeg_pos, chunk.Data.Length - jpeg_pos);
-        }
-
-        static Stream ExtractJpeg3(SwfEntry entry)
-        {
-            var chunk = entry.Chunk;
-            int jpeg_length = chunk.Data.ToInt32(2);
-            return new BinMemoryStream(chunk.Data, 6, jpeg_length);
-        }
-
-        delegate Stream Extractor (SwfEntry entry);
-
         static Dictionary<Types, Extractor> ExtractMap = new Dictionary<Types, Extractor> {
             { Types.DefineBitsJpeg,      ExtractChunkContents },
-            { Types.DefineBitsJpeg2,     ExtractJpeg2 },
-            { Types.DefineBitsJpeg3,     ExtractJpeg3 },
+            { Types.DefineBitsJpeg2,     ExtractChunk },
+            { Types.DefineBitsJpeg3,     ExtractChunk },
             { Types.DefineBitsLossless,  ExtractChunk },
             { Types.DefineBitsLossless2, ExtractChunk },
             { Types.DefineSound,         ExtractAudio },
@@ -473,13 +410,397 @@ namespace GameRes.Formats.Macromedia
             { Types.RemoveObject2,          "placement" },
         };
 
-        internal static bool IsSoundStream (SwfChunk chunk)
+        delegate Stream Extractor(SwfEntry entry);
+
+        public override Stream OpenEntry(ArcFile arc, Entry entry)
         {
-            return chunk.Type == Types.SoundStreamHead
-                || chunk.Type == Types.SoundStreamHead2
-                || chunk.Type == Types.SoundStreamBlock;
+            var swent = (SwfEntry)entry;
+
+            Extractor extract;
+            if (!ExtractMap.TryGetValue(swent.Chunk.Type, out extract))
+                extract = ExtractChunk;
+            return extract(swent);
+        }
+
+        public override IImageDecoder OpenImage(ArcFile arc, Entry entry)
+        {
+            var swent = (SwfEntry)entry;
+            ImageFormat format = null;
+
+            switch (swent.Chunk.Type)
+            {
+                case Types.DefineBitsLossless:
+                    format = new SwfLosslessFormat();
+                    break;
+                case Types.DefineBitsLossless2:
+                    format = new SwfLossless2Format();
+                    break;
+                case Types.DefineBitsJpeg:
+                    format = new SwfJpegFormat();
+                    break;
+                case Types.DefineBitsJpeg2:
+                    format = new SwfJpeg2Format();
+                    break;
+                case Types.DefineBitsJpeg3:
+                    format = new SwfJpeg3Format();
+                    break;
+                default:
+                    return base.OpenImage(arc, entry);
+            }
+
+            var stream = new BinMemoryStream(swent.Chunk.Data);
+            var info = format.ReadMetaData(stream);
+            if (info == null)
+                return base.OpenImage(arc, entry);
+
+            stream.Position = 0;
+            var image = format.Read(stream, info);
+            return new ImageFormatDecoder(stream, format, info, image);
         }
     }
+
+    internal class ImageFormatDecoder : IImageDecoder
+    {
+        private Stream m_input;
+        private ImageFormat m_format;
+        private ImageMetaData m_info;
+        private ImageData m_data;
+
+        public Stream Source { get { return m_input; } }
+        public ImageFormat SourceFormat { get { return m_format; } }
+        public ImageMetaData Info { get { return m_info; } }
+        public ImageData Image { get { return m_data; } }
+
+        public ImageFormatDecoder(Stream input, ImageFormat format, ImageMetaData info, ImageData data)
+        {
+            m_input  = input;
+            m_format = format;
+            m_info   = info;
+            m_data   = data;
+        }
+
+        public void Dispose()
+        {
+            m_input?.Dispose();
+        }
+    }
+
+    #region SWF Image Formats
+
+    internal abstract class SwfImageFormat : ImageFormat
+    {
+        public override uint Signature { get { return 0; } }
+
+        public SwfImageFormat()
+        {
+            Extensions = new string[0];
+            Signatures = new uint[0];
+        }
+
+        public override void Write(Stream file, ImageData bitmap)
+        {
+            throw new NotImplementedException("SWF image writing not supported");
+        }
+    }
+
+    internal class SwfJpegFormat : SwfImageFormat
+    {
+        public override string Tag { get { return "JPEG/SWF"; } }
+        public override string Description { get { return "SWF JPEG image"; } }
+
+        public override ImageMetaData ReadMetaData(IBinaryStream file)
+        {
+            // For DefineBitsJPEG, skip the ID and find JPEG
+            file.Position = 2;
+            var data = file.ReadBytes((int)(file.Length - 2));
+            int jpegPos = JpegUtility.FindSignature(data);
+            if (jpegPos < 0)
+                return null;
+
+            using (var jpeg = new BinMemoryStream(data, jpegPos, data.Length - jpegPos))
+            {
+                return ImageFormat.Jpeg.ReadMetaData(jpeg);
+            }
+        }
+
+        public override ImageData Read(IBinaryStream file, ImageMetaData info)
+        {
+            file.Position = 2;
+            var data = file.ReadBytes((int)(file.Length - 2));
+            int jpegPos = JpegUtility.FindSignature(data);
+
+            using (var jpeg = new BinMemoryStream(data, jpegPos, data.Length - jpegPos))
+            {
+                return ImageFormat.Jpeg.Read(jpeg, info);
+            }
+        }
+    }
+
+    internal class SwfJpeg2Format : SwfImageFormat
+    {
+        public override string Tag { get { return "JPEG2/SWF"; } }
+        public override string Description { get { return "SWF JPEG2 image"; } }
+
+        public override ImageMetaData ReadMetaData(IBinaryStream file)
+        {
+            file.Position = 2; // Skip ID
+            var data = file.ReadBytes((int)(file.Length - 2));
+            var normalized = JpegUtility.NormalizeJPEG(data);
+
+            using (var jpeg = new BinMemoryStream(normalized))
+            {
+                return ImageFormat.Jpeg.ReadMetaData(jpeg);
+            }
+        }
+
+        public override ImageData Read(IBinaryStream file, ImageMetaData info)
+        {
+            file.Position = 2; // Skip ID
+            var data = file.ReadBytes((int)(file.Length - 2));
+            var normalized = JpegUtility.NormalizeJPEG(data);
+
+            using (var jpeg = new BinMemoryStream(normalized))
+            {
+                return ImageFormat.Jpeg.Read(jpeg, info);
+            }
+        }
+    }
+
+    internal class SwfJpeg3Format : SwfImageFormat
+    {
+        public override string Tag { get { return "JPEG3/SWF"; } }
+        public override string Description { get { return "SWF JPEG3 image with alpha"; } }
+
+        public override ImageMetaData ReadMetaData(IBinaryStream file)
+        {
+            file.Position = 2; // Skip ID
+            int jpegLength = file.ReadInt32();
+            var data = file.ReadBytes(jpegLength);
+            var normalized = JpegUtility.NormalizeJPEG(data);
+
+            using (var jpeg = new BinMemoryStream(normalized))
+            {
+                var info = ImageFormat.Jpeg.ReadMetaData(jpeg);
+                if (info != null)
+                    info.BPP = 32; // Has alpha channel
+                return info;
+            }
+        }
+
+        public override ImageData Read(IBinaryStream file, ImageMetaData info)
+        {
+            file.Position = 2; // Skip ID
+            int jpegLength = file.ReadInt32();
+            var jpegData = file.ReadBytes(jpegLength);
+            var normalized = JpegUtility.NormalizeJPEG(jpegData);
+
+            BitmapSource image;
+            using (var jpeg = new BinMemoryStream(normalized))
+            {
+                var jpegImage = ImageFormat.Jpeg.Read(jpeg, info);
+                image = jpegImage.Bitmap;
+            }
+
+            // Read alpha channel
+            int alphaSize = (int)(file.Length - file.Position);
+            if (alphaSize > 0)
+            {
+                var alphaData = file.ReadBytes(alphaSize);
+                using (var alphaStream = new BinMemoryStream(alphaData))
+                using (var zstream = new ZLibStream(alphaStream, CompressionMode.Decompress))
+                {
+                    var alpha = new byte[info.Width * info.Height];
+                    zstream.Read(alpha, 0, alpha.Length);
+
+                    // Convert to BGRA32 if needed
+                    if (image.Format != PixelFormats.Bgr32)
+                        image = new FormatConvertedBitmap(image, PixelFormats.Bgr32, null, 0);
+
+                    int stride = (int)info.Width * 4;
+                    var pixels = new byte[stride * info.Height];
+                    image.CopyPixels(pixels, stride, 0);
+
+                    // Apply alpha
+                    int srcAlpha = 0;
+                    for (int dst = 3; dst < pixels.Length; dst += 4)
+                        pixels[dst] = alpha[srcAlpha++];
+
+                    return ImageData.Create(info, PixelFormats.Bgra32, null, pixels, stride);
+                }
+            }
+
+            return new ImageData(image, info);
+        }
+    }
+
+    internal class SwfLosslessFormat : SwfImageFormat
+    {
+        public override string Tag { get { return "Lossless/SWF"; } }
+        public override string Description { get { return "SWF Lossless image"; } }
+        protected virtual bool HasAlpha { get { return false; } }
+
+        public override ImageMetaData ReadMetaData(IBinaryStream file)
+        {
+            file.Position = 0; // Chunk data includes everything
+            file.ReadUInt16(); // ID
+            byte format = file.ReadUInt8();
+            uint width = file.ReadUInt16();
+            uint height = file.ReadUInt16();
+
+            int bpp;
+            switch (format)
+            {
+                case 3: bpp = 8; break;
+                case 4: bpp = 16; break;
+                case 5: bpp = HasAlpha ? 32 : 24; break;
+                default: return null;
+            }
+
+            return new ImageMetaData { Width = width, Height = height, BPP = bpp };
+        }
+
+        public override ImageData Read(IBinaryStream file, ImageMetaData info)
+        {
+            file.Position = 2; // Skip ID
+            byte format = file.ReadUInt8();
+            ushort width = file.ReadUInt16();
+            ushort height = file.ReadUInt16();
+
+            int colors = 0;
+            if (format == 3)
+                colors = file.ReadUInt8() + 1;
+
+            using (var zstream = new ZLibStream(file.AsStream, CompressionMode.Decompress, true))
+            {
+                PixelFormat pixelFormat;
+                BitmapPalette palette = null;
+
+                switch (format)
+                {
+                    case 3:
+                        pixelFormat = PixelFormats.Indexed8;
+                        var palFormat = HasAlpha ? PaletteFormat.RgbA : PaletteFormat.RgbX;
+                        palette = ReadPalette(zstream, colors, palFormat);
+                        break;
+                    case 4:
+                        pixelFormat = PixelFormats.Bgr565;
+                        break;
+                    case 5:
+                        pixelFormat = HasAlpha ? PixelFormats.Bgra32 : PixelFormats.Bgr32;
+                        break;
+                    default:
+                        throw new InvalidFormatException();
+                }
+
+                int stride = (int)info.Width * (info.BPP / 8);
+                var pixels = new byte[(int)info.Height * stride];
+
+                if (format == 3) // Indexed
+                {
+                    int rowSize = (int)info.Width;
+                    int alignedRowSize = (rowSize + 3) & ~3;
+                    var rowBuffer = new byte[alignedRowSize];
+
+                    for (int y = 0; y < info.Height; y++)
+                    {
+                        zstream.Read(rowBuffer, 0, alignedRowSize);
+                        Buffer.BlockCopy(rowBuffer, 0, pixels, y * rowSize, rowSize);
+                    }
+                }
+                else
+                {
+                    zstream.Read(pixels, 0, pixels.Length);
+                }
+
+                if (format == 5) // 32-bit ARGB to BGRA
+                {
+                    for (int i = 0; i < pixels.Length; i += 4)
+                    {
+                        byte a = pixels[i];
+                        byte r = pixels[i + 1];
+                        byte g = pixels[i + 2];
+                        byte b = pixels[i + 3];
+                        pixels[i] = b;
+                        pixels[i + 1] = g;
+                        pixels[i + 2] = r;
+                        pixels[i + 3] = a;
+                    }
+                }
+
+                return ImageData.Create(info, pixelFormat, palette, pixels);
+            }
+        }
+    }
+
+    internal class SwfLossless2Format : SwfLosslessFormat
+    {
+        public override string Tag { get { return "Lossless2/SWF"; } }
+        public override string Description { get { return "SWF Lossless2 image with alpha"; } }
+        protected override bool HasAlpha { get { return true; } }
+    }
+
+    #endregion
+
+    #region Utility Classes
+
+    internal static class JpegUtility
+    {
+        public static int FindSignature(byte[] data, int startPos = 0)
+        {
+            while (startPos < data.Length - 1)
+            {
+                if (data[startPos] == 0xFF && data[startPos + 1] == 0xD8)
+                    return startPos;
+                startPos++;
+            }
+            return -1;
+        }
+
+        public static byte[] NormalizeJPEG(byte[] jpegData)
+        {
+            // Find the first JPEG tables final FFD9 (End of Image marker)
+            int firstFFD9 = -1;
+            for (int i = 0; i < jpegData.Length - 1; i++)
+            {
+                if (jpegData[i] == 0xFF && jpegData[i + 1] == 0xD9)
+                {
+                    firstFFD9 = i;
+                    break;
+                }
+            }
+
+            if (firstFFD9 < 0)
+                return jpegData;
+
+            // Find the second FFD8 (Start of Image marker) after FFD9
+            int secondFFD8 = -1;
+            for (int i = firstFFD9 + 2; i < jpegData.Length - 1; i++)
+            {
+                if (jpegData[i] == 0xFF && jpegData[i + 1] == 0xD8)
+                {
+                    secondFFD8 = i;
+                    break;
+                }
+            }
+
+            if (secondFFD8 < 0)
+                return jpegData;
+
+            // Create standard JPEG
+            int tablesLength = firstFFD9;
+            int imageDataStart = secondFFD8 + 2;
+            int imageDataLength = jpegData.Length - imageDataStart;
+            int totalLength = tablesLength + imageDataLength;
+
+            byte[] result = new byte[totalLength];
+            Buffer.BlockCopy(jpegData, 0, result, 0, tablesLength);
+            Buffer.BlockCopy(jpegData, imageDataStart, result, tablesLength, imageDataLength);
+
+            return result;
+        }
+    }
+
+    #endregion
 
     internal enum Types : short
     {
@@ -669,11 +990,9 @@ namespace GameRes.Formats.Macromedia
                 length = m_input.ReadInt32();
 
             var chunk = new SwfChunk (id, length);
-            if (length > 0)
-            {
-                if (m_input.Read (chunk.Data, 0, length) < length)
-                    return null;
-            }
+            if (length > 0 && m_input.Read (chunk.Data, 0, length) < length)
+                return null;
+
             return chunk;
         }
 
@@ -697,249 +1016,5 @@ namespace GameRes.Formats.Macromedia
             }
         }
         #endregion
-    }
-
-    internal sealed class LosslessImageDecoder : BinaryImageDecoder
-    {
-        Types           m_type;
-        int             m_colors;
-        int             m_data_pos;
-
-        public PixelFormat       Format { get; private set; }
-        private bool           HasAlpha { get { return m_type == Types.DefineBitsLossless2; } }
-
-        public LosslessImageDecoder (SwfChunk chunk) : base (new BinMemoryStream (chunk.Data))
-        {
-            m_type = chunk.Type;
-            byte format = chunk.Data[2];
-            int bpp;
-            switch (format)
-            {
-            case 3:
-                bpp = 8; Format = PixelFormats.Indexed8;
-                break;
-            case 4:
-                bpp = 16; Format = PixelFormats.Bgr565;
-                break;
-            case 5:
-                bpp = 32;
-                Format = HasAlpha ? PixelFormats.Bgra32 : PixelFormats.Bgr32;
-                break;
-            default: 
-                throw new InvalidFormatException();
-            }
-            uint width  = chunk.Data.ToUInt16 (3);
-            uint height = chunk.Data.ToUInt16 (5);
-            m_colors = 0;
-            m_data_pos = 7;
-            if (3 == format)
-                m_colors = chunk.Data[m_data_pos++] + 1;
-            Info = new ImageMetaData {
-                Width = width, Height = height, BPP = bpp
-            };
-        }
-
-        protected override ImageData GetImageData ()
-        {
-            m_input.Position = m_data_pos;
-            using (var input = new ZLibStream (m_input.AsStream, CompressionMode.Decompress, true))
-            {
-                BitmapPalette palette = null;
-                if (8 == Info.BPP)
-                {
-                    var pal_format = HasAlpha ? PaletteFormat.RgbA : PaletteFormat.RgbX;
-                    palette = ImageFormat.ReadPalette (input, m_colors, pal_format);
-                }
-
-                int stride = (int)Info.Width * (Info.BPP / 8);
-                var pixels = new byte[(int)Info.Height * stride];
-
-                if (8 == Info.BPP)
-                {
-                    // Read indexed data with proper row alignment
-                    int row_size = (int)Info.Width;
-                    int aligned_row_size = (row_size + 3) & ~3; // 4-byte alignment
-                    var row_buffer = new byte[aligned_row_size];
-
-                    for (int y = 0; y < Info.Height; y++)
-                    {
-                        input.Read(row_buffer, 0, aligned_row_size);
-                        Buffer.BlockCopy(row_buffer, 0, pixels, y * row_size, row_size);
-                    }
-                }
-                else
-                {
-                    input.Read (pixels, 0, pixels.Length);
-                }
-
-                if (32 == Info.BPP)
-                {
-                    // Convert ARGB to BGRA
-                    for (int i = 0; i < pixels.Length; i += 4)
-                    {
-                        byte a = pixels[i];
-                        byte r = pixels[i+1];
-                        byte g = pixels[i+2];
-                        byte b = pixels[i+3];
-                        pixels[i]   = b;
-                        pixels[i+1] = g;
-                        pixels[i+2] = r;
-                        pixels[i+3] = a;
-                    }
-                }
-                return ImageData.Create (Info, Format, palette, pixels);
-            }
-        }
-    }
-
-    internal class JpegWithSignture
-    {
-
-        internal byte[]            m_input;
-        internal ImageData         m_image;
-
-        public Stream            Source { get { return Stream.Null; } }
-        public ImageFormat SourceFormat { get { return null; } }
-        public ImageData          Image { get { return m_image ?? (m_image = Unpack()); } }
-        public ImageMetaData       Info { get; set; }
-
-
-        public int FindJpegSignature(int start = 2)
-        {
-            int jpeg_pos = start;
-            while (jpeg_pos < m_input.Length - 4)
-            {
-                if (m_input[jpeg_pos] != 0xFF)
-                    jpeg_pos++;
-                else if (m_input[jpeg_pos + 1] == 0xD8)
-                    return jpeg_pos;
-                else if (m_input[jpeg_pos + 1] != 0xD9)
-                    jpeg_pos++;
-                else if (m_input[jpeg_pos + 2] != 0xFF)
-                    jpeg_pos += 3;
-                else if (m_input[jpeg_pos + 3] != 0xD8)
-                    jpeg_pos += 2;
-                else
-                    return jpeg_pos + 4;
-            }
-            return -1;
-        }
-
-        virtual public ImageData Unpack() { return null; }
-        public void Dispose() { }
-    }
-
-    internal sealed class SwfJpeg2Decoder : JpegWithSignture, IImageDecoder
-    {
-
-        public SwfJpeg2Decoder (SwfChunk chunk)
-        {
-            m_input = chunk.Data;
-        }
-
-        override public ImageData Unpack()
-        {
-            int jpeg_pos = FindJpegSignature();
-            if (jpeg_pos < 0)
-                throw new InvalidFormatException("JPEG signature not found");
-
-            using (var jpeg = new BinMemoryStream(m_input, jpeg_pos, m_input.Length - jpeg_pos))
-            {
-                try
-                {
-                    var decoder = new JpegBitmapDecoder(jpeg, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
-                    var frame = decoder.Frames[0];
-                    Info = new ImageMetaData
-                    {
-                        Width = (uint)frame.PixelWidth,
-                        Height = (uint)frame.PixelHeight,
-                        BPP = frame.Format.BitsPerPixel,
-                    };
-                    return new ImageData(frame, Info);
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidFormatException($"JPEG decode failed: {ex.Message}");
-                }
-            }
-        }
-    }
-
-    internal sealed class SwfJpeg3Decoder : JpegWithSignture, IImageDecoder
-    {
-        int m_jpeg_length;
-
-        public PixelFormat       Format { get; private set; }
-
-        public SwfJpeg3Decoder (SwfChunk chunk)
-        {
-            m_input = chunk.Data;
-        }
-
-        override public ImageData Unpack ()
-        {
-            BitmapSource image;
-            int base_offset = 6;
-            m_jpeg_length = m_input.ToInt32 (2);
-            try
-            {
-                using (var jpeg = new BinMemoryStream(m_input, base_offset, m_jpeg_length))
-                {
-                    var decoder = new JpegBitmapDecoder(jpeg, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
-                    image = decoder.Frames[0];
-                }
-            }
-            catch (FileFormatException)
-            {
-                base_offset = FindJpegSignature(20);
-                if (base_offset < 0)
-                    throw new InvalidFormatException("JPEG signature not found");
-
-                using (var jpeg = new BinMemoryStream(m_input, base_offset, m_input.Length - base_offset))
-                {
-                    var decoder = new JpegBitmapDecoder(jpeg, BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
-                    image = decoder.Frames[0];
-                }
-            }
-
-            Info = new ImageMetaData {
-                Width = (uint)image.PixelWidth,
-                Height = (uint)image.PixelHeight,
-                BPP = 32,
-            };
-
-            int stride = image.PixelWidth * 4;
-            var pixels = new byte[stride * image.PixelHeight];
-            byte[] alpha = new byte[image.PixelWidth * image.PixelHeight];
-            bool useAlpha = false;
-
-            try
-            {
-                using (var input = new BinMemoryStream(m_input, base_offset + m_jpeg_length, m_input.Length - (base_offset + m_jpeg_length)))
-                using (var alpha_data = new ZLibStream(input, CompressionMode.Decompress))
-                    alpha_data.Read(alpha, 0, alpha.Length);
-
-                if (image.Format.BitsPerPixel != 32)
-                    image = new FormatConvertedBitmap(image, PixelFormats.Bgr32, null, 0);
-                useAlpha = true;
-            } catch
-            {
-                useAlpha = false;
-            }
-
-            image.CopyPixels(pixels, stride, 0);
-
-            if (useAlpha)
-              ApplyAlpha(pixels, alpha);
-
-            return ImageData.Create (Info, PixelFormats.Bgra32, null, pixels, stride);
-        }
-
-        void ApplyAlpha (byte[] pixels, byte[] alpha)
-        {
-            int src = 0;
-            for (int dst = 3; dst < pixels.Length; dst += 4)
-                pixels[dst] = alpha[src++];
-        }
     }
 }
