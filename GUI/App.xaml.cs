@@ -30,7 +30,7 @@ namespace GARbro.GUI
             Trace.Listeners.Add (new TextWriterTraceListener (Path.Combine (exe_dir, "trace.log")));
             Trace.AutoFlush = true;
 #endif
-            Trace.WriteLine ("ApplicationStartup --------------------------------", "GARbro.GUI.App");
+            //Trace.WriteLine ("ApplicationStartup --------------------------------", "GARbro.GUI.App");
             this.DispatcherUnhandledException += (s, args) =>
             {
                 Trace.WriteLine (string.Format ("Unhandled exception caught: {0}", args.Exception.Message),

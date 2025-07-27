@@ -9,7 +9,7 @@ using GameRes.Utility;
 namespace GameRes
 {
     [Export(typeof(ImageFormat))]
-    [ExportMetadata("Priority", 10)]
+    [ExportMetadata("Priority", 5)]
     public class Jpeg2000Format : ImageFormat
     {
         public override string         Tag { get { return "JP2"; } }

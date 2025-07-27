@@ -68,6 +68,7 @@ namespace GameRes.Formats
     }
 
     [Export(typeof(AudioFormat))]
+    [ExportMetadata("Priority", 40)]
     public class Mp3Audio : AudioFormat
     {
         public override string         Tag { get { return "MP3"; } }

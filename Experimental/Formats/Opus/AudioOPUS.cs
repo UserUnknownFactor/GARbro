@@ -1,10 +1,11 @@
 using System;
 using System.ComponentModel.Composition;
 using System.IO;
-using System.Linq;
+using Concentus.Enums;
 using Concentus.Oggfile;
 using Concentus.Structs;
-using Concentus.Enums;
+using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 
 namespace GameRes.Formats.Opus
 {
@@ -20,13 +21,15 @@ namespace GameRes.Formats.Opus
         }
     }
 
-    [Export(typeof(AudioFormat))]
+    [Export (typeof (AudioFormat))]
     public class OpusAudio : AudioFormat
     {
         public override string         Tag { get { return "OPUS"; } }
         public override string Description { get { return "Ogg/Opus audio format"; } }
         public override uint     Signature { get { return  0; } }
         public override bool      CanWrite { get { return  true; } }
+
+        private const int OPUS_SAMPLE_RATE = 48000;
 
         public override SoundInput TryOpen (IBinaryStream file)
         {
@@ -43,11 +46,15 @@ namespace GameRes.Formats.Opus
             header = file.ReadHeader (header_pos + header_size);
             if (!header.AsciiEqual (header_pos, "OpusHead"))
                 return null;
-            int channels = header[header_pos+9];
-            int rate = 48000;
+
+            int channels = header[header_pos + 9];
+            int rate     = header[header_pos + 12] | 
+                          (header[header_pos + 13] << 8) | 
+                          (header[header_pos + 14] << 16) | 
+                          (header[header_pos + 15] << 24);
 
             file.Position = 0;
-            var decoder = OpusDecoder.Create (rate, channels);
+            var decoder = OpusDecoder.Create (OPUS_SAMPLE_RATE, channels);
             var ogg_in = new OpusOggReadStream (decoder, file.AsStream);
             var pcm = new MemoryStream();
             try
@@ -71,8 +78,8 @@ namespace GameRes.Formats.Opus
                     SamplesPerSecond = (uint)rate,
                     BitsPerSample = 16,
                 };
-                format.BlockAlign = (ushort)(format.Channels*format.BitsPerSample/8);
-                format.AverageBytesPerSecond = format.SamplesPerSecond*format.BlockAlign;
+                format.BlockAlign = (ushort)(format.Channels * format.BitsPerSample / 8);
+                format.AverageBytesPerSecond = format.SamplesPerSecond * format.BlockAlign;
                 pcm.Position = 0;
                 var sound = new RawPcmInput (pcm, format);
                 file.Dispose();
@@ -88,16 +95,16 @@ namespace GameRes.Formats.Opus
         public override void Write (SoundInput source, Stream output)
         {
             if (source == null)
-                throw new ArgumentNullException(nameof(source));
+                throw new ArgumentNullException (nameof(source));
             if (output == null)
-                throw new ArgumentNullException(nameof(output));
+                throw new ArgumentNullException (nameof(output));
 
             var options = new OpusOptions();
 
             var pcmSource = source as RawPcmInput;
             if (pcmSource != null)
             {
-                WriteOpusStream(pcmSource, output, options);
+                WriteOpusStream (pcmSource, output, options);
             }
             else
             {
@@ -107,148 +114,86 @@ namespace GameRes.Formats.Opus
                     source.Position = 0;
                     var buffer = new byte[4096];
                     int read;
-                    while ((read = source.Read(buffer, 0, buffer.Length)) > 0)
+                    while ((read = source.Read (buffer, 0, buffer.Length)) > 0)
                     {
-                        pcmStream.Write(buffer, 0, read);
+                        pcmStream.Write (buffer, 0, read);
                     }
 
                     pcmStream.Position = 0;
-                    using (var tempPcm = new RawPcmInput(pcmStream, source.Format))
+                    using (var tempPcm = new RawPcmInput (pcmStream, source.Format))
                     {
-                        WriteOpusStream(tempPcm, output, options);
+                        WriteOpusStream (tempPcm, output, options);
                     }
                 }
             }
         }
 
-        private void WriteOpusStream(RawPcmInput pcmSource, Stream output, OpusOptions options)
+        private void WriteOpusStream (RawPcmInput pcmSource, Stream output, OpusOptions options)
         {
             var format = pcmSource.Format;
-            const int opusSampleRate = 48000;
+            
 
-            var encoder = OpusEncoder.Create(opusSampleRate, format.Channels, options.Application);
-            encoder.Bitrate = Math.Min(options.Bitrate, 510000 * format.Channels);
+            var encoder = OpusEncoder.Create (OPUS_SAMPLE_RATE, format.Channels, options.Application);
+            encoder.Bitrate = Math.Min (options.Bitrate, 510000 * format.Channels);
 
             var tags = new OpusTags();
             tags.Comment = "Encoded by GARbro";
-            var oggOut = new OpusOggWriteStream(encoder, output, tags);
 
-            const int frameDurationMs = 20;
-            int frameSize = opusSampleRate * frameDurationMs / 1000;
-            int bytesPerSample = format.BitsPerSample / 8;
-            int bytesPerFrame = frameSize * format.Channels * bytesPerSample;
+            var oggOut = new OpusOggWriteStream (encoder, output, tags, (int)format.SamplesPerSecond);
 
-            var buffer = new byte[bytesPerFrame];
-            var samples = new short[frameSize * format.Channels];
+            WriteFromStream (pcmSource, oggOut, format.Channels);
+        }
+
+        private Stream ResampleTo48kHz (RawPcmInput pcmSource, WaveFormat sourceFormat)
+        {
+            var inputFormat = new NAudio.Wave.WaveFormat(
+                (int)sourceFormat.SamplesPerSecond,
+                sourceFormat.BitsPerSample,
+                sourceFormat.Channels);
 
             pcmSource.Position = 0;
-            long totalBytes = pcmSource.Length;
-            long processedBytes = 0;
+            var waveProvider = new RawSourceWaveStream (pcmSource, inputFormat);
+            var sampleProvider = waveProvider.ToSampleProvider();
+            var resampler = new WdlResamplingSampleProvider (sampleProvider, OPUS_SAMPLE_RATE);
 
-            while (processedBytes < totalBytes)
+            var outputProvider = resampler.ToWaveProvider16();
+            var outputStream = new MemoryStream();
+            var buffer = new byte[4800 * sourceFormat.Channels * 2];
+
+            int bytesRead;
+            while ((bytesRead = outputProvider.Read (buffer, 0, buffer.Length)) > 0)
+                outputStream.Write (buffer, 0, bytesRead);
+
+            outputStream.Position = 0;
+            return outputStream;
+        }
+
+        private void WriteFromStream (Stream audioStream, OpusOggWriteStream oggOut, int channels)
+        {
+            const int frameDurationMs = 20;
+            const int sampleRate = OPUS_SAMPLE_RATE;
+            int frameSize = sampleRate * frameDurationMs / 1000;
+            int bytesPerFrame = frameSize * channels * 2; // 16-bit samples
+
+            var buffer = new byte[bytesPerFrame];
+            var samples = new short[frameSize * channels];
+
+            audioStream.Position = 0;
+
+            while (true)
             {
-                int bytesToRead = (int)Math.Min(buffer.Length, totalBytes - processedBytes);
-                int bytesRead = pcmSource.Read(buffer, 0, bytesToRead);
-                if (bytesRead == 0)
+                int bytesRead = audioStream.Read (buffer, 0, buffer.Length);
+                if (bytesRead <= 0)
                     break;
 
-                processedBytes += bytesRead;
-                int sampleCount = ConvertToSamples(buffer, bytesRead, samples, format);
+                int sampleCount = bytesRead / 2;
+                Buffer.BlockCopy (buffer, 0, samples, 0, bytesRead);
 
                 if (sampleCount > 0)
-                {
-                    if (format.SamplesPerSecond != opusSampleRate)
-                    {
-                        var resampledSamples = ResampleAudio(samples, sampleCount / format.Channels, 
-                            format.SamplesPerSecond, opusSampleRate, format.Channels);
-                        oggOut.WriteSamples(resampledSamples, 0, resampledSamples.Length / format.Channels);
-                    }
-                    else
-                    {
-                        oggOut.WriteSamples(samples, 0, sampleCount / format.Channels);
-                    }
-                }
+                    oggOut.WriteSamples (samples, 0, sampleCount);
             }
 
             oggOut.Finish();
-        }
-
-        private int ConvertToSamples(byte[] buffer, int byteCount, short[] samples, WaveFormat format)
-        {
-            int sampleCount = 0;
-            int bytesPerSample = format.BitsPerSample / 8;
-            int totalSamples = byteCount / bytesPerSample;
-
-            for (int i = 0; i < totalSamples && sampleCount < samples.Length; i++)
-            {
-                int bufferIndex = i * bytesPerSample;
-
-                switch (format.BitsPerSample)
-                {
-                    case 8:
-                        samples[sampleCount] = (short)((buffer[bufferIndex] - 128) * 256);
-                        break;
-
-                    case 16:
-                        samples[sampleCount] = BitConverter.ToInt16(buffer, bufferIndex);
-                        break;
-
-                    case 24:
-                        int sample24 = buffer[bufferIndex] | 
-                                      (buffer[bufferIndex + 1] << 8) | 
-                                      (buffer[bufferIndex + 2] << 16);
-                        if ((sample24 & 0x800000) != 0)
-                            sample24 |= unchecked((int)0xFF000000);
-                        samples[sampleCount] = (short)(sample24 >> 8);
-                        break;
-
-                    case 32:
-                        int sample32 = BitConverter.ToInt32(buffer, bufferIndex);
-                        samples[sampleCount] = (short)(sample32 >> 16);
-                        break;
-
-                    default:
-                        throw new NotSupportedException($"Unsupported bit depth: {format.BitsPerSample}");
-                }
-
-                sampleCount++;
-            }
-
-            return sampleCount;
-        }
-
-        private short[] ResampleAudio(short[] input, int inputFrames, uint inputRate, 
-            uint outputRate, int channels)
-        {
-            if (inputRate == outputRate)
-                return input;
-
-            double ratio = (double)inputRate / outputRate;
-            int outputFrames = (int)(inputFrames / ratio);
-            var output = new short[outputFrames * channels];
-
-            for (int ch = 0; ch < channels; ch++)
-            {
-                for (int i = 0; i < outputFrames; i++)
-                {
-                    double srcIndex = i * ratio;
-                    int srcIndexInt = (int)srcIndex;
-                    double fraction = srcIndex - srcIndexInt;
-
-                    if (srcIndexInt + 1 < inputFrames)
-                    {
-                        short sample1 = input[srcIndexInt * channels + ch];
-                        short sample2 = input[(srcIndexInt + 1) * channels + ch];
-                        output[i * channels + ch] = (short)(sample1 + fraction * (sample2 - sample1));
-                    }
-                    else if (srcIndexInt < inputFrames)
-                    {
-                        output[i * channels + ch] = input[srcIndexInt * channels + ch];
-                    }
-                }
-            }
-
-            return output;
         }
     }
 }

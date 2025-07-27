@@ -8,7 +8,7 @@ using System.IO;
 namespace GameRes.Formats.CsWare
 {
     [Export(typeof(AudioFormat))]
-    [ExportMetadata("Priority", 1)] // should be tried before generic WAVE format
+    [ExportMetadata("Priority", 5)] // should be tried before generic WAVE format
     public class WavAudio : AudioFormat
     {
         public override string         Tag => "WAV/CSWARE";
