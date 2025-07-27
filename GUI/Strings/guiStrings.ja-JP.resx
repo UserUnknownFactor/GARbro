@@ -471,9 +471,13 @@ Overwrite?</comment>
     <value>変換</value>
     <comment>Convert</comment>
   </data>
-  <data name="LabelDestinationFormat" xml:space="preserve">
-    <value>イメージの変換形式</value>
-    <comment>Choose destination format for images</comment>
+  <data name="LabelImageDestinationFormat" xml:space="preserve">
+    <value>イメージの変換形式：</value>
+    <comment>Choose destination format for images:</comment>
+  </data>
+  <data name="LabelAudioDestinationFormat" xml:space="preserve">
+    <value>オーディオの変換形式：</value>
+    <comment>Choose destination format for audio:</comment>
   </data>
   <data name="TextConvertMedia" xml:space="preserve">
     <value>マルチメディアの形式変換</value>
@@ -525,7 +529,11 @@ Overwrite?</comment>
   </data>
   <data name="LabelSkipFailures" xml:space="preserve">
     <value>復元できないファイルをスキップする</value>
-    <comment>Skip incovertible files.</comment>
+    <comment>Skip incovertible files</comment>
+  </data>
+  <data name="LabelForceConversion" xml:space="preserve">
+    <value>強制フォーマット変換</value>
+    <comment>Force format conversion</comment>
   </data>
   <data name="MsgNoMatching" xml:space="preserve">
     <value>"{0}" に一致するエントリはありません。</value>

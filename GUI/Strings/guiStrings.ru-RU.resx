@@ -396,8 +396,11 @@
   <data name="ButtonConvert" xml:space="preserve">
     <value>Преобразовать</value>
   </data>
-  <data name="LabelDestinationFormat" xml:space="preserve">
-    <value>Формат преобразования изображений</value>
+  <data name="LabelImageDestinationFormat" xml:space="preserve">
+    <value>Формат преобразования изображений:</value>
+  </data>
+  <data name="LabelAudioDestinationFormat" xml:space="preserve">
+    <value>Формат преобразования аудио:</value>
   </data>
   <data name="TextConvertMedia" xml:space="preserve">
     <value>Преобразование мультимедиа</value>
@@ -433,7 +436,10 @@
     <value>не удалось интерпретировать формат аудио</value>
   </data>
   <data name="LabelSkipFailures" xml:space="preserve">
-    <value>Пропускать файлы, не поддавшиеся конверсии.</value>
+    <value>Пропускать файлы, не поддавшиеся конверсии</value>
+  </data>
+  <data name="LabelForceConversion" xml:space="preserve">
+    <value>Принудительное преобразование формата</value>
   </data>
   <data name="MsgNoMediaFiles" xml:space="preserve">
     <value>Среди выбранных файлов нет мультимедиа.</value>

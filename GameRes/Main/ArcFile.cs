@@ -53,7 +53,8 @@ namespace GameRes
             try
             {
                 uint signature = file.View.ReadUInt32 (0);
-                foreach (var impl in FormatCatalog.Instance.FindFormats<ArchiveFormat> (entry.Name, signature))
+                var formatImpls = FormatCatalog.Instance.FindFormats<ArchiveFormat>(entry.Name, signature);
+                foreach (var impl in formatImpls)
                 {
                     try
                     {

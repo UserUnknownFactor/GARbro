@@ -381,8 +381,11 @@ Overwrite?</value>
   <data name="ButtonConvert" xml:space="preserve">
     <value>Convert</value>
   </data>
-  <data name="LabelDestinationFormat" xml:space="preserve">
-    <value>Choose destination format for images</value>
+  <data name="LabelImageDestinationFormat" xml:space="preserve">
+    <value>Choose destination format for images:</value>
+  </data>
+  <data name="LabelAudioDestinationFormat" xml:space="preserve">
+    <value>Choose destination format for audio:</value>
   </data>
   <data name="TextConvertMedia" xml:space="preserve">
     <value>Media conversion</value>
@@ -417,11 +420,11 @@ Overwrite?</value>
   <data name="MsgNoMediaFiles" xml:space="preserve">
     <value>No media files selected.</value>
   </data>
-  <data name="TextAudioConversion" xml:space="preserve">
-    <value>Audio will be converted to either WAV, MP3 or OGG.</value>
-  </data>
   <data name="LabelSkipFailures" xml:space="preserve">
-    <value>Skip incovertible files.</value>
+    <value>Skip incovertible files</value>
+  </data>
+  <data name="LabelForceConversion" xml:space="preserve">
+    <value>Force format conversion</value>
   </data>
   <data name="MsgNoMatching" xml:space="preserve">
     <value>No entries matching "{0}"</value>
@@ -450,7 +453,7 @@ Overwrite?</value>
     <value>none</value>
   </data>
   <data name="LabelDestinationDir" xml:space="preserve">
-    <value>Destination directory</value>
+    <value>Destination directory:</value>
   </data>
   <data name="MsgPlaying" xml:space="preserve">
     <value>Playing {0} / {3} / {2}kbps / {1}Hz</value>

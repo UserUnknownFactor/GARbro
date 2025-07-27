@@ -381,8 +381,11 @@
   <data name="ButtonConvert" xml:space="preserve">
     <value>转换</value>
   </data>
-  <data name="LabelDestinationFormat" xml:space="preserve">
-    <value>请选择目标文件类型</value>
+  <data name="LabelImageDestinationFormat" xml:space="preserve">
+    <value>请选择目标图像文件类型：</value>
+  </data>
+  <data name="LabelAudioDestinationFormat" xml:space="preserve">
+    <value>请选择目标音频文件类型：</value>
   </data>
   <data name="TextConvertMedia" xml:space="preserve">
     <value>媒体转换</value>
@@ -422,6 +425,9 @@
   </data>
   <data name="LabelSkipFailures" xml:space="preserve">
     <value>跳过不可转换的文件</value>
+  </data>
+  <data name="LabelForceConversion" xml:space="preserve">
+    <value>强制格式转换</value>
   </data>
   <data name="MsgNoMatching" xml:space="preserve">
     <value>没有与“{0}”匹配的项目。</value>

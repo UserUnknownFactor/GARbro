@@ -47,6 +47,15 @@ namespace GARbro.GUI
                 }
                 else if (!entry.IsDirectory)
                 {
+                    if (entry.Type == "image" || 
+                        entry.Type == "audio" || 
+                        entry.Type == "video")
+                    {
+                        // Use format conversion instead of extraction
+                        ConvertSingleFile(entry);
+                        return;
+                    }
+
                     var source = entry.Source.Name;
                     SetBusyState();
 
@@ -75,6 +84,57 @@ namespace GARbro.GUI
             {
                 if (null != extractor && !extractor.IsActive)
                     extractor.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Convert a single image or audio file using the conversion dialog.
+        /// </summary>
+        private void ConvertSingleFile(EntryViewModel entry)
+        {
+            if (entry == null || (entry.Type != "image" && entry.Type != "audio"))
+                return;
+
+            var convert_dialog = new ConvertMedia();
+
+            string destination = Path.GetDirectoryName(entry.Source.Name);
+            if (!IsWritableDirectory(destination) && Directory.Exists(Settings.Default.appLastDestination))
+                destination = Settings.Default.appLastDestination;
+            convert_dialog.DestinationDir.Text = destination;
+
+            convert_dialog.Owner = this;
+            var result = convert_dialog.ShowDialog() ?? false;
+            if (!result)
+                return;
+
+            try
+            {
+                destination = convert_dialog.DestinationDir.Text;
+                Directory.SetCurrentDirectory(destination);
+                var converter = new GarConvertMedia(this);
+                converter.IgnoreErrors = convert_dialog.IgnoreErrors.IsChecked ?? false;
+
+                var entries = new List<Entry> { entry.Source };
+
+                if (entry.Type == "image")
+                {
+                    var imageFormat = convert_dialog.ImageConversionFormat.SelectedItem as ImageFormat;
+                    if (imageFormat != null)
+                        converter.ConvertImages(entries, imageFormat);
+                }
+                else if (entry.Type == "audio")
+                {
+                    var audioFormat = convert_dialog.AudioConversionFormat.SelectedItem as AudioFormat;
+                    if (audioFormat != null)
+                        converter.ConvertAudios(entries, audioFormat);
+                }
+
+                Settings.Default.appLastDestination = destination;
+                SetStatusText(string.Format("Converted {0}", entry.Name));
+            }
+            catch (Exception X)
+            {
+                PopupError(X.Message, guiStrings.TextMediaConvertError);
             }
         }
     }
@@ -404,7 +464,7 @@ namespace GARbro.GUI
             m_main.SetStatusText (Localization.Format ("MsgExtractedFiles", m_extract_count));
             this.Dispose();
         }
-        
+
         #region IDisposable Members
         bool disposed = false;
 

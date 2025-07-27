@@ -16,6 +16,8 @@ namespace GARbro.GUI
         {
             InitializeComponent ();
             ImageConversionFormat.ItemsSource = FormatCatalog.Instance.ImageFormats.Where (f => f.CanWrite);
+            AudioConversionFormat.ItemsSource = FormatCatalog.Instance.AudioFormats.Where (f => f.CanWrite);
+            //VideoConversionFormat.ItemsSource = FormatCatalog.Instance.VideoFormats.Where (f => f.CanWrite);
         }
 
         private void BrowseExec (object sender, ExecutedRoutedEventArgs e)

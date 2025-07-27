@@ -79,8 +79,8 @@ namespace GameRes.Formats
     {
         public override string         Tag { get { return "AAC"; } }
         public override string Description { get { return "Advanced Audio Coding"; } }
-        public override uint     Signature { get { return 0; } }
-        public override bool      CanWrite { get { return true; } }
+        public override uint     Signature { get { return  0; } }
+        public override bool      CanWrite { get { return  true; } }
 
         static AacAudio()
         {
@@ -138,15 +138,7 @@ namespace GameRes.Formats
                 }
             }
 
-            file.Position = 0;
-            try
-            {
-                return new AacInput (file.AsStream);
-            }
-            catch
-            {
-                return null;
-            }
+            return null;
         }
 
         public override void Write (SoundInput source, Stream output)
@@ -173,7 +165,9 @@ namespace GameRes.Formats
         {
             string tempFile = Path.GetTempFileName();
             string aacTempFile = Path.ChangeExtension(tempFile, ".aac");
-            
+
+            source.Position = 0;
+
             try
             {
                 var format = source.Format;
@@ -208,10 +202,8 @@ namespace GameRes.Formats
             }
             finally
             {
-                if (File.Exists(tempFile))
-                    File.Delete(tempFile);
-                if (File.Exists(aacTempFile))
-                    File.Delete(aacTempFile);
+                if (File.Exists(tempFile)) File.Delete(tempFile);
+                if (File.Exists(aacTempFile)) File.Delete(aacTempFile);
             }
         }
     }

@@ -9,27 +9,42 @@
         ResizeMode="NoResize" SizeToContent="WidthAndHeight"
         Background="{DynamicResource {x:Static SystemColors.ControlBrushKey}}">
     <StackPanel Orientation="Vertical">
-        <StackPanel Orientation="Horizontal" Margin="20,10,20,0">
-            <Label Content="{x:Static s:guiStrings.LabelDestinationFormat}" Target="{Binding ElementName=ImageConversionFormat}" HorizontalAlignment="Left" Padding="0,0,10,0" VerticalAlignment="Center"/>
-            <ComboBox Name="ImageConversionFormat" DisplayMemberPath="Tag" Width="60" HorizontalAlignment="Left"
+        <StackPanel Orientation="Horizontal" Margin="20,10,20,0" HorizontalAlignment="Right">
+            <Label Content="{x:Static s:guiStrings.LabelImageDestinationFormat}" Target="{Binding ElementName=ImageConversionFormat}" HorizontalAlignment="Left" Padding="0,0,10,0" VerticalAlignment="Center" UseLayoutRounding="False"/>
+            <ComboBox Name="ImageConversionFormat" DisplayMemberPath="Tag" Width="60" HorizontalAlignment="Right"
                       ItemsSource="{Binding}" SelectedValuePath="Tag"
                       SelectedValue="{Binding Source={x:Static p:Settings.Default}, Path=appLastImageFormat, Mode=TwoWay}"/>
         </StackPanel>
-        <TextBlock Text="{x:Static s:guiStrings.TextAudioConversion}" Margin="20,10,20,0"/>
-        <TextBlock x:Name="DestinationLabel" Text="{x:Static s:guiStrings.LabelDestinationDir}" Margin="20,10,20,10" VerticalAlignment="Top"/>
-        <Grid>
+        <StackPanel Orientation="Horizontal" Margin="20,10,20,0" HorizontalAlignment="Right">
+            <Label Content="{x:Static s:guiStrings.LabelAudioDestinationFormat}" Target="{Binding ElementName=AudioConversionFormat}" HorizontalAlignment="Left" Padding="0,0,10,0" VerticalAlignment="Center"/>
+            <ComboBox Name="AudioConversionFormat" DisplayMemberPath="Tag" Width="60" HorizontalAlignment="Right"
+                      ItemsSource="{Binding}" SelectedValuePath="Tag"
+                      SelectedValue="{Binding Source={x:Static p:Settings.Default}, Path=appLastAudioFormat, Mode=TwoWay}"/>
+        </StackPanel>
+        <TextBlock x:Name="DestinationLabel" Text="{x:Static s:guiStrings.LabelDestinationDir}" Margin="20,10,20,5" VerticalAlignment="Top"/>
+        <Grid Margin="20,0,20,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="350"/>
+                <ColumnDefinition Width="Auto" MinWidth="400"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <local:ExtAutoCompleteBox x:Name="DestinationDir" Margin="20,0,0,0" VerticalAlignment="Bottom" Grid.Row="0" Grid.Column="0" Height="23" EnterKeyDown="acb_OnEnterKeyDown"/>
-            <Button Margin="10,0,20,0" VerticalAlignment="Bottom" HorizontalAlignment="Right" Grid.Row="0" Grid.Column="1"
+            <local:ExtAutoCompleteBox x:Name="DestinationDir" Margin="0,0,0,0" VerticalAlignment="Bottom" Grid.Row="0" Grid.Column="0" Height="23" EnterKeyDown="acb_OnEnterKeyDown"/>
+            <Button Margin="10,0,0,0" VerticalAlignment="Bottom" HorizontalAlignment="Right" Grid.Row="0" Grid.Column="1"
                 Command="{x:Static local:Commands.Browse}" Height="22" Width="22">
                 <Image Source="{StaticResource IconSearch}" Stretch="Uniform" UseLayoutRounding="True" SnapsToDevicePixels="True" Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Button>
         </Grid>
-        <CheckBox Name="IgnoreErrors" Content="{x:Static s:guiStrings.LabelSkipFailures}" Margin="20,10"
-                  IsChecked="{Binding Source={x:Static p:Settings.Default}, Path=appIgnoreConversionErrors, Mode=TwoWay}"/>
+        <Grid Margin="20,10,20,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200"/>
+                <ColumnDefinition Width="200"/>
+            </Grid.ColumnDefinitions>
+            <CheckBox Name="IgnoreErrors" Margin="0,0,200,0" IsChecked="{Binding Source={x:Static p:Settings.Default}, Path=appIgnoreConversionErrors, Mode=TwoWay}" Grid.ColumnSpan="2">
+                <TextBlock Text="{x:Static s:guiStrings.LabelSkipFailures}" TextWrapping="Wrap"/>
+            </CheckBox>
+            <CheckBox Name="ForceConversion" HorizontalAlignment="Right" Grid.Column="1" IsChecked="{Binding Source={x:Static p:Settings.Default}, Path=appForceConversion, Mode=TwoWay}" VerticalAlignment="Top">
+                <TextBlock Text="{x:Static s:guiStrings.LabelForceConversion}" TextWrapping="Wrap"/>
+            </CheckBox>
+        </Grid>
         <Separator/>
         <StackPanel Orientation="Horizontal" Margin="10,0,10,10" HorizontalAlignment="Right">
             <Button Content="{x:Static s:guiStrings.ButtonOK}" Click="ConvertButton_Click" Margin="10" Width="75" IsDefault="True" Height="25"/>

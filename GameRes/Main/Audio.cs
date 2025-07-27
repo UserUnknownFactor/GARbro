@@ -167,6 +167,33 @@ namespace GameRes
             throw new System.NotImplementedException ("AudioFormat.Write not implemenented");
         }
 
+        public static AudioFormat FindFormat(IBinaryStream file, bool writable = false)
+        {
+            var formatImpls = FormatCatalog.Instance.FindFormats<AudioFormat>(file.Name, file.Signature).Where(p => writable ? p.CanWrite : true);
+            foreach (var impl in formatImpls)
+            {
+                try
+                {
+                    file.Position = 0;
+                    using (var input = impl.TryOpen(file))
+                    {
+                        if (input != null)
+                        {
+                            if (file.CanSeek)
+                                file.Position = 0;
+                            return impl;
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch { }
+            }
+            return null;
+        }
+
         public static SoundInput Read (IBinaryStream file)
         {
             foreach (var impl in FormatCatalog.Instance.FindFormats<AudioFormat> (file.Name, file.Signature))

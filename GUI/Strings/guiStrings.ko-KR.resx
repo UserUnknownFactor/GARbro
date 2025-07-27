@@ -381,8 +381,11 @@
   <data name="ButtonConvert" xml:space="preserve">
     <value>변환</value>
   </data>
-  <data name="LabelDestinationFormat" xml:space="preserve">
-    <value>이미지 도착포맷 선택</value>
+  <data name="LabelImageDestinationFormat" xml:space="preserve">
+    <value>이미지 도착포맷 선택：</value>
+  </data>
+  <data name="LabelAudioDestinationFormat" xml:space="preserve">
+    <value>오디오 도착포맷 선택：</value>
   </data>
   <data name="TextConvertMedia" xml:space="preserve">
     <value>미디어 변환</value>
@@ -421,7 +424,10 @@
     <value>오디오는 WAV, MP3, OGG로 변환됩니다.</value>
   </data>
   <data name="LabelSkipFailures" xml:space="preserve">
-    <value>변환할 수 없는 파일 넘어가기.</value>
+    <value>변환할 수 없는 파일 넘어가기</value>
+  </data>
+  <data name="LabelForceConversion" xml:space="preserve">
+    <value>강제 형식 변환</value>
   </data>
   <data name="MsgNoMatching" xml:space="preserve">
     <value>"{0}"에 일치하는 항목이 없음</value>

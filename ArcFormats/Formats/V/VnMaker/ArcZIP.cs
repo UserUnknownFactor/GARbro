@@ -58,11 +58,11 @@ namespace GameRes.Formats.VnMaker
     [Export(typeof(ArchiveFormat))]
     public class ZipOpener : ArchiveFormat
     {
-        public override string         Tag { get { return "ZIP/VnMaker Encrypted ZIP Archive"; } }
-        public override string Description { get { return "VnMaker Encrypted ZIP Archive"; } }
-        public override uint     Signature { get { return 0; } }
-        public override bool  IsHierarchic { get { return true; } }
-        public override bool      CanWrite { get { return false; } }
+        public override string         Tag { get { return "ZIP/VNMAKER"; } }
+        public override string Description { get { return "VnMaker encrypted ZIP archive"; } }
+        public override uint     Signature { get { return  0; } }
+        public override bool  IsHierarchic { get { return  true; } }
+        public override bool      CanWrite { get { return  false; } }
 
         public ZipOpener ()
         {
@@ -74,7 +74,7 @@ namespace GameRes.Formats.VnMaker
 
         public override ArcFile TryOpen (ArcView file)
         {
-            var input = file.CreateStream ();
+            var input = file.CreateStream();
             try
             {
                 var zip = DeobfuscateStream (input, GuessEncryptionKey (input));

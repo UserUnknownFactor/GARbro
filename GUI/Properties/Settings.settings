@@ -74,6 +74,9 @@
     <Setting Name="appLastImageFormat" Type="System.String" Scope="User">
       <Value Profile="(Default)">PNG</Value>
     </Setting>
+    <Setting Name="appLastAudioFormat" Type="System.String" Scope="User">
+      <Value Profile="(Default)">WAV</Value>
+    </Setting>
     <Setting Name="appConvertAudio" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
@@ -81,6 +84,9 @@
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="appIgnoreConversionErrors" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="appForceConversion" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
     <Setting Name="appLastDestination" Type="System.String" Scope="User">
