@@ -18,7 +18,7 @@ namespace GameRes.Formats.OneUp
             int count = file.View.ReadInt32 (8);
             if (!IsSaneCount (count))
                 return null;
-            uint data_offset = file.View.ReadUInt32 (4);
+            long data_offset = file.View.ReadUInt32 (4);
             if (data_offset >= file.MaxOffset)
                 return null;
 

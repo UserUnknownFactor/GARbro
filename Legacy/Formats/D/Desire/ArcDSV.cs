@@ -39,7 +39,7 @@ namespace GameRes.Formats.Desire
             }
             if (index_pos >= file.MaxOffset || file.View.ReadUInt32 (index_pos+0xC) != 0)
                 return null;
-            uint offset = index_pos + 0x10;
+            long offset = index_pos + 0x10;
             foreach (var entry in dir)
             {
                 entry.Offset = offset;

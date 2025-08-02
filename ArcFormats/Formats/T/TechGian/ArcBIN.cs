@@ -13,7 +13,7 @@ namespace GameRes.Formats.TechGian
     {
         public int  EncryptionMethod;
 
-        public bool IsEncrypted {
+        public new bool IsEncrypted {
             get { return EncryptionMethod == 1 || EncryptionMethod == 2 || EncryptionMethod == 4; }
         }
     }

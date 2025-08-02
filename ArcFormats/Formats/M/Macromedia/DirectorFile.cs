@@ -239,7 +239,7 @@ namespace GameRes.Formats.Macromedia
                 return false;
             using (var ils = new ZLibStream (reader.Source, CompressionMode.Decompress, true))
             {
-                uint pos = 0;
+                long pos = 0;
                 var ils_reader = new Reader (ils, reader.ByteOrder);
                 while (pos < ils_chunk.UnpackedSize)
                 {

@@ -204,7 +204,7 @@ namespace GameRes.Formats.Ankh
                 return base.OpenEntry (arc, entry);
             var unpacked = new byte[unpacked_size];
             arc.File.View.Read (entry.Offset+8, unpacked, 0, header_size);
-            uint packed_size = entry.Size - 8 - header_size;
+            long packed_size = entry.Size - 8 - header_size;
             using (var packed = arc.File.CreateStream (entry.Offset+8+header_size, packed_size))
             using (var reader = new GrpUnpacker (packed))
             {

@@ -69,7 +69,7 @@ namespace GameRes.Formats.FVP
             using (var input = arc.File.CreateStream (0xC+hzc.ImageInfo.HeaderSize))
             using (var z = new ZLibStream (input, CompressionMode.Decompress))
             {
-                uint frame_size = entry.Size;
+                uint frame_size = (uint)entry.Size;
                 var pixels = new byte[frame_size];
                 uint offset = 0;
                 for (;;)

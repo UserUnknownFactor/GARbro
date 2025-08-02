@@ -103,10 +103,15 @@
   <!-- None items (resources, configs, native DLLs) -->
   <ItemGroup>
     <None Include="App.config" />
-    <None Include="x64\libwebp.dll"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
-    <None Include="x86\libwebp.dll"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
-    <None Include="x64\libzstd.dll"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
-    <None Include="x86\libzstd.dll"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
+    <None Include="x64\*.dll"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
+    <None Include="x86\*.dll"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="**\*.cs~" />
+    <None Remove="**\*.cs~" />
+    <Content Remove="**\*.cs~" />
+    <EmbeddedResource Remove="**\*.cs~" />
   </ItemGroup>
 
   <!-- IPT parser files and metadata -->

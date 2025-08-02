@@ -14,7 +14,7 @@ namespace GameRes.Formats.Sakana
         public ushort   Flags;
         public ushort   ArcIndex;
 
-        public bool IsEncrypted  { get { return 0 == (Flags & 0x10); } }
+        public new bool IsEncrypted  { get { return 0 == (Flags & 0x10); } }
     }
 
     [Export(typeof(ArchiveFormat))]
@@ -82,8 +82,10 @@ namespace GameRes.Formats.Sakana
             var input = arc.File.View.ReadBytes (entry.Offset, entry.Size);
             if (sx_entry.IsEncrypted)
             {
-                uint key_lo = (uint)(entry.Offset >> 4) ^ (entry.Size << 16) ^ DefaultKey;
-                uint key_hi = (entry.Size >> 16) ^ 0x2E6;
+                uint offset = (uint)entry.Offset;
+                uint size = (uint)entry.Size;
+                uint key_lo = (uint)(offset >> 4) ^ (size << 16) ^ DefaultKey;
+                uint key_hi = (size >> 16) ^ 0x2E6;
                 DecryptData (input, key_lo, key_hi);
             }
             if (sx_entry.IsPacked)

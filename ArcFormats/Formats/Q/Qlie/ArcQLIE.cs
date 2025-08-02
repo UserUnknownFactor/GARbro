@@ -16,7 +16,7 @@ namespace GameRes.Formats.Qlie
         public uint Hash;
         public byte[] RawName;
 
-        public bool IsEncrypted { get { return EncryptionMethod != 0; } }
+        public new bool IsEncrypted { get { return EncryptionMethod != 0; } }
 
         /// <summary>
         /// Data from a separate key file "key.fkey" that comes with installed game.

@@ -137,7 +137,9 @@ namespace GARbro
                 throw;
 #endif
             }
+#pragma warning disable CS0162
             return false;
+#pragma warning restore CS0162
         }
 
         void ExtractImage (ArcFile arc, Entry entry)

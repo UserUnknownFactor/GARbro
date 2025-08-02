@@ -23,7 +23,7 @@ namespace GameRes.Formats.Force
                 return null;
             var base_name = Path.GetFileNameWithoutExtension (file.Name);
             uint index_offset = 8;
-            uint data_offset = 4 + (uint)count * 8;
+            long data_offset = 4 + (uint)count * 8;
             var dir = new List<Entry> (count);
             for (int i = 0; i < count; ++i)
             {

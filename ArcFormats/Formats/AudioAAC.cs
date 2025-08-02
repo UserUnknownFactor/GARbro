@@ -75,6 +75,7 @@ namespace GameRes.Formats
     }
 
     [Export(typeof(AudioFormat))]
+    [ExportMetadata("Priority", 50)]
     public class AacAudio : AudioFormat
     {
         public override string         Tag { get { return "AAC"; } }

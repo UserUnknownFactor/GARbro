@@ -15,8 +15,6 @@ namespace GameRes.Formats.AirNovel
 {
     internal class AirEntry : ZipEntry
     {
-        public bool IsEncrypted { get; set; }
-
         public AirEntry (SharpZip.ZipEntry zip_entry) : base (zip_entry)
         {
             IsEncrypted = Name.EndsWith ("_");
@@ -151,7 +149,7 @@ namespace GameRes.Formats.AirNovel
             }
         }
 
-        AirNovelScheme DefaultScheme = new AirNovelScheme { KnownKeys = new Dictionary<string, string>() };
+        public static AirNovelScheme DefaultScheme = new AirNovelScheme { KnownKeys = new Dictionary<string, string>() };
 
         internal IDictionary<string, string> KnownKeys { get { return DefaultScheme.KnownKeys; } }
 
@@ -217,8 +215,8 @@ namespace GameRes.Formats.AirNovel
             {
                 i = (i + 1) & KeyLength;
                 j = (j + keyCopy[i]) & KeyLength;
-                // i was wondering why standard RC4 encryption class doesn't work here
-                // well, this swap fails when i == j lol
+                // NOTE: standard RC4 encryption class doesn't work here,
+                // this swap fails when i == j lol
                 keyCopy[i] ^= keyCopy[j];
                 keyCopy[j] ^= keyCopy[i];
                 keyCopy[i] ^= keyCopy[j];

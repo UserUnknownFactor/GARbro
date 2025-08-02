@@ -4,6 +4,10 @@ using System.Text;
 using System.Linq;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
+using System.Xml.Linq;
+using System.Xml;
 
 namespace GameRes
 {
@@ -36,7 +40,6 @@ namespace GameRes
         Dialogue,
         TextData,
         BinaryScript,
-        LuaScript,
         JsonScript,
         XmlScript
     }
@@ -201,7 +204,9 @@ namespace GameRes
     /// </summary>
     public abstract class ScriptFormat : IResource
     {
-        public override string Type { get { return "script"; } }
+        public override string        Type { get { return "script"; } }
+
+        public virtual ScriptType DataType { get { return ScriptType.Unknown; } }
 
         /// <summary>
         /// Determines if the file is a valid script of this format
@@ -231,9 +236,21 @@ namespace GameRes
         /// <summary>
         /// Detects encoding of text data
         /// </summary>
-        public static Encoding DetectEncoding(byte[] data, int length = -1)
+        public static Encoding DetectEncoding(Stream data, long length = -1)
         {
-            if (length < 0)
+            if (length < 0 || length > data.Length)
+                length = data.Length;
+            var bytedata = new byte[length];
+            data.Read(bytedata, 0, (int)length);
+            return DetectEncoding(bytedata, length);
+        }
+
+        /// <summary>
+        /// Detects encoding of text data
+        /// </summary>
+        public static Encoding DetectEncoding(byte[] data, long length = -1)
+        {
+            if (length < 0 || length > data.Length)
                 length = data.Length;
 
             if (length >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF)
@@ -254,12 +271,12 @@ namespace GameRes
             return Encoding.Default;
         }
 
-        private static bool IsUtf8(byte[] data, int length)
+        private static bool IsUtf8(byte[] data, long length)
         {
             try
             {
                 var decoder = Encoding.UTF8.GetDecoder();
-                decoder.GetCharCount(data, 0, length);
+                decoder.GetCharCount(data, 0, (int)length);
                 return true;
             }
             catch
@@ -268,7 +285,7 @@ namespace GameRes
             }
         }
 
-        private static bool IsShiftJis(byte[] data, int length)
+        private static bool IsShiftJis(byte[] data, long length)
         {
             for (int i = 0; i < length; i++)
             {
@@ -358,20 +375,7 @@ namespace GameRes
 
         protected virtual ScriptType GetScriptType(string filename)
         {
-            var ext = Path.GetExtension(filename).TrimStart('.').ToLowerInvariant();
-            switch (ext)
-            {
-                case "txt":
-                    return ScriptType.PlainText;
-                case "json":
-                    return ScriptType.JsonScript;
-                case "xml":
-                    return ScriptType.XmlScript;
-                case "lua":
-                    return ScriptType.LuaScript;
-                default:
-                    return ScriptType.TextData;
-            }
+            return DataType;
         }
     }
 
@@ -381,6 +385,7 @@ namespace GameRes
         public override string         Tag { get { return "TXT"; } }
         public override string Description { get { return "Plain text file"; } }
         public override uint     Signature { get { return 0; } }
+        public override ScriptType DataType { get { return ScriptType.PlainText; } }
 
         public TextScriptFormat()
         {
@@ -388,29 +393,144 @@ namespace GameRes
         }
     }
 
+
     [Export(typeof(ScriptFormat))]
     public class JsonScriptFormat : GenericScriptFormat
     {
-        public override string         Tag { get { return "JSON"; } }
-        public override string Description { get { return "JSON script file"; } }
-        public override uint     Signature { get { return 0; } }
+        public override string          Tag { get { return "JSON"; } }
+        public override string  Description { get { return "JSON file"; } }
+        public override uint      Signature { get { return 0; } }
+        public override ScriptType DataType { get { return ScriptType.JsonScript; } }
 
         public JsonScriptFormat()
         {
-            Extensions = new[] { "json" };
+            Extensions = new[] { "json", "jsonc" };
+        }
+
+        public override ScriptData Read(string name, Stream file)
+        {
+            byte[] data;
+            using (var ms = new MemoryStream())
+            {
+                file.CopyTo(ms);
+                data = ms.ToArray();
+            }
+
+            var encoding = DetectEncoding(data);
+            var text = encoding.GetString(data);
+
+            if (text.Length > 0 && text[0] == '\uFEFF')
+                text = text.Substring(1);
+
+            string formattedText = text;
+            object parsedJson = null;
+
+            try
+            {
+                parsedJson = JsonConvert.DeserializeObject(text);
+                formattedText = JsonConvert.SerializeObject(parsedJson, Newtonsoft.Json.Formatting.Indented);
+            }
+            catch (JsonException ex)
+            {
+                formattedText = text; // Keep original
+                var scriptData = new ScriptData(formattedText, ScriptType.JsonScript)
+                {
+                    Encoding = encoding
+                };
+                scriptData.Metadata["ValidJson"] = false;
+                scriptData.Metadata["JsonError"] = ex.Message;
+                return scriptData;
+            }
+
+            var validScriptData = new ScriptData(formattedText, ScriptType.JsonScript)
+            {
+                Encoding = encoding
+            };
+            validScriptData.Metadata["ValidJson"] = true;
+            validScriptData.Metadata["OriginalLength"] = text.Length;
+            validScriptData.Metadata["FormattedLength"] = formattedText.Length;
+
+            if (parsedJson != null)
+            {
+                validScriptData.Metadata["RootType"] = parsedJson.GetType().Name;
+
+                if (parsedJson is JObject jObj)
+                    validScriptData.Metadata["PropertyCount"] = jObj.Properties().Count();
+                else if (parsedJson is JArray jArr)
+                    validScriptData.Metadata["ArrayLength"] = jArr.Count;
+            }
+
+            return validScriptData;
         }
     }
 
     [Export(typeof(ScriptFormat))]
     public class XmlScriptFormat : GenericScriptFormat
     {
-        public override string         Tag { get { return "XML"; } }
-        public override string Description { get { return "XML script file"; } }
-        public override uint     Signature { get { return 0; } }
+        public override string          Tag { get { return "XML"; } }
+        public override string  Description { get { return "XML file"; } }
+        public override uint      Signature { get { return 0; } }
+        public override ScriptType DataType { get { return ScriptType.XmlScript; } }
 
         public XmlScriptFormat()
         {
-            Extensions = new[] { "xml" };
+            Extensions = new[] { "xml", "xaml", "xsl", "xslt", "svg" };
+        }
+
+        public override ScriptData Read(string name, Stream file)
+        {
+            byte[] data;
+            using (var ms = new MemoryStream())
+            {
+                file.CopyTo(ms);
+                data = ms.ToArray();
+            }
+
+            var encoding = DetectEncoding(data);
+            var text = encoding.GetString(data);
+
+            if (text.Length > 0 && text[0] == '\uFEFF')
+                text = text.Substring(1);
+
+            string formattedText = text;
+
+            try
+            {
+                var doc = XDocument.Parse(text);
+                var settings = new XmlWriterSettings
+                {
+                    Indent = true,
+                    IndentChars = "  ",
+                    NewLineChars = "\r\n",
+                    NewLineHandling = NewLineHandling.Replace,
+                    OmitXmlDeclaration = false,
+                    Encoding = encoding,
+                    CloseOutput = false
+                };
+
+                var sb = new StringBuilder();
+                using (var stringWriter = new StringWriter(sb))
+                {
+                    using (var xmlWriter = XmlWriter.Create(stringWriter, settings))
+                    {
+                        doc.Save(xmlWriter);
+                        xmlWriter.Flush(); // Explicitly flush
+                    }
+                }
+
+                formattedText = sb.ToString();
+            }
+            catch (XmlException)
+            {
+                formattedText = text;
+            }
+
+            var scriptData = new ScriptData(formattedText, ScriptType.XmlScript)
+            {
+                Encoding = encoding
+            };
+
+            return scriptData;
         }
     }
 
@@ -420,6 +540,7 @@ namespace GameRes
         public override string         Tag { get { return "LUA"; } }
         public override string Description { get { return "Lua script file"; } }
         public override uint     Signature { get { return 0; } }
+        public override ScriptType DataType { get { return ScriptType.PlainText; } }
 
         public LuaScriptFormat()
         {
@@ -433,6 +554,7 @@ namespace GameRes
         public override string         Tag { get { return "SCR"; } }
         public override string Description { get { return "Binary script format"; } }
         public override uint     Signature { get { return 0; } }
+        public override ScriptType DataType { get { return ScriptType.BinaryScript; } }
 
         public BinScriptFormat()
         {

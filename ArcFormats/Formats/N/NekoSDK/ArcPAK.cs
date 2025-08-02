@@ -74,7 +74,7 @@ namespace GameRes.Formats.NekoSDK
 
         public override Stream OpenEntry (ArcFile arc, Entry entry)
         {
-            uint key = entry.Size / 8 + 0x22;
+            uint key = (uint)entry.Size / 8 + 0x22;
             var header = new byte[Math.Min (4, entry.Size)];
             arc.File.View.Read (entry.Offset, header, 0, (uint)header.Length);
             for (int i = 0; i < header.Length; ++i)

@@ -16,7 +16,7 @@ namespace GameRes.Formats.FC01
     internal class AgsiEntry : PackedEntry
     {
         public int  Method;
-        public bool IsEncrypted { get { return Method >= 3 && (Method <= 5 || Method == 7); } }
+        public new bool IsEncrypted { get { return Method >= 3 && (Method <= 5 || Method == 7); } }
         public bool IsSpecial;
     }
 
@@ -111,7 +111,7 @@ namespace GameRes.Formats.FC01
 
         internal Stream OpenEncryptedEntry (AgsiArchive arc, AgsiEntry entry)
         {
-            uint enc_size = entry.Size;
+            uint enc_size = (uint)entry.Size;
             if (enc_size > 1024)
             {
                 enc_size = 1032;

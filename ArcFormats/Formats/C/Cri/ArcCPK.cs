@@ -44,7 +44,7 @@ namespace GameRes.Formats.Cri
             var packed_size = arc.File.View.ReadUInt32 (entry.Offset+12);
             if (unpacked_size < 0 || packed_size > entry.Size - 0x10)
                 return base.OpenEntry (arc, entry);
-            uint prefix_size = entry.Size - (0x10+packed_size);
+            uint prefix_size = (uint)entry.Size - (0x10+packed_size);
             var output = new byte[unpacked_size+prefix_size];
             var packed = arc.File.View.ReadBytes (entry.Offset+0x10, packed_size);
             Array.Reverse (packed);

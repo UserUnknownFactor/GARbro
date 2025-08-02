@@ -132,7 +132,7 @@ namespace GameRes.Formats.YaneSDK
             if (null == harc)
                 return base.OpenEntry (arc, entry);
             var key = harc.Key;
-            uint encrypted = Math.Min (entry.Size, (uint)key.Length);
+            uint encrypted = Math.Min ((uint)entry.Size, (uint)key.Length);
             var header = arc.File.View.ReadBytes (entry.Offset, encrypted);
             for (int i = 0; i < header.Length; ++i)
                 header[i] ^= key[i];

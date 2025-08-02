@@ -93,7 +93,7 @@ namespace GameRes.Formats.KiriKiri
                 return DecompressMdf (entry, header, input);
             }
             else if ((signature & 0xFF00FFFFu) == 0xFF00FEFEu && header[2] < 3 && 0xFE == header[4])
-                return DecryptScript (header[2], input, entry.UnpackedSize);
+                return DecryptScript (header[2], input, (uint)entry.UnpackedSize);
 
             if (!input.CanSeek)
                 return new PrefixStream (header, input);
@@ -769,11 +769,11 @@ namespace GameRes.Formats.KiriKiri
                 Encodings.cp932.GetBytes (ext, 0, Math.Min (4, ext.Length), ext_bin, 0);
                 key = ~LittleEndian.ToUInt32 (ext_bin, 0);
                 if (".asd.tjs.ks".Contains (ext))
-                    return entry.UnpackedSize;
+                    return (uint)entry.UnpackedSize;
             }
             else
                 key = uint.MaxValue;
-            return Math.Min (entry.UnpackedSize, 0x100u);
+            return Math.Min ((uint)entry.UnpackedSize, 0x100u);
         }
     }
 

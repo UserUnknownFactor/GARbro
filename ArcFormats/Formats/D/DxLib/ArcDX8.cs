@@ -56,11 +56,8 @@ namespace GameRes.Formats.DxLib
 
         //static readonly byte[] DefaultKey = new byte[] { 0xBE, 0xC8, 0x8A, 0xF5, 0x28, 0x50, 0xC9 };
 
-
         DxScheme DefaultScheme = new DxScheme { KnownKeys = new List<IDxKey>() };
 
-
-        
 
         internal enum DXA8Flags : UInt32
         {
@@ -81,9 +78,6 @@ namespace GameRes.Formats.DxLib
                 Keyword = Properties.Settings.Default.DXAPassword
             };
         }
-
-        
-        
 
         public override ResourceOptions GetOptions(object widget)
         {
@@ -117,17 +111,14 @@ namespace GameRes.Formats.DxLib
             if (dx.DirTable >= dx.IndexSize || dx.FileTable >= dx.IndexSize)
                 return null;
             DxKey8 key = null;
-            
+
             //FIXME: ReadBytes sets hard cap of filesize to 4GB.
             var headerBuffer = file.View.ReadBytes(dx.IndexOffset, (uint)(file.MaxOffset-dx.IndexOffset));
             bool isencrypted = (dx.Flags & DXA8Flags.DXA_FLAG_NO_KEY) == 0;
-           
             if (isencrypted)
             {
                 var keyStr = Query<DXAOpts>(arcStrings.ZIPEncryptedNotice).Keyword;
                 key = new DxKey8(keyStr,dx.CodePage);
-
-                
             }
 
             Decrypt(headerBuffer, 0, headerBuffer.Length, 0, key.Key);
@@ -142,10 +133,9 @@ namespace GameRes.Formats.DxLib
                 lzBuffer = decoder.Unpack();
                 MemoryStream lzStream = new MemoryStream(lzBuffer);
                 headerBuffer = Unpack(lzStream);
-                
+
             }
 
-            
             List<Entry> entries;
             //There MAY be the case where the singular file is over 4GB, but it's very rare.
             using (var reader = IndexReader.Create(dx, 8, new MemoryStream(headerBuffer)))

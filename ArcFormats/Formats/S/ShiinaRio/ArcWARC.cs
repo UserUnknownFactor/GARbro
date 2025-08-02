@@ -142,11 +142,11 @@ namespace GameRes.Formats.ShiinaRio // 椎名里緒
             {
                 sig ^= (unpacked_size ^ 0x82AD82) & 0xFFFFFF;
                 if (0 != (wentry.Flags & 0x80000000u)) // encrypted entry
-                    warc.Decoder.Decrypt (enc_data, 8, entry.Size-8);
+                    warc.Decoder.Decrypt (enc_data, 8, (uint)entry.Size-8);
                 if (warc.Decoder.ExtraCrypt != null)
-                    warc.Decoder.ExtraCrypt.Decrypt (enc_data, 8, entry.Size-8, 0x202);
+                    warc.Decoder.ExtraCrypt.Decrypt (enc_data, 8, (uint)entry.Size-8, 0x202);
                 if (0 != (wentry.Flags & 0x20000000u))
-                    warc.Decoder.Decrypt2 (enc_data, 8, entry.Size-8);
+                    warc.Decoder.Decrypt2 (enc_data, 8, (uint)entry.Size-8);
             }
             byte[] unpacked = enc_data;
             UnpackMethod unpack = null;

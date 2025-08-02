@@ -19,7 +19,7 @@ namespace GameRes
         private Encoding                m_default_encoding;
 
         private const int DefaultBufferSize = 0x1000;
-        private const uint MaxFrameSize = 0x1000000; // 16MB
+        private const long MAX_FRAME_SIZE = 0x1000000; // 16MB
 
         public string     Name { get; set; }
         public uint  Signature { get { return ReadSignature(); } }
@@ -72,9 +72,9 @@ namespace GameRes
             Name = name ?? "";
         }
 
-        public ArcViewStream (ArcView file, long offset, uint size, string name = null)
+        public ArcViewStream (ArcView file, long offset, long size, string name = null)
         {
-            m_view = new ArcView.Frame (file, offset, Math.Min (size, MaxFrameSize));
+            m_view = new ArcView.Frame (file, offset, Math.Min (size, MAX_FRAME_SIZE));
             m_start = offset;
             m_size = size;
             m_position = 0;

@@ -325,7 +325,7 @@ namespace GameRes.Formats.NScripter
 
         public byte[] Output { get { return m_output; } }
 
-        public Unpacker (Stream input, uint unpacked_size) : base (input, true)
+        public Unpacker (Stream input, long unpacked_size) : base (input, true)
         {
             m_output = new byte[unpacked_size];
         }

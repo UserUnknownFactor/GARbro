@@ -130,7 +130,7 @@ namespace GameRes.Formats.Actgs
 
         internal byte[] ReadEntryHeader (ActressArchive arc, Entry entry)
         {
-            uint length = Math.Min (entry.Size, 0x20u);
+            long length = Math.Min (entry.Size, 0x20u);
             var header = arc.File.View.ReadBytes (entry.Offset, length);
             Decrypt (header, 0, header.Length, arc.Key);
             return header;

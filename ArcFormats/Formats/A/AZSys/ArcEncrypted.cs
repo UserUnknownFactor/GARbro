@@ -376,7 +376,7 @@ namespace GameRes.Formats.AZSys
         public override Stream OpenEntry (ArcFile arc, Entry entry)
         {
             var data = arc.File.View.ReadBytes (entry.Offset, entry.Size);
-            var cipher = new AzIsaacEncryption (entry.Size);
+            var cipher = new AzIsaacEncryption ((uint)entry.Size);
             cipher.Decrypt (data, 0, data.Length, 0);
             if (data.Length > 0x14 && Binary.AsciiEqual (data, 0, "ASB\0") && DecryptAsb (data))
             {

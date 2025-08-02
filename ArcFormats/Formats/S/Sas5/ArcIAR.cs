@@ -274,7 +274,7 @@ namespace GameRes.Formats.Sas5
             };
             uint header_size = 1 == iarc.Version ? 0x30u : iarc.Version < 4 ? 0x40u : 0x48u;
             offset += header_size;
-            uint input_size = entry.Size - header_size;
+            long input_size = entry.Size - header_size;
 
             if (m_info.PaletteSize > 0)
             {

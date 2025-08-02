@@ -56,7 +56,7 @@ namespace GameRes.Formats.Kaguya
                 IsPacked = false,
             };
             dir.Add(entry);
-            current_offset += entry.Size;
+            current_offset += (uint)entry.Size;
             for (int i = 1; i < frame_count; ++i)
             {
                 int step = file.View.ReadByte(current_offset++);
@@ -104,7 +104,7 @@ namespace GameRes.Formats.Kaguya
             return new BitmapDecoder(pixels, anarc.ImageInfo);
         }
 
-        internal static byte[] DecompressRLE(IBinaryStream input, uint unpacked_size, int rle_step)
+        internal static byte[] DecompressRLE(IBinaryStream input, long unpacked_size, int rle_step)
         {
             var output = new byte[unpacked_size];
             for (int i = 0; i < rle_step; ++i)

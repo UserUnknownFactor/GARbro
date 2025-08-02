@@ -7,7 +7,7 @@ using GameRes.Utility;
 namespace GameRes.Formats.Mebius
 {
     [Export(typeof(AudioFormat))]
-    [ExportMetadata("Priority", 1)]
+    [ExportMetadata("Priority", 5)]
     public class KoeAudio : AudioFormat
     {
         public override string         Tag { get { return "KOE/MEBIUS"; } }

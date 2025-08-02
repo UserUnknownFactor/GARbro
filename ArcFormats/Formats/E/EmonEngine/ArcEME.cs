@@ -138,7 +138,7 @@ namespace GameRes.Formats.EmonEngine
                 OffsetY = header.ToInt32 (0x10),
                 DataOffset = header_size,
             };
-            uint entry_size = entry.Size + header_size;
+            uint entry_size = (uint)entry.Size + header_size;
             if (0 != info.Colors && header[0] != 7)
                 entry_size += (uint)Math.Max (info.Colors, 3) * 4;
             var input = arc.File.CreateStream (entry.Offset, entry_size);

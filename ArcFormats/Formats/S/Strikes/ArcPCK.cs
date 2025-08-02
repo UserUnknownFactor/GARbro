@@ -7,11 +7,6 @@ using GameRes.Utility;
 
 namespace GameRes.Formats.Strikes
 {
-    internal class PckEntry : PackedEntry
-    {
-        public bool IsEncrypted { get; set; }
-    }
-
     [Export(typeof(ArchiveFormat))]
     public class PckOpener : ArchiveFormat
     {
@@ -68,7 +63,7 @@ namespace GameRes.Formats.Strikes
                     {
                         var name = input.ReadCString (0x28);
                         name = Path.Combine (dir_name, name);
-                        var entry = Create<PckEntry> (name);
+                        var entry = Create<PackedEntry> (name);
                         entry.Offset = Binary.BigEndian (input.ReadUInt32());
                         entry.Size   = Binary.BigEndian (input.ReadUInt32());
                         entry.IsEncrypted = input.ReadInt32() != 0;
@@ -86,7 +81,7 @@ namespace GameRes.Formats.Strikes
 
         public override Stream OpenEntry (ArcFile arc, Entry entry)
         {
-            var pent = entry as PckEntry;
+            var pent = entry as PackedEntry;
             if (null == pent || !(pent.IsEncrypted || pent.IsPacked))
                 return base.OpenEntry (arc, entry);
             arc.File.View.Reserve (pent.Offset, pent.Size);
@@ -99,7 +94,7 @@ namespace GameRes.Formats.Strikes
             }
             while (--skip_size > 0);
             byte[] data;
-            uint data_size = pent.Size;
+            uint data_size = (uint)pent.Size;
             if (0 == skip_size)
             {
                 data = arc.File.View.ReadBytes (pent.Offset, pent.Size);

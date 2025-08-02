@@ -259,7 +259,7 @@ namespace GameRes.Formats.Discovery
             Info = new ImageMetaData { Width = entry.Width, Height = entry.Height, BPP = entry.BPP };
             m_is_packed = entry.IsPacked;
             m_is_mask = entry.IsMask;
-            uint total_size = entry.Size;
+            long total_size = entry.Size;
             total_size += (uint)entry.Colors * 4;
             if (entry.Extra > 0)
                 total_size += 10 * (uint)entry.Extra + 2;

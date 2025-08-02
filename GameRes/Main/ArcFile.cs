@@ -8,8 +8,8 @@ namespace GameRes
 {
     public class ArcFile : IDisposable
     {
-        private ArcView         m_arc;
-        private ArchiveFormat   m_interface;
+        private ArcView            m_arc;
+        private ArchiveFormat      m_interface;
         private ICollection<Entry> m_dir;
 
         /// <summary>Tag that identifies this archive format.</summary>
@@ -37,14 +37,16 @@ namespace GameRes
         /// <summary>
         /// Try to open <paramref name="filename"/> as archive.
         /// </summary>
-        /// <returns>
-        /// ArcFile object if file is opened successfully, null otherwise.
-        /// </returns>
+        /// <inheritdoc cref="ArchiveFormat.TryOpen (ArcView)" />
         public static ArcFile TryOpen (string filename)
         {
             return TryOpen (VFS.FindFile (filename));
         }
 
+        /// <summary>
+        /// Try to open <paramref name="entry"/> as archive.
+        /// </summary>
+        /// <inheritdoc cref="TryOpen (string)" /> 
         public static ArcFile TryOpen (Entry entry)
         {
             if (entry.Size < 4)
@@ -128,10 +130,10 @@ namespace GameRes
         {
             using (var stream = OpenEntry (entry))
             {
-                uint size;
+                long size;
                 var packed_entry = entry as PackedEntry;
                 if (stream.CanSeek)
-                    size = (uint)stream.Length;
+                    size = stream.Length;
                 else if (null != packed_entry && packed_entry.IsPacked)
                 {
                     size = packed_entry.UnpackedSize;
@@ -159,6 +161,8 @@ namespace GameRes
         public Stream OpenSeekableEntry (Entry entry)
         {
             var input = OpenEntry (entry);
+            if (input == null)
+                throw new ArgumentException("OpenEntry mustn't return null in an ArcFile");
             if (input.CanSeek)
                 return input;
             using (input)
@@ -174,17 +178,26 @@ namespace GameRes
             }
         }
 
+        /// <summary>
+        /// Open specified <paramref name="entry"/> as <see cref="IBinaryStream"/>.
+        /// </summary>
         public IBinaryStream OpenBinaryEntry (Entry entry)
         {
             var input = OpenSeekableEntry (entry);
             return BinaryStream.FromStream (input, entry.Name);
         }
 
+        /// <summary>
+        /// Open specified <paramref name="entry"/> as <see cref="IImageDecoder"/>.
+        /// </summary>
         public IImageDecoder OpenImage (Entry entry)
         {
             return m_interface.OpenImage (this, entry);
         }
 
+        /// <summary>
+        /// Represent currint <b>ArcFile</b> as <see cref="ArchiveFileSystem"/>.
+        /// </summary>
         public ArchiveFileSystem CreateFileSystem ()
         {
             if (m_interface.IsHierarchic)
@@ -212,5 +225,10 @@ namespace GameRes
             }
         }
         #endregion
+    }
+
+    public interface IExtensionProvider
+    {
+        string GetExtension();
     }
 }

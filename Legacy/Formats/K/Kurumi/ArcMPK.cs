@@ -55,7 +55,7 @@ namespace GameRes.Formats.Kurumi
             return Decompress (arc.File, entry.Offset, entry.Size).AsStream;
         }
 
-        IBinaryStream Decompress (ArcView file, long offset, uint packed_size)
+        IBinaryStream Decompress (ArcView file, long offset, long packed_size)
         {
             uint unpacked_size = Binary.BigEndian (file.View.ReadUInt32 (offset));
             bool is_packed = file.View.ReadByte (offset+8) != 0;

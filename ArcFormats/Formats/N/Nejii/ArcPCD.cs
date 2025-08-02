@@ -59,7 +59,7 @@ namespace GameRes.Formats.Nejii
             using (var riff_mem = new MemoryStream (0x2C))
             using (var riff = new BinaryWriter (riff_mem))
             {
-                uint riff_size = entry.Size + 0x20;
+                long riff_size = entry.Size + 0x20;
                 riff.Write (AudioFormat.Wav.Signature);
                 riff.Write (riff_size);
                 riff.Write (0x45564157); // 'WAVE'

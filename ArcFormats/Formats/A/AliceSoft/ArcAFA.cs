@@ -94,8 +94,8 @@ namespace GameRes.Formats.AliceSoft
         {
             if (entry.Size <= 0x10 || !arc.File.View.AsciiEqual (entry.Offset, "AFF\0"))
                 return base.OpenEntry (arc, entry);
-            uint data_size = entry.Size - 0x10u;
-            uint encrypted_length = Math.Min (0x40u, data_size);
+            long data_size = entry.Size - 0x10u;
+            long encrypted_length = Math.Min (0x40u, data_size);
             var prefix = arc.File.View.ReadBytes (entry.Offset+0x10, encrypted_length);
             for (int i = 0; i < prefix.Length; ++i)
                 prefix[i] ^= AffKey[i & 0xF];

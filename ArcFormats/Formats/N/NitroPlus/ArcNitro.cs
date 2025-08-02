@@ -179,7 +179,7 @@ namespace GameRes.Formats.NitroPlus
 
         private Stream OpenV3Entry (ArcFile arc, PakEntry entry)
         {
-            uint enc_size = Math.Min (entry.Size, 0x10u);
+            long enc_size = Math.Min (entry.Size, 0x10u);
             if (0 == enc_size)
                 return Stream.Null;
             var buf = arc.File.View.ReadBytes (entry.Offset, enc_size);

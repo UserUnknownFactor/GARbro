@@ -245,7 +245,7 @@ namespace GameRes.Formats.Ikura
             if (null == isf || entry.Type != "script" || entry.Size <= 0x10)
                 return arc.File.CreateStream (entry.Offset, entry.Size);
             bool encoded = arc.File.View.AsciiEqual (entry.Offset+entry.Size-0x10, "SECRETFILTER100a");
-            uint entry_size = entry.Size;
+            long entry_size = entry.Size;
             if (encoded)
             {
                 entry_size -= 0x10;

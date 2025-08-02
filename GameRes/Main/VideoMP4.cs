@@ -36,36 +36,32 @@ namespace GameRes
             Extensions = new string[] { "m4v", "mp4" };
         }
 
-        public override VideoData Read(IBinaryStream file, VideoMetaData info)
+        public override VideoData Read (IBinaryStream file, VideoMetaData info)
         {
             file.Position = 0;
-            uint size = ReadUInt32BE(file);
+            uint size = ReadUInt32BE (file);
             uint type = file.ReadUInt32();
 
             if (type != FTYP)
                 return null;
 
-            // Create a temporary file for the video player to use
-            string tempFile = Path.Combine(Path.GetTempPath(), $"garbro_video_{Guid.NewGuid()}.mp4");
-
-            using (var fileStream = File.Create(tempFile))
-            {
-                file.Position = 0;
-                file.AsStream.CopyTo(fileStream);
+            if (File.Exists (info.FileName)) {
+                // real file
+                file.Dispose();
+                return new VideoData (info);
             }
 
-            var stream = new FileStream(tempFile, FileMode.Open, FileAccess.Read, FileShare.Read);
-            return new VideoData(stream, info, tempFile);
+            return new VideoData (file.AsStream, info, true);
         }
 
-        public override VideoMetaData ReadMetaData(IBinaryStream file)
+        public override VideoMetaData ReadMetaData (IBinaryStream file)
         {
             if (file.Length < 12)
                 return null;
 
             // Check for ftyp box
             file.Position = 0;
-            uint size = ReadUInt32BE(file);
+            uint size = ReadUInt32BE (file);
             uint type = file.ReadUInt32();
 
             if (type != FTYP)
@@ -81,24 +77,25 @@ namespace GameRes
                 Duration = 0,
                 FrameRate = 0,
                 Codec = "Unknown",
+                CommonExtension = "mp4",
                 HasAudio = false
             };
 
             try
             {
-                ParseBoxes(file, meta);
+                ParseBoxes (file, meta);
             }
             catch {}
 
             return meta;
         }
 
-        private void ParseBoxes(IBinaryStream file, VideoMetaData meta)
+        private void ParseBoxes (IBinaryStream file, VideoMetaData meta)
         {
             while (file.Position < file.Length)
             {
                 long boxStart = file.Position;
-                uint boxSize = ReadUInt32BE(file);
+                uint boxSize = ReadUInt32BE (file);
                 uint boxType = file.ReadUInt32();
 
                 if (boxSize == 0)
@@ -106,7 +103,7 @@ namespace GameRes
                 else if (boxSize == 1)
                 {
                     // 64-bit box size
-                    ulong largeSize = ReadUInt64BE(file);
+                    ulong largeSize = ReadUInt64BE (file);
                     if (largeSize > uint.MaxValue)
                         break; // Box too large to handle
                     boxSize = (uint)largeSize;
@@ -118,7 +115,7 @@ namespace GameRes
                 if (boxType == MOOV)
                 {
                     // Parse moov box (contains metadata)
-                    ParseMoovBox(file, boxStart + 8, boxStart + boxSize, meta);
+                    ParseMoovBox (file, boxStart + 8, boxStart + boxSize, meta);
                 }
 
                 // Move to the next box
@@ -126,14 +123,14 @@ namespace GameRes
             }
         }
 
-        private void ParseMoovBox(IBinaryStream file, long start, long end, VideoMetaData meta)
+        private void ParseMoovBox (IBinaryStream file, long start, long end, VideoMetaData meta)
         {
             file.Position = start;
 
             while (file.Position < end)
             {
                 long boxStart = file.Position;
-                uint boxSize = ReadUInt32BE(file);
+                uint boxSize = ReadUInt32BE (file);
                 uint boxType = file.ReadUInt32();
 
                 if (boxSize == 0)
@@ -145,12 +142,12 @@ namespace GameRes
                 if (boxType == MVHD)
                 {
                     // Movie header - contains duration and timescale
-                    ParseMvhdBox(file, boxStart + 8, boxStart + boxSize, meta);
+                    ParseMvhdBox (file, boxStart + 8, boxStart + boxSize, meta);
                 }
                 else if (boxType == TRAK)
                 {
                     // Track - contains video/audio stream info
-                    ParseTrakBox(file, boxStart + 8, boxStart + boxSize, meta);
+                    ParseTrakBox (file, boxStart + 8, boxStart + boxSize, meta);
                 }
 
                 // Move to the next box
@@ -158,7 +155,7 @@ namespace GameRes
             }
         }
 
-        private void ParseMvhdBox(IBinaryStream file, long start, long end, VideoMetaData meta)
+        private void ParseMvhdBox (IBinaryStream file, long start, long end, VideoMetaData meta)
         {
             file.Position = start;
             byte version = file.ReadUInt8();
@@ -171,8 +168,8 @@ namespace GameRes
                 // 64-bit creation and modification times
                 file.Position += 16;
 
-                uint timeScale = ReadUInt32BE(file);
-                ulong duration = ReadUInt64BE(file);
+                uint timeScale = ReadUInt32BE (file);
+                ulong duration = ReadUInt64BE (file);
 
                 if (timeScale > 0)
                     meta.Duration = (long)(duration * 1000 / timeScale); // Convert to milliseconds
@@ -182,15 +179,15 @@ namespace GameRes
                 // 32-bit times
                 file.Position += 8;
 
-                uint timeScale = ReadUInt32BE(file);
-                uint duration = ReadUInt32BE(file);
+                uint timeScale = ReadUInt32BE (file);
+                uint duration = ReadUInt32BE (file);
 
                 if (timeScale > 0)
                     meta.Duration = (long)(duration * 1000 / timeScale); // Convert to milliseconds
             }
         }
 
-        private void ParseTrakBox(IBinaryStream file, long start, long end, VideoMetaData meta)
+        private void ParseTrakBox (IBinaryStream file, long start, long end, VideoMetaData meta)
         {
             file.Position = start;
             bool isVideoTrack = false;
@@ -199,7 +196,7 @@ namespace GameRes
             while (file.Position < end)
             {
                 long boxStart = file.Position;
-                uint boxSize = ReadUInt32BE(file);
+                uint boxSize = ReadUInt32BE (file);
                 uint boxType = file.ReadUInt32();
 
                 if (boxSize == 0)
@@ -211,7 +208,7 @@ namespace GameRes
                 if (boxType == TKHD)
                 {
                     // Track header - contains width and height for video tracks
-                    ParseTkhdBox(file, boxStart + 8, boxStart + boxSize, meta);
+                    ParseTkhdBox (file, boxStart + 8, boxStart + boxSize, meta);
                 }
                 else if (boxType == MDIA)
                 {
@@ -220,13 +217,13 @@ namespace GameRes
                     long mediaEnd = boxStart + boxSize;
 
                     // Check if this is a video or audio track
-                    isVideoTrack = IsVideoTrack(file, mediaStart, mediaEnd);
-                    isAudioTrack = IsAudioTrack(file, mediaStart, mediaEnd);
+                    isVideoTrack = IsVideoTrack (file, mediaStart, mediaEnd);
+                    isAudioTrack = IsAudioTrack (file, mediaStart, mediaEnd);
 
                     if (isVideoTrack)
                     {
                         // Parse media box for video info
-                        ParseMdiaBox(file, mediaStart, mediaEnd, meta);
+                        ParseMdiaBox (file, mediaStart, mediaEnd, meta);
                     }
                     else if (isAudioTrack)
                     {
@@ -239,7 +236,7 @@ namespace GameRes
             }
         }
 
-        private bool IsVideoTrack(IBinaryStream file, long start, long end)
+        private bool IsVideoTrack (IBinaryStream file, long start, long end)
         {
             long originalPos = file.Position;
             bool result = false;
@@ -251,7 +248,7 @@ namespace GameRes
                 while (file.Position < end)
                 {
                     long boxStart = file.Position;
-                    uint boxSize = ReadUInt32BE(file);
+                    uint boxSize = ReadUInt32BE (file);
                     uint boxType = file.ReadUInt32();
 
                     if (boxSize < 8 || boxStart + boxSize > end)
@@ -287,7 +284,7 @@ namespace GameRes
             return result;
         }
 
-        private bool IsAudioTrack(IBinaryStream file, long start, long end)
+        private bool IsAudioTrack (IBinaryStream file, long start, long end)
         {
             long originalPos = file.Position;
             bool result = false;
@@ -299,7 +296,7 @@ namespace GameRes
                 while (file.Position < end)
                 {
                     long boxStart = file.Position;
-                    uint boxSize = ReadUInt32BE(file);
+                    uint boxSize = ReadUInt32BE (file);
                     uint boxType = file.ReadUInt32();
 
                     if (boxSize < 8 || boxStart + boxSize > end)
@@ -335,7 +332,7 @@ namespace GameRes
             return result;
         }
 
-        private void ParseTkhdBox(IBinaryStream file, long start, long end, VideoMetaData meta)
+        private void ParseTkhdBox (IBinaryStream file, long start, long end, VideoMetaData meta)
         {
             file.Position = start;
             byte version = file.ReadUInt8();
@@ -379,22 +376,22 @@ namespace GameRes
             file.Position += 36;
 
             // Width and height are 16.16 fixed point
-            uint widthFixed = ReadUInt32BE(file);
-            uint heightFixed = ReadUInt32BE(file);
+            uint widthFixed = ReadUInt32BE (file);
+            uint heightFixed = ReadUInt32BE (file);
 
             // Convert from fixed point to integer
             meta.Width = widthFixed >> 16;
             meta.Height = heightFixed >> 16;
         }
 
-        private void ParseMdiaBox(IBinaryStream file, long start, long end, VideoMetaData meta)
+        private void ParseMdiaBox (IBinaryStream file, long start, long end, VideoMetaData meta)
         {
             file.Position = start;
 
             while (file.Position < end)
             {
                 long boxStart = file.Position;
-                uint boxSize = ReadUInt32BE(file);
+                uint boxSize = ReadUInt32BE (file);
                 uint boxType = file.ReadUInt32();
 
                 if (boxSize == 0)
@@ -406,19 +403,19 @@ namespace GameRes
                 if (boxType == MDHD)
                 {
                     // Media header - contains timescale and duration
-                    ParseMdhdBox(file, boxStart + 8, boxStart + boxSize, meta);
+                    ParseMdhdBox (file, boxStart + 8, boxStart + boxSize, meta);
                 }
                 else if (boxType == MINF)
                 {
                     // Media info - contains sample tables
-                    ParseMinfBox(file, boxStart + 8, boxStart + boxSize, meta);
+                    ParseMinfBox (file, boxStart + 8, boxStart + boxSize, meta);
                 }
 
                 file.Position = boxStart + boxSize;
             }
         }
 
-        private void ParseMdhdBox(IBinaryStream file, long start, long end, VideoMetaData meta)
+        private void ParseMdhdBox (IBinaryStream file, long start, long end, VideoMetaData meta)
         {
             file.Position = start;
             byte version = file.ReadUInt8();
@@ -431,8 +428,8 @@ namespace GameRes
                 // 64-bit creation and modification times
                 file.Position += 16;
 
-                uint timeScale = ReadUInt32BE(file);
-                ulong duration = ReadUInt64BE(file);
+                uint timeScale = ReadUInt32BE (file);
+                ulong duration = ReadUInt64BE (file);
 
                 if (timeScale > 0)
                 {
@@ -444,8 +441,8 @@ namespace GameRes
                 // 32-bit times
                 file.Position += 8;
 
-                uint timeScale = ReadUInt32BE(file);
-                uint duration = ReadUInt32BE(file);
+                uint timeScale = ReadUInt32BE (file);
+                uint duration = ReadUInt32BE (file);
 
                 if (timeScale > 0)
                 {
@@ -454,14 +451,14 @@ namespace GameRes
             }
         }
 
-        private void ParseMinfBox(IBinaryStream file, long start, long end, VideoMetaData meta)
+        private void ParseMinfBox (IBinaryStream file, long start, long end, VideoMetaData meta)
         {
             file.Position = start;
 
             while (file.Position < end)
             {
                 long boxStart = file.Position;
-                uint boxSize = ReadUInt32BE(file);
+                uint boxSize = ReadUInt32BE (file);
                 uint boxType = file.ReadUInt32();
 
                 if (boxSize == 0)
@@ -473,21 +470,21 @@ namespace GameRes
                 if (boxType == STBL)
                 {
                     // Sample table - contains codec info
-                    ParseStblBox(file, boxStart + 8, boxStart + boxSize, meta);
+                    ParseStblBox (file, boxStart + 8, boxStart + boxSize, meta);
                 }
 
                 file.Position = boxStart + boxSize;
             }
         }
 
-        private void ParseStblBox(IBinaryStream file, long start, long end, VideoMetaData meta)
+        private void ParseStblBox (IBinaryStream file, long start, long end, VideoMetaData meta)
         {
             file.Position = start;
 
             while (file.Position < end)
             {
                 long boxStart = file.Position;
-                uint boxSize = ReadUInt32BE(file);
+                uint boxSize = ReadUInt32BE (file);
                 uint boxType = file.ReadUInt32();
 
                 if (boxSize == 0)
@@ -499,14 +496,14 @@ namespace GameRes
                 if (boxType == STSD)
                 {
                     // Sample description - contains codec info
-                    ParseStsdBox(file, boxStart + 8, boxStart + boxSize, meta);
+                    ParseStsdBox (file, boxStart + 8, boxStart + boxSize, meta);
                 }
 
                 file.Position = boxStart + boxSize;
             }
         }
 
-        private void ParseStsdBox(IBinaryStream file, long start, long end, VideoMetaData meta)
+        private void ParseStsdBox (IBinaryStream file, long start, long end, VideoMetaData meta)
         {
             file.Position = start;
 
@@ -514,12 +511,12 @@ namespace GameRes
             file.Position += 4;
 
             // Number of entries
-            uint entryCount = ReadUInt32BE(file);
+            uint entryCount = ReadUInt32BE (file);
 
             for (uint i = 0; i < entryCount && file.Position < end; i++)
             {
                 long entryStart = file.Position;
-                uint entrySize = ReadUInt32BE(file);
+                uint entrySize = ReadUInt32BE (file);
                 uint format = file.ReadUInt32();
 
                 if (entrySize < 8 || entryStart + entrySize > end)
@@ -555,9 +552,9 @@ namespace GameRes
                     byte nameLength = file.ReadUInt8();
                     if (nameLength > 0 && nameLength <= 31)
                     {
-                        byte[] nameBytes = file.ReadBytes(nameLength);
-                        string codecName = Encoding.ASCII.GetString(nameBytes);
-                        if (!string.IsNullOrWhiteSpace(codecName))
+                        byte[] nameBytes = file.ReadBytes (nameLength);
+                        string codecName = Encoding.ASCII.GetString (nameBytes);
+                        if (!string.IsNullOrWhiteSpace (codecName))
                             meta.Codec = codecName;
                     }
 
@@ -598,15 +595,15 @@ namespace GameRes
         }
 
         // Helper methods for reading big-endian values
-        private uint ReadUInt32BE(IBinaryStream file)
+        private uint ReadUInt32BE (IBinaryStream file)
         {
-            byte[] buffer = file.ReadBytes(4);
+            byte[] buffer = file.ReadBytes (4);
             return (uint)((buffer[0] << 24) | (buffer[1] << 16) | (buffer[2] << 8) | buffer[3]);
         }
 
-        private ulong ReadUInt64BE(IBinaryStream file)
+        private ulong ReadUInt64BE (IBinaryStream file)
         {
-            byte[] buffer = file.ReadBytes(8);
+            byte[] buffer = file.ReadBytes (8);
             return ((ulong)buffer[0] << 56) | ((ulong)buffer[1] << 48) |
                    ((ulong)buffer[2] << 40) | ((ulong)buffer[3] << 32) |
                    ((ulong)buffer[4] << 24) | ((ulong)buffer[5] << 16) |

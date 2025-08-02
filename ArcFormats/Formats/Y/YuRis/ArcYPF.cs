@@ -173,7 +173,7 @@ namespace GameRes.Formats.YuRis
                     }
                 }
             }
-            uint unpacked_size = null == packed_entry ? entry.Size : packed_entry.UnpackedSize;
+            long unpacked_size = null == packed_entry ? entry.Size : packed_entry.UnpackedSize;
             if (null == ypf || 0 == ypf.ScriptKey || unpacked_size <= 0x20
                 || !entry.Name.HasExtension (".ybn"))
                 return input;
@@ -289,7 +289,7 @@ namespace GameRes.Formats.YuRis
             file_table.Sort ((a, b) => a.NameHash.CompareTo (b.NameHash));
 
             output.Position = data_offset;
-            uint current_offset = data_offset;
+            long current_offset = data_offset;
             foreach (var entry in file_table)
             {
                 if (null != callback)

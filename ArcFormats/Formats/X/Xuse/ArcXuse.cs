@@ -151,15 +151,15 @@ namespace GameRes.Formats.Xuse
                 || 0x001A1A00 != arc.File.View.ReadInt32 (entry.Offset+6)
                 || 0x0100A618 != arc.File.View.ReadInt32 (entry.Offset+0x10))
                 return arc.File.CreateStream (entry.Offset, entry.Size);
+
             var key = new byte[0x10];
             arc.File.View.Read (entry.Offset+0x20, key, 0, 0x10);
-            uint length = entry.Size - 0x32;
+            long length = entry.Size - 0x32;
             var data = new byte[length];
             length = (uint)arc.File.View.Read (entry.Offset+0x32, data, 0, length);
             for (uint i = 0; i < length; ++i)
-            {
                 data[i] ^= key[i&0xF];
-            }
+
             return new BinMemoryStream (data, entry.Name);
         }
     }

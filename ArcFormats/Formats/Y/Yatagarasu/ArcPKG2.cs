@@ -69,14 +69,14 @@ namespace GameRes.Formats.Yatagarasu
 
             uint encrypted_size = pkg_ent.EncryptedSize;
             if (0 == encrypted_size || encrypted_size > pkg_ent.Size)
-                encrypted_size = pkg_ent.Size;
+                encrypted_size = (uint)pkg_ent.Size;
             unsafe
             {
                 fixed (byte* data8 = data)
                 {
                     uint* data32 = (uint*)data8;
-                    uint count = (encrypted_size + 3) / 4;
-                    uint mask = (entry.Size / 4) & 7;
+                    uint count = ((uint)encrypted_size + 3) / 4;
+                    uint mask = ((uint)entry.Size / 4) & 7;
                     for (uint i = 0; i < count; ++i)
                         data32[i] ^= pkg_arc.Key[i & mask];
                 }

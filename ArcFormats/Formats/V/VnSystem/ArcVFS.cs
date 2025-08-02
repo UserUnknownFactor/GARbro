@@ -55,7 +55,7 @@ namespace GameRes.Formats.VnSystem
             }
         }
 
-        byte[] UnpackEntry (Stream input, uint unpacked_size)
+        byte[] UnpackEntry (Stream input, long unpacked_size)
         {
             const int dict_size = 0x10;
             var output = new byte[unpacked_size];

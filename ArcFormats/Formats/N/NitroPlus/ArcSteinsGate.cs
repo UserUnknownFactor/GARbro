@@ -77,7 +77,7 @@ namespace GameRes.Formats.NitroPlus
             return new SteinsGateEncryptedStream (arc.File, entry.Offset, entry.Size);
         }
 
-        internal void Encrypt (byte[] buffer, int offset, int count)
+        internal void Encrypt (byte[] buffer, long offset, int count)
         {
             for (int i = 0; i < count; ++i)
             {
@@ -219,7 +219,7 @@ namespace GameRes.Formats.NitroPlus
             set { m_stream.Position = m_base_pos + value; }
         }
 
-        public SteinsGateEncryptedStream (ArcView file, long offset, uint size)
+        public SteinsGateEncryptedStream (ArcView file, long offset, long size)
         {
             m_stream = file.CreateStream (offset, size);
             m_should_dispose = true;

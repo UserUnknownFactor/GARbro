@@ -200,14 +200,14 @@ namespace GameRes.Formats.NeXAS
             }
         }
 
-        static private byte[] HuffmanDecode (byte[] packed, int unpacked_size)
+        static private byte[] HuffmanDecode (byte[] packed, long unpacked_size)
         {
             var dst = new byte[unpacked_size];
             var decoder = new HuffmanDecoder (packed, dst);
             return decoder.Unpack();
         }
 
-        static private byte[] ZstdDecompress (Stream s, uint unpackedSize)
+        static private byte[] ZstdDecompress (Stream s, long unpackedSize)
         {
             using (var ds = new ZstdNet.DecompressionStream (s))
             {

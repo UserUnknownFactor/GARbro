@@ -31,7 +31,7 @@ namespace GameRes.Formats.Cherry
             uint index_size = (uint)count * 0x10u;
             if (index_size > file.View.Reserve (index_offset, index_size))
                 return null;
-            uint base_offset = 0x10;
+            long base_offset = 0x10;
             var dir = new List<Entry> (count);
             for (int i = 0; i < count; ++i)
             {

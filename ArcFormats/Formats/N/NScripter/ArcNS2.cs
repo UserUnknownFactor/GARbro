@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using GameRes.Formats.Strings;
@@ -183,7 +184,7 @@ namespace GameRes.Formats.NScripter
                 MD5.Initialize();
                 MD5.Update (m_seed, 0, m_seed.Length);
                 Buffer.BlockCopy (MD5.State, 0, hash, 0, 16);
-                
+
                 for (int j = 0; j < 16; ++j)
                 {
                     temp[16 + j] = m_seed[j] = (byte)(hash[j] ^ m_current_block[src2 + j]);

@@ -94,7 +94,7 @@ namespace GameRes.Formats.Littlewitch
             if (null == rent || !rent.HasEncryptionKey)
                 return arc.File.CreateStream (entry.Offset, entry.Size);
             var key = rent.CreateKey();
-            uint enc_length = Math.Min ((uint)key.Length, entry.Size);
+            uint enc_length = Math.Min ((uint)key.Length, (uint)entry.Size);
             byte[] encrypted = arc.File.View.ReadBytes (entry.Offset, enc_length);
             DecryptEntry (encrypted, key);
             Stream input;

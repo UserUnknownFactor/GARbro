@@ -28,7 +28,7 @@ namespace GameRes.Formats.Will
 
             var base_name = Path.GetFileNameWithoutExtension (file.Name);
             uint index_offset = 0x14;
-            uint current_offset = index_offset + (uint)count*0x28;
+            long current_offset = index_offset + (uint)count*0x28;
             var dir = new List<Entry> (count);
             for (int i = 0; i < count; ++i)
             {
@@ -36,8 +36,8 @@ namespace GameRes.Formats.Will
                 if (size > 0)
                 {
                     var imginfo = new ImageMetaData {
-                        OffsetX = file.View.ReadInt32 (index_offset+8),
-                        OffsetY = file.View.ReadInt32 (index_offset+0xC),
+                        OffsetX = file.View.ReadInt32  (index_offset+8),
+                        OffsetY = file.View.ReadInt32  (index_offset+0xC),
                         Width   = file.View.ReadUInt32 (index_offset+0x10),
                         Height  = file.View.ReadUInt32 (index_offset+0x14),
                         BPP     = 32,

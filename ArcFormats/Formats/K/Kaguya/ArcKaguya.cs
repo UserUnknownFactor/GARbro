@@ -173,7 +173,7 @@ namespace GameRes.Formats.Kaguya
 
         public byte[] Data { get { return m_output; } }
 
-        public LzReader (Stream input, uint packed_size, uint unpacked_size)
+        public LzReader (Stream input, long packed_size, long unpacked_size)
         {
             m_input = new MsbBitStream (input, true);
             m_output = new byte[unpacked_size];

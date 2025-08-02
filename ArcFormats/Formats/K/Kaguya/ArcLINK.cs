@@ -6,11 +6,6 @@ using System.Text;
 
 namespace GameRes.Formats.Kaguya
 {
-    internal class LinkEntry : PackedEntry
-    {
-        public bool IsEncrypted;
-    }
-
     internal class LinkArchive : ArcFile
     {
         public readonly LinkEncryption Encryption;
@@ -60,7 +55,7 @@ namespace GameRes.Formats.Kaguya
 
         public override Stream OpenEntry (ArcFile arc, Entry entry)
         {
-            var lent = entry as LinkEntry;
+            var lent = entry as PackedEntry;
             if (null == lent || (!lent.IsPacked && !lent.IsEncrypted))
             {
                 if (entry.Size > 8)
@@ -181,7 +176,7 @@ namespace GameRes.Formats.Kaguya
                 var name = ReadName();
                 if (string.IsNullOrEmpty (name))
                     return null;
-                var entry = FormatCatalog.Instance.Create<LinkEntry> (name);
+                var entry = FormatCatalog.Instance.Create<PackedEntry> (name);
                 entry.Offset = m_input.Position;
                 entry.Size   = size - (uint)(entry.Offset - base_offset);
                 if (is_compressed)
@@ -692,7 +687,7 @@ namespace GameRes.Formats.Kaguya
         byte[]   m_key;
         Tuple<string, Decryptor>[] m_type_table;
 
-        delegate Stream Decryptor (LinkArchive arc, LinkEntry entry);
+        delegate Stream Decryptor (LinkArchive arc, PackedEntry entry);
 
         static readonly ResourceInstance<AnmOpener>  An00 = new ResourceInstance<AnmOpener> ("ANM/KAGUYA");
         static readonly ResourceInstance<An10Opener> An10 = new ResourceInstance<An10Opener> ("AN10/KAGUYA");
@@ -723,7 +718,7 @@ namespace GameRes.Formats.Kaguya
             m_type_table = table.ToArray();
         }
 
-        public Stream DecryptEntry (LinkArchive arc, LinkEntry entry)
+        public Stream DecryptEntry (LinkArchive arc, PackedEntry entry)
         {
             var header = arc.File.View.ReadBytes (entry.Offset, 4);
             foreach (var type in m_type_table)
@@ -734,7 +729,7 @@ namespace GameRes.Formats.Kaguya
             return arc.File.CreateStream (entry.Offset, entry.Size);
         }
 
-        Stream DecryptImage (LinkArchive arc, LinkEntry entry, uint data_offset)
+        Stream DecryptImage (LinkArchive arc, PackedEntry entry, uint data_offset)
         {
             var header = arc.File.View.ReadBytes (entry.Offset, data_offset);
             Stream body = arc.File.CreateStream (entry.Offset+data_offset, entry.Size-data_offset);
@@ -742,7 +737,7 @@ namespace GameRes.Formats.Kaguya
             return new PrefixStream (header, body);
         }
 
-        Stream DecryptAnm (LinkArchive arc, LinkEntry entry, IAnmReader reader)
+        Stream DecryptAnm (LinkArchive arc, PackedEntry entry, IAnmReader reader)
         {
             var data = arc.File.View.ReadBytes (entry.Offset, entry.Size);
             var input = new BinMemoryStream (data, entry.Name);
@@ -758,7 +753,7 @@ namespace GameRes.Formats.Kaguya
             return input;
         }
 
-        Stream DecryptAn21 (LinkArchive arc, LinkEntry entry)
+        Stream DecryptAn21 (LinkArchive arc, PackedEntry entry)
         {
             var data = arc.File.View.ReadBytes (entry.Offset, entry.Size);
             int count = data.ToUInt16 (4);
@@ -786,7 +781,7 @@ namespace GameRes.Formats.Kaguya
             return new BinMemoryStream (data, entry.Name);
         }
 
-        Stream DecryptPl10 (LinkArchive arc, LinkEntry entry)
+        Stream DecryptPl10 (LinkArchive arc, PackedEntry entry)
         {
             var data = arc.File.View.ReadBytes (entry.Offset, entry.Size);
             int offset = 30;

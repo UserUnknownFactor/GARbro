@@ -23,7 +23,7 @@ namespace GameRes.Formats.Will
             int count = file.View.ReadInt32 (4);
             if (!IsSaneCount (count))
                 return null;
-            uint data_offset = file.View.ReadUInt32 (8);
+            long data_offset = file.View.ReadUInt32 (8);
             uint index_offset = 0x20;
             if (0 != (file.View.ReadByte (0xC) & 1) && count > 1)
             {

@@ -84,7 +84,7 @@
     <Compile Remove="Ikura\CreateMpxWidget.xaml.cs" />
     <Compile Remove="Ikura\IsfArchiveExtension.cs" />
     <Compile Remove="Formats\U\Unity\Gx4Lib\*.cs" />
-    <Compile Remove="Common\Draft*.cs" />
+    <Compile Remove="Examples\*.cs" />
     <Compile Remove="Formats\P\Primel\AudioWBC.cs" />
     <Compile Remove="Formats\H\Hypatia\ArcLPC.cs" />
     <Compile Remove="Formats\C\CsWare\AudioAF2.cs" />

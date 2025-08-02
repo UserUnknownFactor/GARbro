@@ -63,7 +63,7 @@ namespace GameRes.Formats.System21
                     return false;
                 dir.Add (entry);
                 index_offset += name_size + 4;
-                data_offset += entry.Size;
+                data_offset += (uint)entry.Size;
             }
             return true;
         }

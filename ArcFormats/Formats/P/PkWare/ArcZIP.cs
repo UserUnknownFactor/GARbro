@@ -11,7 +11,7 @@ using SharpZip = ICSharpCode.SharpZipLib.Zip;
 
 namespace GameRes.Formats.PkWare
 {
-    internal class ZipEntry : PackedEntry
+    public class ZipEntry : PackedEntry
     {
         public readonly SharpZip.ZipEntry NativeEntry;
 
@@ -35,7 +35,7 @@ namespace GameRes.Formats.PkWare
     {
         readonly SharpZip.ZipFile m_zip;
 
-        public SharpZip.ZipFile Native { get { return m_zip; } }
+        public   SharpZip.ZipFile Native { get { return m_zip; } }
 
         public PkZipArchive (ArcView arc, ArchiveFormat impl, ICollection<Entry> dir, SharpZip.ZipFile native)
             : base (arc, impl, dir)
@@ -69,16 +69,16 @@ namespace GameRes.Formats.PkWare
     {
         public override string         Tag { get { return "ZIP"; } }
         public override string Description { get { return "PKWARE archive format"; } }
-        public override uint     Signature { get { return 0; } }
-        public override bool  IsHierarchic { get { return true; } }
-        public override bool      CanWrite { get { return true; } }
+        public override uint     Signature { get { return  0; } }
+        public override bool  IsHierarchic { get { return  true; } }
+        public override bool      CanWrite { get { return  true; } }
 
         static readonly byte[] PkDirSignature = { (byte)'P', (byte)'K', 5, 6 };
 
         public ZipOpener ()
         {
             Settings = new[] { ZipEncoding };
-            Extensions = new string[] { "zip", "vndat" };
+            Extensions = new string[] { "zip" };
         }
 
         EncodingSetting ZipEncoding = new EncodingSetting ("ZIPEncodingCP", "DefaultEncoding");
@@ -102,7 +102,7 @@ namespace GameRes.Formats.PkWare
         internal ArcFile OpenZipArchive (ArcView file, Stream input)
         {
             var zip = new SharpZip.ZipFile (input);
-            zip.StringCodec = SharpZip.StringCodec.FromCodePage(Properties.Settings.Default.ZIPEncodingCP);
+            zip.StringCodec = SharpZip.StringCodec.FromCodePage (Properties.Settings.Default.ZIPEncodingCP);
             try
             {
                 var files = zip.Cast<SharpZip.ZipEntry>().Where (z => !z.IsDirectory);
@@ -143,12 +143,12 @@ namespace GameRes.Formats.PkWare
             using (var pointer = new ViewPointer (view, start_offset))
             {
                 byte* ptr_end = pointer.Value;
-                byte* ptr = ptr_end + tail_size-0x16;
+                byte* ptr = ptr_end + tail_size - 0x16;
                 for (; ptr >= ptr_end; --ptr)
                 {
                     if (signature[3] == ptr[3] && signature[2] == ptr[2] &&
                         signature[1] == ptr[1] && signature[0] == ptr[0])
-                        return start_offset + (ptr-ptr_end);
+                        return start_offset + (ptr - ptr_end);
                 }
                 return -1;
             }
@@ -156,13 +156,14 @@ namespace GameRes.Formats.PkWare
 
         string QueryPassword (ArcView file)
         {
-            var options = Query<ZipOptions> (arcStrings.ZIPEncryptedNotice);
+            var options = Query<ZipOptions>(arcStrings.ZIPEncryptedNotice);
             return options.Password;
         }
 
-        public override ResourceOptions GetDefaultOptions ()
+        public override ResourceOptions GetDefaultOptions()
         {
-            return new ZipOptions {
+            return new ZipOptions
+            {
                 CompressionLevel = Properties.Settings.Default.ZIPCompression,
                 FileNameEncoding = ZipEncoding.Get<Encoding>(),
                 Password = Properties.Settings.Default.ZIPPassword,
@@ -188,7 +189,7 @@ namespace GameRes.Formats.PkWare
         {
             var zip_options = GetOptions<ZipOptions> (options);
             int callback_count = 0;
-            using (var zip = new ZipArchive(output, ZipArchiveMode.Create, true, zip_options.FileNameEncoding))
+            using (var zip = new ZipArchive (output, ZipArchiveMode.Create, true, zip_options.FileNameEncoding))
             {
                 foreach (var entry in list)
                 {
@@ -204,7 +205,9 @@ namespace GameRes.Formats.PkWare
             }
         }
 
-        ZipScheme DefaultScheme = new ZipScheme { KnownKeys = new Dictionary<string, string>() };
+        ZipScheme DefaultScheme = new ZipScheme { 
+            KnownKeys = new Dictionary<string, string>() 
+        };
 
         public override ResourceScheme Scheme
         {

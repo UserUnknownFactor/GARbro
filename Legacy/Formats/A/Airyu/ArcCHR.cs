@@ -60,7 +60,7 @@ namespace GameRes.Formats.Airyu
         int     m_image_size;
         int     m_stride;
 
-        public ChrImageDecoder (IBinaryStream input, uint size) : base (input)
+        public ChrImageDecoder (IBinaryStream input, long size) : base (input)
         {
             m_image_size = (int)size;
             switch (size)

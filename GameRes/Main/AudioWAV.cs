@@ -119,7 +119,7 @@ namespace GameRes
             source.CopyTo (output);
         }
 
-        public static void WriteRiffHeader (Stream output, WaveFormat format, uint pcm_size)
+        public static void WriteRiffHeader (Stream output, WaveFormat format, long pcm_size)
         {
             using (var buffer = new BinaryWriter (output, Encoding.ASCII, true))
             {

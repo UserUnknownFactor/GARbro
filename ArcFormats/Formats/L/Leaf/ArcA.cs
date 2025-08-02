@@ -70,7 +70,7 @@ namespace GameRes.Formats.Leaf
             return input;
         }
 
-        Stream Decrypt (Stream input, uint length, byte key)
+        Stream Decrypt (Stream input, long length, byte key)
         {
             var data = new byte[length];
             input.Read (data, 0, data.Length);

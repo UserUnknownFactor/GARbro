@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.Drawing;
@@ -34,9 +35,10 @@ namespace GameRes.Formats.Weapon
             Size[] dim_table;
             if (!KnownFileTables.TryGetValue (arc_name, out dim_table))
                 return null;
-            uint offset = 0;
+            long offset = 0;
             var base_name = Path.GetFileNameWithoutExtension (arc_name);
             var dir = new List<Entry> (dim_table.Length);
+
             for (int i = 0; i < dim_table.Length; ++i)
             {
                 var name = string.Format ("{0}#{1:D4}", base_name, i);
@@ -55,6 +57,7 @@ namespace GameRes.Formats.Weapon
                 dir.Add (entry);
                 offset += entry.Size;
             }
+
             return new ArcFile (file, this, dir);
         }
 
@@ -62,318 +65,36 @@ namespace GameRes.Formats.Weapon
         {
             var cgent = (CgEntry)entry;
             var input = arc.File.CreateStream (entry.Offset, entry.Size);
-            var info = new ImageMetaData { Width = cgent.Width, Height = cgent.Height, BPP = 16 };
+            var info  = new ImageMetaData { Width = cgent.Width, Height = cgent.Height, BPP = 16 };
             return new CgDecoder (input, info);
         }
 
-        static readonly Dictionary<string, Size[]> KnownFileTables = new Dictionary<string, Size[]> (StringComparer.OrdinalIgnoreCase) {
-            { "eventcg.dat",
-                new Size[] {
-                    new Size (800, 600), new Size (800, 600), new Size (800, 600), new Size (800, 600),
-                    new Size (800, 600), new Size (800, 1200), new Size (800, 600), new Size (800, 600),
-                    new Size (800, 600), new Size (800, 600), new Size (800, 600), new Size (800, 600),
-                    new Size (800, 1200), new Size (800, 600), new Size (800, 600), new Size (800, 600),
-                    new Size (800, 1200), new Size (800, 600), new Size (800, 600), new Size (800, 600),
-                    new Size (800, 600), new Size (800, 600), new Size (800, 600), new Size (800, 600),
-                    new Size (800, 600), new Size (800, 600), new Size (800, 600), new Size (800, 600),
-                    new Size (800, 600), new Size (800, 600), new Size (800, 600), new Size (800, 600),
-                    new Size (800, 600), new Size (800, 600), new Size (800, 600), new Size (800, 600),
-                    new Size (800, 600), new Size (800, 600), new Size (800, 600), new Size (800, 600),
-                    new Size (800, 600), new Size (800, 600), new Size (800, 600), new Size (800, 600),
-                    new Size (800, 600), new Size (800, 600), new Size (800, 600), new Size (800, 600),
-                    new Size (800, 600), new Size (800, 600), new Size (800, 600), new Size (800, 600),
-                    new Size (800, 600), new Size (800, 600), new Size (800, 600), new Size (800, 600),
-                    new Size (800, 600), new Size (800, 600), new Size (800, 1200), new Size (800, 600),
-                    new Size (800, 600), new Size (800, 600), new Size (800, 1200), new Size (800, 600),
-                    new Size (800, 600), new Size (800, 600), new Size (800, 600), new Size (800, 600),
-                    new Size (800, 600),
-                }
-            },
-            { "buy.dat",
-                new Size[] {
-                    new Size (800, 900), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160), new Size (128, 160), new Size (128, 160), new Size (128, 160),
-                    new Size (128, 160),
-                }
-            },
-            { "heyacg.dat",
-                new Size[] {
-                    new Size (236, 174), new Size (236, 174), new Size (236, 174), new Size (236, 174),
-                    new Size (236, 174), new Size (236, 174), new Size (236, 174), new Size (236, 174),
-                    new Size (236, 174), new Size (236, 174), new Size (236, 174), new Size (236, 174),
-                    new Size (236, 174), new Size (236, 174),
-                }
-            },
-            { "kigaecg.dat",
-                new Size[] {
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                    new Size (435, 600), new Size (435, 600), new Size (435, 600), new Size (435, 600),
-                }
-            },
-            { "chibicg.dat",
-                new Size[] {
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                    new Size (64, 64), new Size (64, 64), new Size (64, 64), new Size (64, 64),
-                }
-            },
-            { "omake.dat",
-                new Size[] {
-                    new Size (800, 600),
-                    new Size (800, 300),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96), new Size (384, 96), new Size (384, 96), new Size (384, 96),
-                    new Size (384, 96),
-                }
-            },
-            { "result.dat",
-                new Size[] {
-                    new Size (528, 600), new Size (528, 600),
-                    new Size (272, 600), new Size (272, 600), new Size (272, 600), new Size (272, 600),
-                }
-            },
-            { "title.dat",
-                new Size[] {
-                    new Size (800, 1076),
-                    new Size (800, 600),
-                }
-            },
+        static readonly Dictionary<string, Size[]> KnownFileTables = new Dictionary<string, Size[]>(StringComparer.OrdinalIgnoreCase) {
+            ["eventcg.dat"] = CreateSizes((800, 600,  69), (800, 1200, new[] { 5, 12, 16, 58, 62 })),
+            ["buy.dat"]     = CreateSizes((800, 900,  1),  (128, 160,  148)),
+            ["heyacg.dat"]  = CreateSizes((236, 174,  14)),
+            ["kigaecg.dat"] = CreateSizes((435, 600,  148)),
+            ["chibicg.dat"] = CreateSizes((64,  64,   500)),
+            ["omake.dat"]   = CreateSizes((800, 600,  1),  (800, 300,  1), (384, 96, 213)),
+            ["result.dat"]  = CreateSizes((528, 600,  2),  (272, 600,  4)),
+            ["title.dat"]   = CreateSizes((800, 1076, 1),  (800, 600,  1))
         };
+
+        static Size[] CreateSizes(params (int w, int h, object count)[] specs) {
+            var list = new List<Size>();
+            foreach (var (w, h, count) in specs) {
+                if (count is int n) {
+                    for (int i = 0; i < n; i++)
+                        list.Add(new Size(w, h));
+                } else if (count is int[] indices) {
+                    int max = indices.Max() + 1;
+                    var size = new Size(w, h);
+                    for (int i = 0; i < max; i++)
+                        list.Add(indices.Contains(i) ? size : new Size(800, 600));
+                }
+            }
+            return list.ToArray();
+        }
     }
 
     internal class CgDecoder : BinaryImageDecoder

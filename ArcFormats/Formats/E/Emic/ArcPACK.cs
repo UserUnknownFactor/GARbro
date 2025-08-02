@@ -53,7 +53,7 @@ namespace GameRes.Formats.Emic
             }
             Stream input = file.CreateStream();
             if (1 == is_encrypted)
-                input = new ByteStringEncryptedStream (input, 0, key);
+                input = new ByteStringEncryptedStream (input, key);
             using (var reader = new BinaryReader (input))
             {
                 input.Position = 0x2C;
@@ -86,7 +86,7 @@ namespace GameRes.Formats.Emic
             var emic = arc as EmicArchive;
             Stream input = arc.File.CreateStream (entry.Offset, entry.Size);
             if (null != emic)
-                input = new ByteStringEncryptedStream (input, entry.Offset, emic.Key);
+                input = new ByteStringEncryptedStream (input, emic.Key, entry.Offset);
             return input;
         }
     }

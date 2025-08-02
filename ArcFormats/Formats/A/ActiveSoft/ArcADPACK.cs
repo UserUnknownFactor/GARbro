@@ -22,11 +22,16 @@ namespace GameRes.Formats.AdPack
 
         public override ArcFile TryOpen (ArcView file)
         {
-            int count = file.View.ReadInt16 (0);
-            if (count <= 1)
+            if (!file.Name.EndsWith(".pak"))
                 return null;
+
+            int count = file.View.ReadInt16 (0);
             if (0x4000 == count)
                 return TryOpenVoiceArchive (file);
+
+            if (!IsSaneCount(count))
+                return null;
+
             long index_offset = 2;
             uint index_size = (uint)(0x10 * count);
             if (index_size > file.View.Reserve (index_offset, index_size))
@@ -38,16 +43,30 @@ namespace GameRes.Formats.AdPack
                 string name = ReadName (file, index_offset);
                 if (string.IsNullOrEmpty (name))
                     return null;
-                var entry = FormatCatalog.Instance.Create<Entry> (name);
+
+                var entry = null;
+                try
+                {
+                    entry = FormatCatalog.Instance.Create<Entry> (name);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.WriteLine(
+                        $"Failed to read {Tag} archive: {ex.Message}");
+                    return null;
+                }
                 uint offset = file.View.ReadUInt32 (index_offset+12);
                 uint next_offset = file.View.ReadUInt32 (index_offset+0x10+12);
                 entry.Size = next_offset - offset;
                 entry.Offset = offset;
                 if (offset < index_size || !entry.CheckPlacement (file.MaxOffset))
                     return null;
-                dir.Add (entry);
+
+                dir.Add(entry); 
+
                 index_offset += 0x10;
             }
+
             return new ArcFile (file, this, dir);
         }
 

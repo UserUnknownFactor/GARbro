@@ -65,7 +65,7 @@ namespace GameRes.Formats.Kaguya
             }
         }
 
-        internal static byte[] UnpackLzss (IBinaryStream input, uint unpacked_size)
+        internal static byte[] UnpackLzss (IBinaryStream input, long unpacked_size)
         {
             var output = new byte[unpacked_size];
             var frame = new byte[0x100];

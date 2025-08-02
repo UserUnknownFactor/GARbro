@@ -25,7 +25,7 @@ namespace GameRes.Formats.Patisserie
             if (end > file.MaxOffset - 8)
                 return null;
             end += 8;
-            uint current_offset = 8;
+            long current_offset = 8;
             var dir = new List<Entry>();
             int i = 0;
             while (current_offset < end)

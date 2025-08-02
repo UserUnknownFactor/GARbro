@@ -27,7 +27,6 @@ namespace GameRes.Formats.KiriKiri
     {
         List<Xp3Segment> m_segments = new List<Xp3Segment>();
 
-        public bool          IsEncrypted { get; set; }
         public ICrypt             Cipher { get; set; }
         public List<Xp3Segment> Segments { get { return m_segments; } }
         public uint                 Hash { get; set; }

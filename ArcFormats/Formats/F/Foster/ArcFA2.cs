@@ -48,7 +48,7 @@ namespace GameRes.Formats.Foster
                     return null;
                 dir.Add (entry);
                 index_pos += 8;
-                data_offset += (entry.Size + 0xFu) & ~0xFu;
+                data_offset += ((uint)entry.Size + 0xFu) & ~0xFu;
             }
             return new ArcFile (file, this, dir);
         }
@@ -63,7 +63,7 @@ namespace GameRes.Formats.Foster
             return new BinMemoryStream (data, entry.Name);
         }
 
-        byte[] Decompress (IBinaryStream input, uint unpacked_size)
+        byte[] Decompress (IBinaryStream input, long unpacked_size)
         {
             var comp = new Fa2Compression (input, unpacked_size);
             return comp.Unpack();
@@ -75,7 +75,7 @@ namespace GameRes.Formats.Foster
         IBinaryStream   m_input;
         byte[]          m_output;
 
-        public Fa2Compression (IBinaryStream input, uint unpacked_size)
+        public Fa2Compression (IBinaryStream input, long unpacked_size)
         {
             m_input = input;
             m_output = new byte[unpacked_size];

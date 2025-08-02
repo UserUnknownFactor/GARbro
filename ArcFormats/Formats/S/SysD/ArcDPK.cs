@@ -23,7 +23,7 @@ namespace GameRes.Formats.SysD
                 return null;
 
             uint index_offset = 8;
-            uint data_offset = index_offset + 0x14 * (uint)count;
+            long data_offset = index_offset + 0x14 * (uint)count;
             var dir = new List<Entry> (count);
             for (int i = 0; i < count; ++i)
             {

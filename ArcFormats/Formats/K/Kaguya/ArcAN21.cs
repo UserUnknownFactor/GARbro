@@ -30,7 +30,7 @@ namespace GameRes.Formats.Kaguya
         public override ArcFile TryOpen (ArcView file)
         {
             int table_count = file.View.ReadUInt16 (4);
-            uint current_offset = 8;
+            long current_offset = 8;
             for (int i = 0; i < table_count; ++i)
             {
                 switch (file.View.ReadByte (current_offset++))
@@ -122,7 +122,7 @@ namespace GameRes.Formats.Kaguya
             return new BitmapDecoder (pixels, anarc.ImageInfo);
         }
 
-        internal static byte[] DecompressRLE (IBinaryStream input, uint unpacked_size, int rle_step)
+        internal static byte[] DecompressRLE (IBinaryStream input, long unpacked_size, int rle_step)
         {
             var output = new byte[unpacked_size];
             for (int i = 0; i < rle_step; ++i)

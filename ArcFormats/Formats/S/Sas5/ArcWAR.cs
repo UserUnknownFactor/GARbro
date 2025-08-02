@@ -91,7 +91,7 @@ namespace GameRes.Formats.Sas5
             return string.Format ("{0}#{1:D5}", base_name, n);
         }
 
-        internal Stream OpenWavEntry (ArcView file, long offset, uint size)
+        internal Stream OpenWavEntry (ArcView file, long offset, long size)
         {
             uint fmt_size = file.View.ReadUInt32 (offset);
             uint data_size = file.View.ReadUInt32 (offset+4);

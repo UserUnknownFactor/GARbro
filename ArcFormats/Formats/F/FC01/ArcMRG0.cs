@@ -31,7 +31,7 @@ namespace GameRes.Formats.FC01
                 if (!entry.CheckPlacement (file.MaxOffset))
                     return null;
                 dir.Add (entry);
-                data_offset += entry.Size;
+                data_offset += (uint)entry.Size;
                 index_offset += 0x4C;
             }
             return new ArcFile (file, this, dir);

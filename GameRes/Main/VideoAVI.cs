@@ -42,21 +42,20 @@ namespace GameRes
         //private static readonly uint MOVI_ID = 0x69766F6D; // "movi"
         //private static readonly uint JUNK_ID = 0x4B4E554A; // "JUNK"
 
-        public override VideoData Read(IBinaryStream file, VideoMetaData info)
+        public override VideoData Read (IBinaryStream file, VideoMetaData info)
         {
-            string tempFile = Path.Combine(Path.GetTempPath(), $"garbro_video_{Guid.NewGuid()}.avi");
+            info.CommonExtension = "avi";
 
-            using (var fileStream = File.Create(tempFile))
-            {
-                file.Position = 0;
-                file.AsStream.CopyTo(fileStream);
+            if (File.Exists (info.FileName)) {
+                // real file
+                file.Dispose();
+                return new VideoData (info);
             }
 
-            var stream = new FileStream(tempFile, FileMode.Open, FileAccess.Read, FileShare.Read);
-            return new VideoData(stream, info, tempFile);
+            return new VideoData (file.AsStream, info, true);
         }
 
-        public override VideoMetaData ReadMetaData(IBinaryStream file)
+        public override VideoMetaData ReadMetaData (IBinaryStream file)
         {
             if (file.Length < 12)
                 return null;
@@ -76,12 +75,13 @@ namespace GameRes
                 Duration = 0,
                 FrameRate = 0,
                 Codec = "Unknown",
+                CommonExtension = "avi",
                 HasAudio = false
             };
 
             try
             {
-                ParseAviChunks(file, meta);
+                ParseAviChunks (file, meta);
             }
             catch (Exception)
             {
@@ -91,7 +91,7 @@ namespace GameRes
             return meta;
         }
 
-        private void ParseAviChunks(IBinaryStream file, VideoMetaData meta)
+        private void ParseAviChunks (IBinaryStream file, VideoMetaData meta)
         {
             file.Position = 12; // Skip RIFF header and AVI ID
 
@@ -114,11 +114,11 @@ namespace GameRes
 
                     if (listType == HDRL_ID)
                     {
-                        ParseHdrlList(file, file.Position, nextChunkPos - 4, meta);
+                        ParseHdrlList (file, file.Position, nextChunkPos - 4, meta);
                     }
                     else if (listType == STRL_ID)
                     {
-                        ParseStrlList(file, file.Position, nextChunkPos - 4, meta);
+                        ParseStrlList (file, file.Position, nextChunkPos - 4, meta);
                     }
                     else
                     {
@@ -134,7 +134,7 @@ namespace GameRes
             }
         }
 
-        private void ParseHdrlList(IBinaryStream file, long startPos, long endPos, VideoMetaData meta)
+        private void ParseHdrlList (IBinaryStream file, long startPos, long endPos, VideoMetaData meta)
         {
             file.Position = startPos;
 
@@ -153,7 +153,7 @@ namespace GameRes
 
                 if (chunkId == AVIH_ID)
                 {
-                    ParseAvihChunk(file, chunkSize, meta);
+                    ParseAvihChunk (file, chunkSize, meta);
                 }
                 else if (chunkId == LIST_ID)
                 {
@@ -161,7 +161,7 @@ namespace GameRes
 
                     if (listType == STRL_ID)
                     {
-                        ParseStrlList(file, file.Position, nextChunkPos - 4, meta);
+                        ParseStrlList (file, file.Position, nextChunkPos - 4, meta);
                     }
                     else
                     {
@@ -175,7 +175,7 @@ namespace GameRes
             }
         }
 
-        private void ParseAvihChunk(IBinaryStream file, uint chunkSize, VideoMetaData meta)
+        private void ParseAvihChunk (IBinaryStream file, uint chunkSize, VideoMetaData meta)
         {
             if (chunkSize < 40)
             {
@@ -197,7 +197,7 @@ namespace GameRes
             }
         }
 
-        private void ParseStrlList(IBinaryStream file, long startPos, long endPos, VideoMetaData meta)
+        private void ParseStrlList (IBinaryStream file, long startPos, long endPos, VideoMetaData meta)
         {
             file.Position = startPos;
             bool isVideoStream = false;
@@ -231,7 +231,7 @@ namespace GameRes
                 else if (chunkId == STRF_ID && isVideoStream)
                 {
                     // Stream format - for video, this is a BITMAPINFOHEADER
-                    ParseBitmapInfoHeader(file, chunkSize, meta);
+                    ParseBitmapInfoHeader (file, chunkSize, meta);
                 }
                 else
                 {
@@ -240,7 +240,7 @@ namespace GameRes
             }
         }
 
-        private void ParseBitmapInfoHeader(IBinaryStream file, uint chunkSize, VideoMetaData meta)
+        private void ParseBitmapInfoHeader (IBinaryStream file, uint chunkSize, VideoMetaData meta)
         {
             if (chunkSize < 40)
             {
@@ -257,17 +257,17 @@ namespace GameRes
             uint compression = file.ReadUInt32();
 
             // Set metadata
-            meta.Width = (uint)Math.Abs(width);
-            meta.Height = (uint)Math.Abs(height);
+            meta.Width = (uint)Math.Abs (width);
+            meta.Height = (uint)Math.Abs (height);
 
             // Map compression FourCC to codec name
-            meta.Codec = GetCodecName(compression);
+            meta.Codec = GetCodecName (compression);
         }
 
-        private string GetCodecName(uint fourCC)
+        private string GetCodecName (uint fourCC)
         {
-            byte[] bytes = BitConverter.GetBytes(fourCC);
-            string fourCCString = Encoding.ASCII.GetString(bytes);
+            byte[] bytes = BitConverter.GetBytes (fourCC);
+            string fourCCString = Encoding.ASCII.GetString (bytes);
 
             switch (fourCCString)
             {

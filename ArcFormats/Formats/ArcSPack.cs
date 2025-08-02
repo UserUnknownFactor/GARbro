@@ -93,7 +93,7 @@ namespace GameRes.Formats.SPack
     internal sealed class PackedReader : IDisposable
     {
         IBinaryStream   m_input;
-        uint            m_packed_size;
+        long            m_packed_size;
         byte[]          m_output;
 
         public byte[] Data { get { return m_output; } }

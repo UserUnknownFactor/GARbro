@@ -9,11 +9,6 @@ using GameRes.Utility;
 
 namespace GameRes.Formats.JamCreation
 {
-    internal class AinosEntry : PackedEntry
-    {
-        public bool IsEncrypted;
-    }
-
     [Export(typeof(ArchiveFormat))]
     public class DatOpener : ArchiveFormat
     {
@@ -43,7 +38,7 @@ namespace GameRes.Formats.JamCreation
         public override Stream OpenEntry (ArcFile arc, Entry entry)
         {
             var input = arc.File.CreateStream (entry.Offset, entry.Size);
-            var pent = entry as AinosEntry;
+            var pent = entry as PackedEntry;
             if (null == pent)
                 return input;
             if (pent.IsPacked)
@@ -127,13 +122,14 @@ namespace GameRes.Formats.JamCreation
                     if (id == arc_id)
                     {
                         int name_pos = names_index.ToInt32 (i * 4);
-                        var name = Path.Combine (subdir_name, Binary.GetCString (names, name_pos));
-                        var entry = Create<AinosEntry> (name);
-                        entry.Offset = index.ToUInt32 (index_pos+4);
-                        entry.Size = index.ToUInt32 (index_pos+8);
+                        var name  = Path.Combine (subdir_name, Binary.GetCString (names, name_pos));
+                        var entry = Create<PackedEntry> (name);
+
+                        entry.Offset       = index.ToUInt32 (index_pos+4);
+                        entry.Size         = index.ToUInt32 (index_pos+8);
                         entry.UnpackedSize = index.ToUInt32 (index_pos+12);
-                        entry.IsPacked = (flags & 0x100) != 0;
-                        entry.IsEncrypted = (flags & 0x200) != 0;
+                        entry.IsPacked     = (flags & 0x100) != 0;
+                        entry.IsEncrypted  = (flags & 0x200) != 0;
                         if (entry.CheckPlacement (arc_length))
                             dir.Add (entry);
                     }

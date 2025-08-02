@@ -384,7 +384,7 @@ namespace GameRes.Formats.RenPy
         {
             byte opcode = null == entry.Header ? TUPLE2 : TUPLE3;
             SaveLong (entry.Offset);
-            SaveInt (entry.UnpackedSize);
+            SaveInt ((uint)entry.UnpackedSize);
             if (null != entry.Header)
                 SaveString (entry.Header);
             m_stream.WriteByte (opcode);

@@ -94,7 +94,7 @@ namespace GameRes.Formats.Astronauts
             return new BinMemoryStream (data, entry.Name);
         }
 
-        static void Decrypt (byte[] data, uint length, byte[] key=null)
+        static void Decrypt (byte[] data, long length, byte[] key=null)
         {
             for (uint i = 0; i < length; ++i)
             {

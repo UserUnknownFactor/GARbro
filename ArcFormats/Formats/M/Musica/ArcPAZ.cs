@@ -28,7 +28,7 @@ namespace GameRes.Formats.Musica
             XorKey = key;
         }
 
-        protected override uint GetEntrySize (Entry entry)
+        protected override long GetEntrySize (Entry entry)
         {
             var pent = entry as PazEntry;
             if (pent != null)

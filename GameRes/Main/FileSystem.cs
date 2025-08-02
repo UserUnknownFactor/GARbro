@@ -280,19 +280,19 @@ namespace GameRes
         /// </summary>
         static public string CreatePath (string filename)
         {
-            filename = SanitizeFileName (filename);
-
+            filename = NormalizePath(filename);
             string dir = Path.GetDirectoryName (filename);
             if (!string.IsNullOrEmpty (dir)) // check for malformed filenames
             {
                 string root = Path.GetPathRoot (dir);
                 if (!string.IsNullOrEmpty (root))
-                {
                     dir = dir.Substring (root.Length); // strip root
-                }
+
                 string cwd = Directory.GetCurrentDirectory() + Path.DirectorySeparatorChar;
                 dir = Path.GetFullPath (dir);
                 filename = Path.GetFileName (filename);
+                filename = SanitizeFileName (filename);
+
                 // check whether filename would reside within current directory
                 if (dir.StartsWith (cwd, StringComparison.OrdinalIgnoreCase))
                 {
@@ -304,7 +304,12 @@ namespace GameRes
             return filename;
         }
 
-        private static string SanitizeFileName (string filename)
+        public static string NormalizePath (string filename)
+        {
+            return filename.Replace('/', Path.DirectorySeparatorChar);
+        }
+
+        public static string SanitizeFileName (string filename)
         {
             var invalidChars = Path.GetInvalidFileNameChars();
             var sanitized    = new StringBuilder (filename.Length);
@@ -517,7 +522,7 @@ namespace GameRes
             if (0 == path2.Length)
                 return path1;
             if (path1.EndsWith (PathDelimiter))
-                return path1+path2;
+                return path1 + path2;
             return string.Join (PathDelimiter, path1, path2);
         }
 
@@ -627,15 +632,15 @@ namespace GameRes
 
         private FileSystemStats CalculateStats (string path)
         {
-            var entries = string.IsNullOrEmpty (path) 
-                ? m_arc.Dir 
+            var entries = string.IsNullOrEmpty (path)
+                ? m_arc.Dir
                 : m_arc.Dir.Where (e => e.Name.StartsWith (path + PathDelimiter, StringComparison.OrdinalIgnoreCase));
 
             var dirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var entry in entries)
             {
-                var relativePath = string.IsNullOrEmpty (path) 
-                    ? entry.Name 
+                var relativePath = string.IsNullOrEmpty (path)
+                    ? entry.Name
                     : entry.Name.Substring (path.Length + 1);
 
                 var parts = relativePath.Split (m_path_delimiters, StringSplitOptions.RemoveEmptyEntries);
@@ -886,7 +891,7 @@ namespace GameRes
                         ++i;
                     }
                 }
-                while (Count > i+1)
+                while (Count > i + 1)
                     m_vfs.Pop();
                 while (Count < desired_vfs_count)
                 {
@@ -907,6 +912,38 @@ namespace GameRes
         public static string GetDirectoryName (string path)
         {
             return m_vfs.Top.GetDirectoryName (path);
+        }
+
+        /// <summary>
+        /// Gets just the filename portion of a path.
+        /// </summary>
+        public static string GetFileName (string path)
+        {
+            int sep = path.LastIndexOfAny (PathSeparatorChars);
+            if (sep >= 0)
+                return path.Substring (sep + 1);
+            return path;
+        }
+
+        /// <summary>
+        /// Checks if the given path is rooted (absolute path).
+        /// </summary>
+        public static bool IsPathRooted (string path)
+        {
+            if (string.IsNullOrEmpty (path))
+                return false;
+
+            if (path.Length >= 3 && char.IsLetter (path[0]) && path[1] == ':' &&
+                (path[2] == '\\' || path[2] == '/'))
+                return true;
+
+            if (path.Length >= 2 && path[0] == '\\' && path[1] == '\\')
+                return true;
+
+            if (path[0] == '/' || path[0] == '\\')
+                return true;
+
+            return false;
         }
 
         public static Entry FindFile (string filename)
@@ -1043,6 +1080,7 @@ namespace GameRes
             // first, filter out completely different paths
             if (!path.EndsWith (filename, StringComparison.OrdinalIgnoreCase))
                 return false;
+
             // now, compare length of filename portion of the path
             int filename_index = path.LastIndexOfAny (PathSeparatorChars);
             filename_index++;
@@ -1058,11 +1096,185 @@ namespace GameRes
             var dir_name = GetDirectoryName (path);
             return CombinePath (dir_name, target);
         }
+
+        /// <summary>
+        /// Searches for a file through all filesystem levels, starting from the current (top) level
+        /// and working down to the physical filesystem.
+        /// </summary>
+        public static Entry FindFileInHierarchy(string filename)
+        {
+            // First try the current filesystem
+            try
+            {
+                return FindFile(filename);
+            }
+            catch (FileNotFoundException)
+            {
+                // Continue searching in lower levels
+            }
+
+            // Search through all filesystem levels
+            foreach (var fs in m_vfs.All)
+            {
+                try
+                {
+                    var entry = fs.FindFile(filename);
+                    if (entry != null)
+                        return entry;
+                }
+                catch (FileNotFoundException)
+                {
+                }
+            }
+
+            throw new FileNotFoundException("Unable to find the specified file in any filesystem level.", filename);
+        }
+
+        /// <summary>
+        /// Checks if a file exists in any filesystem level.
+        /// </summary>
+        public static bool FileExistsInHierarchy(string filename)
+        {
+            try
+            {
+                FindFileInHierarchy(filename);
+                return true;
+            }
+            catch (FileNotFoundException)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Opens a stream for a file that may exist in any filesystem level.
+        /// </summary>
+        public static Stream OpenStreamInHierarchy(string filename)
+        {
+            var entry = FindFileInHierarchy(filename);
+
+            foreach (var fs in m_vfs.All)
+            {
+                try
+                {
+                    if (fs.FileExists(entry.Name))
+                        return fs.OpenStream(entry);
+                }
+                catch
+                {
+                }
+            }
+
+            throw new FileNotFoundException("Unable to open file from any filesystem level.", filename);
+        }
+
+        /// <summary>
+        /// Opens a stream for an entry that may exist in any filesystem level.
+        /// </summary>
+        public static Stream OpenStreamInHierarchy(Entry entry)
+        {
+            foreach (var fs in m_vfs.All)
+            {
+                try
+                {
+                    return fs.OpenStream(entry);
+                }
+                catch
+                {
+                }
+            }
+
+            throw new FileNotFoundException("Unable to open entry from any filesystem level.", entry.Name);
+        }
+
+        /// <summary>
+        /// Searches for a file in the directory of the current archive file.
+        /// This is useful for finding companion files with separate resources.
+        /// </summary>
+        public static Entry FindFileInArchiveDirectory(string filename)
+        {
+            if (CurrentArchive == null)
+                throw new InvalidOperationException("No archive is currently open.");
+
+            var archiveDir = GetDirectoryName(CurrentArchive.File.Name);
+            var fullPath = CombinePath(archiveDir, filename);
+
+            return FindFileInHierarchy(fullPath);
+        }
+
+        const long MAX_STREAM_SIZE_IN_MEMORY = 256 * 1024 * 1024; // 256MB threshold
+
+        /// <summary>
+        /// Reads from any Stream like an internal one in an archive file,
+        /// creating MemoryStream or temporeary file if the source is too big.
+        /// This is useful for reading separately stored resources.
+        /// </summary>
+        public static byte[] ReadFromAnyStream(Stream input, long offset, long size)
+        {
+            if (input.CanSeek)
+            {
+                input.Position = offset;
+                var data = new byte[size];
+                input.Read(data, 0, (int)size);
+                return data;
+            }
+            else
+            {
+                long streamSize = -1;
+                try
+                {
+                    if (input.Length > 0)
+                        streamSize = input.Length;
+                }
+                catch
+                {
+                    // Length not available, assume it might be large
+                    streamSize = MAX_STREAM_SIZE_IN_MEMORY + 1;
+                }
+
+                if (streamSize < MAX_STREAM_SIZE_IN_MEMORY && streamSize > 0)
+                {
+                    // Small enough for memory
+                    using (var memStream = new MemoryStream())
+                    {
+                        input.CopyTo(memStream);
+                        memStream.Position = offset;
+                        var data = new byte[size];
+                        memStream.Read(data, 0, (int)size);
+                        return data;
+                    }
+                }
+                else
+                {
+                    // Use temp file for large or unknown size streams
+                    string tempFile = Path.GetTempFileName() + "_GARbro_Stream";
+                    try
+                    {
+                        using (var tempStream = File.Create(tempFile))
+                        {
+                            input.CopyTo(tempStream);
+                        }
+
+                        using (var fileStream = File.OpenRead(tempFile))
+                        {
+                            fileStream.Position = offset;
+                            var data = new byte[size];
+                            fileStream.Read(data, 0, (int)size);
+                            return data;
+                        }
+                    }
+                    finally
+                    {
+                        try { File.Delete(tempFile); } catch { }
+                    }
+                }
+            }
+        }
     }
 
     public class FileNameGlob
     {
-        Regex   m_glob;
+        Regex  m_glob;
 
         public FileNameGlob (string pattern)
         {

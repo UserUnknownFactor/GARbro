@@ -12,7 +12,6 @@ namespace GameRes.Formats.CaramelBox
     internal class Arc3Entry : PackedEntry
     {
         public uint Flags;
-        public bool IsEncrypted;
     }
 
     [Export(typeof(ArchiveFormat))]
@@ -187,7 +186,7 @@ namespace GameRes.Formats.CaramelBox
             return (x & 0xFFu) << 16 | x & 0xFF00u | (x >> 16) & 0xFFu;
         }
 
-        byte[] UnpackLze (Stream input, uint unpacked_size)
+        byte[] UnpackLze (Stream input, long unpacked_size)
         {
             var data = new byte[unpacked_size];
             var header = new byte[4];

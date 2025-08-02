@@ -30,11 +30,6 @@ namespace GameRes.Formats.Valkyria
         }
     }
 
-    internal class OdnEntry : Entry
-    {
-        public bool IsEncrypted;
-    }
-
     [Export(typeof(ArchiveFormat))]
     sealed public class OdnOpener : ArchiveFormat
     {
@@ -76,7 +71,7 @@ namespace GameRes.Formats.Valkyria
 
         public override Stream OpenEntry (ArcFile arc, Entry entry)
         {
-            var oent = entry as OdnEntry;
+            var oent = entry as Entry;
             if (oent != null && oent.IsEncrypted)
             {
                 byte key = (byte)~entry.Offset;
@@ -268,10 +263,10 @@ namespace GameRes.Formats.Valkyria
                 }
                 var name = m_enc.GetString (m_entry_buf, 0, 8);
                 var offset = m_enc.GetString (m_entry_buf, 8, 8);
-                var entry = new OdnEntry { Name = name, Offset = Convert.ToUInt32 (offset, 16) };
+                var entry = new Entry { Name = name, Offset = Convert.ToUInt32 (offset, 16) };
                 m_dir.Add (entry);
             }
-            foreach (OdnEntry entry in m_dir)
+            foreach (Entry entry in m_dir)
                 entry.Offset += index_offset;
             if (m_dir.Any() && m_dir[m_dir.Count-1].Offset == m_file.MaxOffset)
                 m_dir.RemoveAt (m_dir.Count-1);
@@ -289,7 +284,7 @@ namespace GameRes.Formats.Valkyria
                 if (m_file.MaxOffset == offset)
                     break;
                 var name = m_enc.GetString (m_entry_buf, 0, 8);
-                var entry = new OdnEntry { Name = name, Offset = offset };
+                var entry = new Entry { Name = name, Offset = offset };
                 m_dir.Add (entry);
                 index_offset += record_size;
                 if (record_size != m_file.View.Read (index_offset, m_entry_buf, 0, record_size))
@@ -307,7 +302,7 @@ namespace GameRes.Formats.Valkyria
                     break;
                 var name = m_enc.GetString (m_entry_buf, 0, 8);
                 var offset = m_enc.GetString (m_entry_buf, 8, 8);
-                var entry = new OdnEntry { Name = name, Offset = Convert.ToUInt32 (offset, 16) };
+                var entry = new Entry { Name = name, Offset = Convert.ToUInt32 (offset, 16) };
                 m_dir.Add (entry);
                 if (0x10 != m_file.View.Read (index_offset, m_entry_buf, 0, 0x10))
                     throw new InvalidFormatException();
@@ -329,7 +324,7 @@ namespace GameRes.Formats.Valkyria
         {
             for (int i = 0; i < m_dir.Count; ++i)
             {
-                var entry = (OdnEntry)m_dir[i];
+                var entry = (Entry)m_dir[i];
 
                 long next_offset = i+1 < m_dir.Count ? m_dir[i+1].Offset : m_file.MaxOffset;
                 entry.Size = (uint)(next_offset - entry.Offset);

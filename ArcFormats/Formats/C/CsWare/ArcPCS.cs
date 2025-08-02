@@ -113,7 +113,7 @@ namespace GameRes.Formats.CsWare
             var parc = arc as PcsArchive;
             if (null == pent || null == parc)
                 return base.OpenEntry (arc, entry);
-            uint header_size = Math.Min (entry.Size, 512u);
+            uint header_size = Math.Min ((uint)entry.Size, 512u);
             var header = arc.File.View.ReadBytes (entry.Offset, header_size);
             if (6 == parc.Version)
             {

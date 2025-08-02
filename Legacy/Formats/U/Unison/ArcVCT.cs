@@ -19,7 +19,7 @@ namespace GameRes.Formats.Unison
 
         public override ArcFile TryOpen (ArcView file)
         {
-            int idx_count = file.View.ReadByte (0);
+            byte idx_count = file.View.ReadByte (0);
             if (0 == idx_count)
                 return null;
             int index_offset = 1 + idx_count * 3;
@@ -28,6 +28,9 @@ namespace GameRes.Formats.Unison
                 return null;
             index_offset += 4;
             uint index_size = (uint)count * 0x20;
+            if (index_offset + index_size > file.MaxOffset)
+                return null;
+
             if (index_size > file.View.Reserve (index_offset, index_size))
                 return null;
 

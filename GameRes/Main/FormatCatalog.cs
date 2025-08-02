@@ -146,7 +146,7 @@ namespace GameRes
                     target_list = VideoFormats;
                 else if ("audio" == metadata.Type)
                     target_list = AudioFormats;
-                else if ("script" == metadata.Type || "text" == metadata.Type)
+                else if ("script" == metadata.Type || "text" == metadata.Type || "config" == metadata.Type)
                     target_list = ScriptFormats;
                 else
                 {

@@ -11,15 +11,19 @@ namespace GameRes
     /// </summary>
     public class Entry
     {
-        public virtual string Name   { get; set; }
-        public virtual string Type   { get; set; }
-        public         long   Offset { get; set; }
-        public         uint   Size   { get; set; }
+        public virtual string      Name { get; set; }
+        public virtual string      Type { get; set; }
+        public         long      Offset { get; set; }
+        public         long        Size { get; set; }
+        public         bool IsEncrypted { get; set; }
 
         public Entry ()
         {
+            Name = null;
             Type = "";
             Offset = -1;
+            Size = 0;
+            IsEncrypted = false;
         }
 
         /// <summary>
@@ -46,11 +50,21 @@ namespace GameRes
                 break;
             }
         }
+
+        /// <summary>
+        /// Change entry type to the type of <paramref name="res"/>.
+        /// Entry name extension is changed accordingly.
+        /// </summary>
+        public void ChangeType(string entry_type)
+        {
+            Type = entry_type;
+        }
     }
 
     public class PackedEntry : Entry
     {
-        public uint UnpackedSize { get; set; }
+        public long PackedSize   { get => Size; } // alias
+        public long UnpackedSize { get; set; }
         public bool IsPacked     { get; set; }
     }
 
@@ -65,8 +79,10 @@ namespace GameRes
         /// <summary>Resource type (image/archive/script)</summary>
         public abstract string Type { get; }
 
-        /// <summary>First 4 bytes of the resource file as little-endian 32-bit integer,
-        /// or zero if it could vary.</summary>
+        /// <summary>
+        /// First 4 bytes of the resource file as little-endian 32-bit integer,
+        /// or zero if it could vary.
+        /// </summary>
         public abstract uint Signature { get; }
 
         /// <summary>Whether resource creation is supported by implementation.</summary>
@@ -152,7 +168,7 @@ namespace GameRes
     }
 
     /// <summary>
-    /// Link filename extension to specific resource.
+    /// Filename extension mapping to specific resource.
     /// </summary>
     public interface IResourceAliasMetadata
     {
@@ -178,7 +194,7 @@ namespace GameRes
         public string Notice        { get; set; }
 
         /// <summary>
-        /// Return value from ShowDialog()
+        /// Return value from ShowDialog().
         /// </summary>
         public bool   InputResult   { get; set; }
 

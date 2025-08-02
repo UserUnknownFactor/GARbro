@@ -67,9 +67,9 @@ namespace GameRes.Formats.SystemEpsylon
                     fixed (byte* buf_raw = input)
                     {
                         uint* encoded = (uint*)buf_raw;
-                        uint key = pentry.Size >> 2;
+                        uint key = (uint)pentry.Size >> 2;
                         key ^= key << (((int)key & 7) + 8);
-                        for (uint i = entry.Size / 4; i != 0; --i )
+                        for (uint i = (uint)entry.Size / 4; i != 0; --i )
                         {
                             *encoded ^= key;
                             int cl = (int)(*encoded++ % 24);

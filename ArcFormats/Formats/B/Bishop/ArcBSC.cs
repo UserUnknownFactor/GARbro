@@ -30,7 +30,7 @@ namespace GameRes.Formats.Bishop
 
             string base_name = Path.GetFileNameWithoutExtension (file.Name);
             var dir = new List<Entry> (count);
-            uint current_offset = 0x20;
+            long current_offset = 0x20;
             for (int i = 0; i < count; ++i)
             {
                 var entry = new Entry {

@@ -27,7 +27,7 @@ namespace GameRes.Formats.Maika
             if (!IsSaneCount (count))
                 return null;
             uint index_offset = file.View.ReadUInt32 (0xA);
-            uint offset = 0x10;
+            long offset = 0x10;
             var dir = new List<Entry> (count);
             for (int i = 0; i < count; ++i)
             {

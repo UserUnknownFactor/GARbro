@@ -215,7 +215,7 @@ namespace GameRes.Formats.Tanuki
     {
         public ulong    Hash;
         public byte[]   Key;
-        public uint     EncryptedSize;
+        public long     EncryptedSize;
     }
 
     internal class TacBucket

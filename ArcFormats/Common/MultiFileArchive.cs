@@ -60,7 +60,7 @@ namespace GameRes.Formats
             }
         }
 
-        protected virtual uint GetEntrySize (Entry entry)
+        protected virtual long GetEntrySize (Entry entry)
         {
             return entry.Size;
         }

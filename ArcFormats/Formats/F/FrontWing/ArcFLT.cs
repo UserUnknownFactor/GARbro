@@ -9,7 +9,6 @@ namespace GameRes.Formats.FrontWing
     internal class FltEntry : PackedEntry
     {
         public int  Compression;
-        public bool IsEncrypted;
 
         public byte Key {
             get {

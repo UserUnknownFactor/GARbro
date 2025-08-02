@@ -189,7 +189,7 @@ namespace GameRes.Formats.Qlie
             return m_dir;
         }
 
-        void Skip (uint amount)
+        void Skip (long amount)
         {
             m_input.Seek (amount, SeekOrigin.Current);
         }

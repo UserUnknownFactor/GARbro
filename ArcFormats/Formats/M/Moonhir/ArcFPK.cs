@@ -8,11 +8,6 @@ using GameRes.Utility;
 
 namespace GameRes.Formats.MoonhirGames
 {
-    internal class FpkEntry : Entry
-    {
-        public bool IsEncrypted;
-    }
-
     internal class FpkArchive : ArcFile
     {
         public readonly uint Key;
@@ -63,7 +58,7 @@ namespace GameRes.Formats.MoonhirGames
             for (int i = 0; i < count; ++i)
             {
                 var name = file.View.ReadString (index_offset+12, 12);
-                var entry = Create<FpkEntry> (name);
+                var entry = Create<PackedEntry> (name);
                 entry.IsEncrypted = 0 != file.View.ReadUInt32 (index_offset);
                 entry.Offset = file.View.ReadUInt32 (index_offset+4);
                 entry.Size   = file.View.ReadUInt32 (index_offset+8);
@@ -77,7 +72,7 @@ namespace GameRes.Formats.MoonhirGames
             }
             if (!has_encrypted)
                 return new ArcFile (file, this, dir);
-            var enc_entry = dir.Cast<FpkEntry>().FirstOrDefault (e => e.IsEncrypted && e.Size > 8);
+            var enc_entry = dir.Cast<PackedEntry>().FirstOrDefault (e => e.IsEncrypted && e.Size > 8);
             if (null == enc_entry)
                 return new ArcFile (file, this, dir);
             var key = FindKey (file, enc_entry);
@@ -92,7 +87,7 @@ namespace GameRes.Formats.MoonhirGames
         public override Stream OpenEntry (ArcFile arc, Entry entry)
         {
             var farc = arc as FpkArchive;
-            var fent = entry as FpkEntry;
+            var fent = entry as PackedEntry;
             Stream input;
             byte[] header;
             if (null == farc || null == fent || !fent.IsEncrypted)
@@ -134,7 +129,7 @@ namespace GameRes.Formats.MoonhirGames
             // l = (a - x - m + 7) ^ ((x - ((b - x - m + 4) ^ x)) >> 7) ^ ((x * 2 + m - 4) << 7);
             foreach (uint key in KnownKeys)
             {
-                uint k1 = key + entry.Size - 4;
+                uint k1 = key + (uint)entry.Size - 4;
                 uint k2 = ((key - ((t1 - k1) ^ key)) >> 7) ^ ((k1 + key) << 7);
                 uint test_length = ((((t0 - (k1 - 3)) ^ k2) + 3) & ~3u) + 8;
                 if (entry.Size == test_length)

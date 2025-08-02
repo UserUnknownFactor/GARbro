@@ -61,7 +61,7 @@ namespace GameRes.Formats.CsWare
             var a2ent = entry as Arc2Entry;
             if (null == a2ent || 0 == (a2ent.Key1 | a2ent.Key2))
                 return base.OpenEntry (arc, entry);
-            uint length = (entry.Size + 3) & ~3u;
+            uint length = ((uint)entry.Size + 3) & ~3u;
             var data = new byte[length];
             arc.File.View.Read (entry.Offset, data, 0, entry.Size);
             uint key1 = a2ent.Key1;

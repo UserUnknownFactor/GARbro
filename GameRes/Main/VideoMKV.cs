@@ -43,21 +43,18 @@ namespace GameRes
         private static readonly uint DURATION_ID = 0x4489;
         private static readonly uint TIMECODE_SCALE_ID = 0x2AD7B1;
 
-        public override VideoData Read(IBinaryStream file, VideoMetaData info)
+        public override VideoData Read (IBinaryStream file, VideoMetaData info)
         {
-            string tempFile = Path.Combine(Path.GetTempPath(), $"garbro_video_{Guid.NewGuid()}.mkv");
-
-            using (var fileStream = File.Create(tempFile))
-            {
-                file.Position = 0;
-                file.AsStream.CopyTo(fileStream);
+            if (File.Exists (info.FileName)) {
+                // real file
+                file.Dispose();
+                return new VideoData (info);
             }
 
-            var stream = new FileStream(tempFile, FileMode.Open, FileAccess.Read, FileShare.Read);
-            return new VideoData(stream, info, tempFile);
+            return new VideoData (file.AsStream, info, true);
         }
 
-        public override VideoMetaData ReadMetaData(IBinaryStream file)
+        public override VideoMetaData ReadMetaData (IBinaryStream file)
         {
             if (file.Length < 8)
                 return null;
@@ -72,18 +69,18 @@ namespace GameRes
             try
             {
                 // Skip EBML header size
-                ReadVarInt(file);
+                ReadVarInt (file);
 
                 // Look for DocType element
                 while (file.Position < 100) // Check only the beginning
                 {
-                    uint id = ReadElementId(file);
-                    ulong size = ReadVarInt(file);
+                    uint id = ReadElementId (file);
+                    ulong size = ReadVarInt (file);
 
                     if (id == DOCTYPE_ID)
                     {
                         byte[] docTypeBytes = file.ReadBytes((int)size);
-                        string docType = Encoding.ASCII.GetString(docTypeBytes);
+                        string docType = Encoding.ASCII.GetString (docTypeBytes);
 
                         // "matroska" for MKV, "webm" for WebM
                         isMkv = docType.Equals("matroska", StringComparison.OrdinalIgnoreCase);
@@ -111,6 +108,7 @@ namespace GameRes
                 Duration = 0,
                 FrameRate = 0,
                 Codec = "H.264", // Default codec for MKV
+                CommonExtension = "mkv",
                 HasAudio = false
             };
 
@@ -120,17 +118,17 @@ namespace GameRes
                 file.Position = 0;
 
                 // Skip EBML header
-                SkipElement(file);
+                SkipElement (file);
 
                 // Find Segment element
-                if (!FindElement(file, SEGMENT_ID))
+                if (!FindElement (file, SEGMENT_ID))
                     return meta;
 
                 // Skip size (we'll just read until the end)
-                ReadVarInt(file);
+                ReadVarInt (file);
 
                 // Parse segment contents
-                ParseSegment(file, meta);
+                ParseSegment (file, meta);
             }
             catch (Exception)
             {
@@ -143,14 +141,14 @@ namespace GameRes
         // The rest of the methods are identical to WebMFormat
         // since MKV and WebM share the same EBML structure
 
-        private void ParseSegment(IBinaryStream file, VideoMetaData meta)
+        private void ParseSegment (IBinaryStream file, VideoMetaData meta)
         {
             long endPos = file.Length;
 
             while (file.Position < endPos)
             {
-                uint id = ReadElementId(file);
-                ulong size = ReadVarInt(file);
+                uint id = ReadElementId (file);
+                ulong size = ReadVarInt (file);
                 long nextPos = file.Position + (long)size;
 
                 if (nextPos > endPos)
@@ -158,26 +156,26 @@ namespace GameRes
 
                 if (id == INFO_ID)
                 {
-                    ParseInfo(file, file.Position + (long)size, meta);
+                    ParseInfo (file, file.Position + (long)size, meta);
                 }
                 else if (id == TRACKS_ID)
                 {
-                    ParseTracks(file, file.Position + (long)size, meta);
+                    ParseTracks (file, file.Position + (long)size, meta);
                 }
 
                 file.Position = nextPos;
             }
         }
 
-        private void ParseInfo(IBinaryStream file, long endPos, VideoMetaData meta)
+        private void ParseInfo (IBinaryStream file, long endPos, VideoMetaData meta)
         {
             long timecodeScale = 1000000; // Default: 1ms
             double duration = 0;
 
             while (file.Position < endPos)
             {
-                uint id = ReadElementId(file);
-                ulong size = ReadVarInt(file);
+                uint id = ReadElementId (file);
+                ulong size = ReadVarInt (file);
                 long nextPos = file.Position + (long)size;
 
                 if (nextPos > endPos)
@@ -185,11 +183,11 @@ namespace GameRes
 
                 if (id == TIMECODE_SCALE_ID)
                 {
-                    timecodeScale = ReadUnsignedInt(file, (int)size);
+                    timecodeScale = ReadUnsignedInt (file, (int)size);
                 }
                 else if (id == DURATION_ID)
                 {
-                    duration = ReadFloat(file, (int)size);
+                    duration = ReadFloat (file, (int)size);
                 }
                 else
                 {
@@ -204,12 +202,12 @@ namespace GameRes
             }
         }
 
-        private void ParseTracks(IBinaryStream file, long endPos, VideoMetaData meta)
+        private void ParseTracks (IBinaryStream file, long endPos, VideoMetaData meta)
         {
             while (file.Position < endPos)
             {
-                uint id = ReadElementId(file);
-                ulong size = ReadVarInt(file);
+                uint id = ReadElementId (file);
+                ulong size = ReadVarInt (file);
                 long nextPos = file.Position + (long)size;
 
                 if (nextPos > endPos)
@@ -217,22 +215,22 @@ namespace GameRes
 
                 if (id == TRACK_ENTRY_ID)
                 {
-                    ParseTrackEntry(file, nextPos, meta);
+                    ParseTrackEntry (file, nextPos, meta);
                 }
 
                 file.Position = nextPos;
             }
         }
 
-        private void ParseTrackEntry(IBinaryStream file, long endPos, VideoMetaData meta)
+        private void ParseTrackEntry (IBinaryStream file, long endPos, VideoMetaData meta)
         {
             byte trackType = 0;
             string codecId = null;
 
             while (file.Position < endPos)
             {
-                uint id = ReadElementId(file);
-                ulong size = ReadVarInt(file);
+                uint id = ReadElementId (file);
+                ulong size = ReadVarInt (file);
                 long nextPos = file.Position + (long)size;
 
                 if (nextPos > endPos)
@@ -245,11 +243,11 @@ namespace GameRes
                 else if (id == CODEC_ID_ID)
                 {
                     byte[] codecBytes = file.ReadBytes((int)size);
-                    codecId = Encoding.ASCII.GetString(codecBytes);
+                    codecId = Encoding.ASCII.GetString (codecBytes);
                 }
                 else if (id == TRACK_VIDEO_ID)
                 {
-                    ParseVideoTrack(file, nextPos, meta);
+                    ParseVideoTrack (file, nextPos, meta);
                 }
                 else if (id == TRACK_AUDIO_ID)
                 {
@@ -263,7 +261,7 @@ namespace GameRes
             }
 
             // Track type 1 is video
-            if (trackType == 1 && !string.IsNullOrEmpty(codecId))
+            if (trackType == 1 && !string.IsNullOrEmpty (codecId))
             {
                 // Map codec ID to friendly name
                 if (codecId == "V_VP8")
@@ -281,12 +279,12 @@ namespace GameRes
             }
         }
 
-        private void ParseVideoTrack(IBinaryStream file, long endPos, VideoMetaData meta)
+        private void ParseVideoTrack (IBinaryStream file, long endPos, VideoMetaData meta)
         {
             while (file.Position < endPos)
             {
-                uint id = ReadElementId(file);
-                ulong size = ReadVarInt(file);
+                uint id = ReadElementId (file);
+                ulong size = ReadVarInt (file);
                 long nextPos = file.Position + (long)size;
 
                 if (nextPos > endPos)
@@ -294,11 +292,11 @@ namespace GameRes
 
                 if (id == PIXEL_WIDTH_ID)
                 {
-                    meta.Width = (uint)ReadUnsignedInt(file, (int)size);
+                    meta.Width = (uint)ReadUnsignedInt (file, (int)size);
                 }
                 else if (id == PIXEL_HEIGHT_ID)
                 {
-                    meta.Height = (uint)ReadUnsignedInt(file, (int)size);
+                    meta.Height = (uint)ReadUnsignedInt (file, (int)size);
                 }
                 else
                 {
@@ -307,7 +305,7 @@ namespace GameRes
             }
         }
 
-        private uint ReadElementId(IBinaryStream file)
+        private uint ReadElementId (IBinaryStream file)
         {
             byte firstByte = file.ReadUInt8();
 
@@ -323,7 +321,7 @@ namespace GameRes
             throw new FormatException("Invalid EBML element ID");
         }
 
-        private ulong ReadVarInt(IBinaryStream file)
+        private ulong ReadVarInt (IBinaryStream file)
         {
             byte firstByte = file.ReadUInt8();
             int size = 1;
@@ -382,7 +380,7 @@ namespace GameRes
             return value;
         }
 
-        private long ReadUnsignedInt(IBinaryStream file, int size)
+        private long ReadUnsignedInt (IBinaryStream file, int size)
         {
             long result = 0;
             for (int i = 0; i < size; i++)
@@ -392,21 +390,21 @@ namespace GameRes
             return result;
         }
 
-        private double ReadFloat(IBinaryStream file, int size)
+        private double ReadFloat (IBinaryStream file, int size)
         {
             if (size == 4)
             {
-                byte[] buffer = file.ReadBytes(4);
+                byte[] buffer = file.ReadBytes (4);
                 if (BitConverter.IsLittleEndian)
-                    Array.Reverse(buffer);
-                return BitConverter.ToSingle(buffer, 0);
+                    Array.Reverse (buffer);
+                return BitConverter.ToSingle (buffer, 0);
             }
             else if (size == 8)
             {
-                byte[] buffer = file.ReadBytes(8);
+                byte[] buffer = file.ReadBytes (8);
                 if (BitConverter.IsLittleEndian)
-                    Array.Reverse(buffer);
-                return BitConverter.ToDouble(buffer, 0);
+                    Array.Reverse (buffer);
+                return BitConverter.ToDouble (buffer, 0);
             }
 
             // For other sizes, just skip
@@ -414,26 +412,26 @@ namespace GameRes
             return 0;
         }
 
-        private bool FindElement(IBinaryStream file, uint elementId)
+        private bool FindElement (IBinaryStream file, uint elementId)
         {
             while (file.Position < file.Length - 4)
             {
-                uint id = ReadElementId(file);
+                uint id = ReadElementId (file);
                 if (id == elementId)
                     return true;
 
                 // Skip this element
-                ulong size = ReadVarInt(file);
+                ulong size = ReadVarInt (file);
                 file.Position += (long)size;
             }
 
             return false;
         }
 
-        private void SkipElement(IBinaryStream file)
+        private void SkipElement (IBinaryStream file)
         {
-            uint id = ReadElementId(file);
-            ulong size = ReadVarInt(file);
+            uint id = ReadElementId (file);
+            ulong size = ReadVarInt (file);
             file.Position += (long)size;
         }
     }

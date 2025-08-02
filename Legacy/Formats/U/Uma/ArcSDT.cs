@@ -62,7 +62,7 @@ namespace GameRes.Formats.Uma
             using (var mem = new MemoryStream ((int)snd_ent.HeaderSize + 0x18))
             using (var fmt = new BinaryWriter (mem))
             {
-                uint total_size = snd_ent.Size + 0x18;
+                uint total_size = (uint)snd_ent.Size + 0x18;
                 fmt.Write (AudioFormat.Wav.Signature);
                 fmt.Write (total_size);
                 fmt.Write (0x45564157); // 'WAVE'

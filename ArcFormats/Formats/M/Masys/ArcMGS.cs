@@ -79,7 +79,7 @@ namespace GameRes.Formats.Megu
                 SamplesPerSecond = went.SamplesPerSecond,
             };
             Stream pcm;
-            uint pcm_size;
+            long pcm_size;
             if (0 != (went.Channels & 0x8000))
             {
                 format.BitsPerSample = 0x10;

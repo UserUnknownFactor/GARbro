@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.IO.Compression;
 using GameRes.Utility;
+using Newtonsoft.Json.Linq;
 
 namespace GameRes.Compression
 {
@@ -38,6 +39,7 @@ namespace GameRes.Compression
         CheckedStream   m_adler;
         bool            m_should_dispose_base;
         bool            m_writing;
+        bool            m_raw;
         int             m_total_in = 0;
 
         public Stream BaseStream { get { return m_stream.BaseStream; } }
@@ -47,13 +49,14 @@ namespace GameRes.Compression
         /// </summary>
         public int       TotalIn { get { return m_total_in; } }
 
-        public ZLibStream (Stream stream, CompressionMode mode, bool leave_open = false)
-            : this (stream, mode, CompressionLevel.Default, leave_open)
+        public ZLibStream (Stream stream, CompressionMode mode, bool leave_open = false, bool raw = false)
+            : this (stream, mode, CompressionLevel.Default, leave_open, raw)
         {
         }
 
-        public ZLibStream (Stream stream, CompressionMode mode, CompressionLevel level, bool leave_open = false)
+        public ZLibStream (Stream stream, CompressionMode mode, CompressionLevel level, bool leave_open = false, bool raw = false)
 		{
+            m_raw = raw;
             try
             {
                 if (CompressionMode.Decompress == mode)
@@ -74,7 +77,7 @@ namespace GameRes.Compression
         {
             int b1 = stream.ReadByte();
             int b2 = stream.ReadByte();
-            if ((0x78 != b1 && 0x58 != b1) || 0 != (b1 << 8 | b2) % 31)
+            if (!m_raw && ((0x78 != b1 && 0x58 != b1) || 0 != (b1 << 8 | b2) % 31))
                 throw new InvalidDataException ("Data not recoginzed as zlib-compressed stream");
             m_stream = new DeflateStream (stream, System.IO.Compression.CompressionMode.Decompress, true);
             m_writing = false;

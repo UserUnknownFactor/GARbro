@@ -108,7 +108,7 @@ namespace GameRes.Formats.Mina
         public override Stream OpenEntry (ArcFile arc, Entry entry)
         {
             uint fmt_size = arc.File.View.ReadUInt32 (entry.Offset);
-            uint pcm_size = entry.Size - 4 - fmt_size;
+            long pcm_size = entry.Size - 4 - fmt_size;
             using (var mem = new MemoryStream ((int)fmt_size))
             {
                 using (var buffer = new BinaryWriter (mem, Encoding.ASCII, true))

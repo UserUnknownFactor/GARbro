@@ -27,7 +27,7 @@ namespace GameRes.Formats.Csware
             uint index_offset = file.View.ReadUInt32 (0xA);
             if (index_offset >= file.MaxOffset)
                 return null;
-            uint data_offset = 0x10;
+            long data_offset = 0x10;
             var dir = new List<Entry> (count);
             for (int i = 0; i < count; ++i)
             {

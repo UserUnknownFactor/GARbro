@@ -226,7 +226,7 @@ namespace GameRes.Formats.KiriKiri
             case 0: return 0;
             case 1: return 0x100;
             case 2: return 0x200;
-            case 3: return entry.UnpackedSize;
+            case 3: return (uint)entry.UnpackedSize;
             default: return limit;
             }
         }
@@ -246,7 +246,7 @@ namespace GameRes.Formats.KiriKiri
             switch (limit)
             {
             case 0: return 0;
-            case 2: return entry.UnpackedSize;
+            case 2: return (uint)entry.UnpackedSize;
             default: return 0x100;
             }
         }
@@ -277,7 +277,7 @@ namespace GameRes.Formats.KiriKiri
             switch (limit)
             {
             case 0: return 0;
-            case 2: return entry.UnpackedSize;
+            case 2: return (uint)entry.UnpackedSize;
             default: return 0x100;
             }
         }
