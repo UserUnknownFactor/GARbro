@@ -92,6 +92,7 @@
     <PackageReference Include="System.Xml.ReaderWriter" Version="4.3.1" />
     <PackageReference Include="YaccLexTools" Version="0.2.2" />
     <PackageReference Include="ZstdNet" Version="1.4.5" />
+    <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="14.7.0" />
   </ItemGroup>
 
   <!-- Project references -->
@@ -155,4 +156,11 @@
       <Output TaskParameter="Outputs" ItemName="IPT" />
     </Exec>
   </Target>
+  
+<PropertyGroup> <!-- they're just way too big -->
+  <PostBuildEvent>
+del /F /Q "$(TargetDir)Magick.Native-Q8-arm64.dll" 2>nul 
+del /F /Q "$(TargetDir)Magick.Native-Q8-x86.dll" 2>nul
+    </PostBuildEvent>
+</PropertyGroup>
 </Project>
