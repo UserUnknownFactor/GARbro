@@ -496,17 +496,17 @@ namespace GameRes.Formats.SevenZip
 
     internal class ArchiveUpdateCallback : IArchiveUpdateCallback, ISequentialInStream, ICryptoGetTextPassword2
     {
-        private Entry[] m_entries;
+        private       Entry[] m_entries;
         private EntryCallback m_callback;
-        private int m_current_index = -1;
-        private Stream m_current_stream;
-        private long m_total_size;
-        private long m_completed_size;
+        private           int m_current_index = -1;
+        private        Stream m_current_stream;
+        private          long m_total_size;
+        private          long m_completed_size;
 
         public ArchiveUpdateCallback(Entry[] entries, EntryCallback callback)
         {
-            m_entries = entries;
-            m_callback = callback;
+            m_entries    = entries;
+            m_callback   = callback;
             m_total_size = entries.Sum(e => (long)e.Size);
         }
 
@@ -527,23 +527,23 @@ namespace GameRes.Formats.SevenZip
 
             switch (propID)
             {
-                case ItemPropId.kpidPath:
-                    value.SetString(entry.Name);
-                    break;
-                case ItemPropId.kpidIsFolder:
-                    value.SetBool(false);
-                    break;
-                case ItemPropId.kpidSize:
-                    value.SetULong((ulong)entry.Size);
-                    break;
-                case ItemPropId.kpidAttributes:
-                    value.SetUInt(0x20);
-                    break;
-                case ItemPropId.kpidCreationTime:
-                case ItemPropId.kpidLastAccessTime:
-                case ItemPropId.kpidLastWriteTime:
-                    value.SetFileTime(DateTime.Now);
-                    break;
+            case ItemPropId.kpidPath:
+                value.SetString(entry.Name);
+                break;
+            case ItemPropId.kpidIsFolder:
+                value.SetBool(false);
+                break;
+            case ItemPropId.kpidSize:
+                value.SetULong((ulong)entry.Size);
+                break;
+            case ItemPropId.kpidAttributes:
+                value.SetUInt(0x20);
+                break;
+            case ItemPropId.kpidCreationTime:
+            case ItemPropId.kpidLastAccessTime:
+            case ItemPropId.kpidLastWriteTime:
+                value.SetFileTime(DateTime.Now);
+                break;
             }
 
             return 0;
@@ -557,7 +557,7 @@ namespace GameRes.Formats.SevenZip
             if (m_callback != null)
             {
                 int progress = (int)((m_completed_size * 100) / m_total_size);
-                m_callback(progress, entry, arcStrings.MsgAddingFile);
+                m_callback(progress, entry, "Adding file...");
             }
 
             m_current_stream = File.OpenRead(entry.Name);
@@ -692,10 +692,10 @@ namespace GameRes.Formats.SevenZip
             m_position = 0;
         }
 
-        public override bool CanRead => true;
-        public override bool CanSeek => true;
+        public override bool  CanRead => true;
+        public override bool  CanSeek => true;
         public override bool CanWrite => false;
-        public override long Length => m_view.MaxOffset;
+        public override long   Length => m_view.MaxOffset;
         public override long Position
         {
             get => m_position;
@@ -752,7 +752,7 @@ namespace GameRes.Formats.SevenZip
         static bool failed = false;
 
         const uint LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR = 0x00000100;
-        const uint LOAD_LIBRARY_SEARCH_SYSTEM32 = 0x00000800;
+        const uint LOAD_LIBRARY_SEARCH_SYSTEM32     = 0x00000800;
 
         public static bool Load()
         {
@@ -774,15 +774,14 @@ namespace GameRes.Formats.SevenZip
 
             foreach (var path in searchPaths)
             {
-                if (File.Exists(path))
+                if (!File.Exists(path)) continue;
+
+                var handle = LoadLibraryEx(path, IntPtr.Zero,
+                    LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+                if (handle != IntPtr.Zero)
                 {
-                    var handle = LoadLibraryEx(path, IntPtr.Zero,
-                        LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
-                    if (handle != IntPtr.Zero)
-                    {
-                        loaded = true;
-                        return true;
-                    }
+                    loaded = true;
+                    return true;
                 }
             }
 
@@ -795,6 +794,7 @@ namespace GameRes.Formats.SevenZip
     }
 
     #region COM interfaces
+
     [ComImport]
     [Guid("23170F69-40C1-278A-0000-000600800000")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -891,6 +891,7 @@ namespace GameRes.Formats.SevenZip
     }
 
     #region Enums
+
     public enum SevenZipFormat
     {
         Undefined = 0,
@@ -999,6 +1000,7 @@ namespace GameRes.Formats.SevenZip
         kDataError,
         kCRCError
     }
+
     #endregion
 
     [ComImport]
@@ -1212,9 +1214,11 @@ namespace GameRes.Formats.SevenZip
             }
         }
     }
+
     #endregion
 
     #region Helper classes
+
     internal class StreamWrapper : IDisposable
     {
         protected Stream BaseStream;
@@ -1273,6 +1277,7 @@ namespace GameRes.Formats.SevenZip
             return 0;
         }
     }
+
     #endregion
 
     #region Format mappings
@@ -1367,6 +1372,7 @@ namespace GameRes.Formats.SevenZip
             {SevenZipFormat.Msi,      new Guid("23170f69-40c1-278a-1000-000110e50000")}
         };
     }
+
     #endregion
 
     internal static class ByteArrayExtensions
@@ -1387,10 +1393,5 @@ namespace GameRes.Formats.SevenZip
         {
             return data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16);
         }
-    }
-
-    internal partial class arcStrings
-    {
-        public static string MsgAddingFile => "Adding file...";
     }
 }

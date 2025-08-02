@@ -44,6 +44,7 @@ namespace GARbro.GUI.Preview
             {
                 _mainWindow.Dispatcher.Invoke(() => Reset());
                 _mainWindow.SetFileStatus(X.Message);
+                //_mainWindow.SetFileStatus(Localization._T(X.Message));
             }
         }
 

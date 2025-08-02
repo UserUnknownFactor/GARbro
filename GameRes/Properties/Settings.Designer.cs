@@ -58,5 +58,17 @@ namespace GameRes.Properties {
                 this["JPEGQuality"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("100")]
+        public int JPEG2KQuality {
+            get {
+                return ((int)(this["JPEG2KQuality"]));
+            }
+            set {
+                this["JPEG2KQuality"] = value;
+            }
+        }
     }
 }

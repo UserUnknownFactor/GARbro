@@ -18,6 +18,7 @@ namespace GameRes.Formats.Zyx
     }
 
     [Export(typeof(ImageFormat))]
+    [ExportMetadata("Priority", 1)]
     public class SplFormat : ImageFormat
     {
         public override string         Tag { get { return "SPL"; } }
@@ -27,8 +28,9 @@ namespace GameRes.Formats.Zyx
         public override ImageMetaData ReadMetaData (IBinaryStream file)
         {
             int count = file.ReadInt16();
-            if (count < 0 || count > 0x100)
+            if (!ArchiveFormat.IsSaneCount(count, 0x100))
                 return null;
+
             Tile[] tiles = null;
             if (count > 0)
             {
