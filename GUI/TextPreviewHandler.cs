@@ -10,17 +10,20 @@ namespace GARbro.GUI.Preview
     {
         private readonly MainWindow _mainWindow;
         private Stream _currentTextInput;
-        
+        private Encoding _currentEncoding;
+
         public override bool IsActive => _mainWindow.TextView.Visibility == Visibility.Visible;
 
         public TextPreviewHandler(MainWindow mainWindow)
         {
             _mainWindow = mainWindow;
+            _currentEncoding = null;
         }
 
         public override void LoadContent(PreviewFile preview)
         {
             Stream file = null;
+            DisposeTextInput();
             try
             {
                 var stream = VFS.OpenBinaryStream(preview.Entry);
@@ -29,7 +32,8 @@ namespace GARbro.GUI.Preview
                 ScriptFormat format = ScriptFormat.FindFormat(stream);
                 if (format == null)
                 {
-                    if (!_mainWindow.TextView.IsTextFile(file))
+                    if (!_mainWindow.TextView.IsTextFile(file) && !(
+                        preview.Entry.Type == "script" || preview.Entry.Type ==  "text"))
                     {
                         if (file.Length <= 1024 * 1024)
                         {
@@ -43,20 +47,35 @@ namespace GARbro.GUI.Preview
                         return;
                     }
 
-                    var enc = _mainWindow.EncodingChoice.SelectedItem as Encoding;
-                    if (null == enc)
+                    if (_currentEncoding == null)
                     {
-                        enc = ScriptFormat.DetectEncoding(file, 20000);
-                        _mainWindow.EncodingChoice.SelectedItem = enc;
+                        var newEncoding = ScriptFormat.DetectEncoding(file, 20000);
+                        _mainWindow.EncodingChoice.SelectedItem = newEncoding;
+                        _currentEncoding = newEncoding;
                     }
-                    _mainWindow.TextView.DisplayStream(file, enc);
+                    _mainWindow.TextView.DisplayStream(file, _mainWindow.EncodingChoice.SelectedItem as Encoding);
                 }
                 else
                 {
                     file.Position = 0;
-                    ScriptData scriptData = format.Read(preview.Entry.Name, file);
+                    ScriptData scriptData = null;
+                    var newEncoding = _mainWindow.EncodingChoice.SelectedItem as Encoding;
+                    if (_currentEncoding != null && _currentEncoding != newEncoding)
+                    {
+                        scriptData = format.Read(preview.Entry.Name, file, newEncoding);
+                    }
+                    else
+                    {
+                        scriptData = format.Read(preview.Entry.Name, file);
+                        _currentEncoding = scriptData.Encoding;
+                        _mainWindow.EncodingChoice.SelectedItem = _currentEncoding;
+                    }
 
-                    _mainWindow.EncodingChoice.SelectedItem = scriptData.Encoding;
+                    if (scriptData == null)
+                    {
+                        Reset();
+                        return;
+                    }
 
                     var displayStream = new MemoryStream();
                     scriptData.Serialize(displayStream);
@@ -109,6 +128,7 @@ namespace GARbro.GUI.Preview
 
                 _mainWindow.TextView.DisplayStream(hexStream, Encoding.UTF8);
                 _mainWindow.EncodingChoice.SelectedItem = Encoding.UTF8;
+                _mainWindow.EncodingChoice.IsEnabled = false;
 
                 _mainWindow.ActiveViewer = _mainWindow.TextView;
                 _currentTextInput = hexStream;
@@ -165,14 +185,24 @@ namespace GARbro.GUI.Preview
             return sb.ToString();
         }
 
-        public override void Reset()
+        private void DisposeTextInput()
         {
-            _mainWindow.TextView.Clear();
             if (_currentTextInput != null)
             {
                 _currentTextInput.Dispose();
                 _currentTextInput = null;
             }
+        }
+
+        public override void Reset()
+        {
+            if (_mainWindow.EncodingChoice != null)
+                _mainWindow.EncodingChoice.IsEnabled = true;
+
+            _mainWindow.TextView.Clear();
+            DisposeTextInput();
+
+            _currentEncoding = null;
         }
 
         protected override void Dispose(bool disposing)

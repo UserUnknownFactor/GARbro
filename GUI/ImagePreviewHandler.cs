@@ -32,12 +32,13 @@ namespace GARbro.GUI.Preview
         {
             try
             {
+
                 using (var data = VFS.OpenImage(preview.Entry))
                 {
                     if (data.Image is AnimatedImageData animData && animData.IsAnimated)
-                        SetAnimatedImage(preview, animData.Frames, animData.FrameDelays, data.SourceFormat);
+                        SetAnimatedImage(preview, data);
                     else
-                        SetStaticImage(preview, data.Image.Bitmap, data.SourceFormat);
+                        SetStaticImage(preview, data);
                 }
             }
             catch (Exception X)
@@ -48,22 +49,25 @@ namespace GARbro.GUI.Preview
             }
         }
 
-        private void SetStaticImage(PreviewFile preview, BitmapSource bitmap, ImageFormat format)
+        private void SetStaticImage(PreviewFile preview, IImageDecoder image)
         {
-            bitmap = PrepareBitmap(bitmap);
-            
+            var bitmap = PrepareBitmap(image.Image.Bitmap);
             _mainWindow.Dispatcher.Invoke(() =>
             {
                 _mainWindow.ShowImagePreview();
                 _imageCanvas.Source = bitmap;
                 _mainWindow.ApplyDownScaleSetting();
-                _mainWindow.SetPreviewStatus(string.Format(guiStrings.MsgImageSize, 
-                    bitmap.PixelWidth, bitmap.PixelHeight, bitmap.Format.BitsPerPixel, format?.Tag ?? "?"));
+
+                _mainWindow.SetPreviewStatus((image.SourceFormat?.Tag ?? "?") + 
+                    ((IImageComment)image.Info)?.GetComment() ?? "");
             });
         }
 
-        private void SetAnimatedImage(PreviewFile preview, List<BitmapSource> frames, List<int> delays, ImageFormat format)
+        private void SetAnimatedImage(PreviewFile preview, IImageDecoder image)
         {
+            var animation = image.Image as AnimatedImageData;
+            var frames = animation.Frames;
+            var delays = animation.FrameDelays;
             var processedFrames = new List<BitmapSource>();
             foreach (var frame in frames)
                 processedFrames.Add(PrepareBitmap(frame));
@@ -73,11 +77,9 @@ namespace GARbro.GUI.Preview
                 _mainWindow.ShowAnimatedImagePreview(_animatedImageViewer);
                 _mainWindow.ApplyScalingToAnimatedViewer();
                 _animatedImageViewer.LoadAnimatedImage(processedFrames, delays);
-                
-                _mainWindow.SetPreviewStatus(string.Format(guiStrings.MsgImageSize, 
-                    processedFrames[0].PixelWidth, processedFrames[0].PixelHeight, 
-                    processedFrames[0].Format.BitsPerPixel, format?.Tag ?? "?") + 
-                    $" ({frames.Count} frames)");
+
+                _mainWindow.SetPreviewStatus((image.SourceFormat?.Tag ?? "?") + 
+                    ((IImageComment)image.Info)?.GetComment() ?? "");
             });
         }
 

@@ -92,7 +92,7 @@ namespace GameRes
         }
 
         /// <summary>
-        /// Detects the newline format used in the text
+        /// Detects the newline format used in the text.
         /// </summary>
         protected virtual void DetectNewLineFormat(string text)
         {
@@ -185,7 +185,7 @@ namespace GameRes
         }
 
         /// <summary>
-        /// Gets information about the newline format
+        /// Gets information about the newline format.
         /// </summary>
         public string GetNewLineInfo()
         {
@@ -209,102 +209,203 @@ namespace GameRes
         public virtual ScriptType DataType { get { return ScriptType.Unknown; } }
 
         /// <summary>
-        /// Determines if the file is a valid script of this format
+        /// Determines if the file is a valid script of this format.
         /// </summary>
         public abstract bool IsScript(IBinaryStream file);
 
         /// <summary>
-        /// Converts script from game format to readable format
+        /// Converts script from game format to readable format.
         /// </summary>
         public abstract Stream ConvertFrom(IBinaryStream file);
 
         /// <summary>
-        /// Converts script from readable format back to game format
+        /// Converts script from readable format back to game format.
         /// </summary>
         public abstract Stream ConvertBack(IBinaryStream file);
 
         /// <summary>
-        /// Reads and parses script data
+        /// Reads and parses script data.
         /// </summary>
         public abstract ScriptData Read(string name, Stream file);
 
+        /// <inheritdoc cref="Read(string, Stream)"/>
+        public abstract ScriptData Read(string name, Stream file, Encoding encoding);
+
         /// <summary>
-        /// Writes script data to stream
+        /// Writes script data to stream.
         /// </summary>
         public abstract void Write(Stream file, ScriptData script);
 
         /// <summary>
-        /// Detects encoding of text data
+        /// Detects encoding of text data.
         /// </summary>
         public static Encoding DetectEncoding(Stream data, long length = -1)
         {
+            var pos = data.Position;
             if (length < 0 || length > data.Length)
                 length = data.Length;
             var bytedata = new byte[length];
             data.Read(bytedata, 0, (int)length);
+            data.Position = pos;
             return DetectEncoding(bytedata, length);
         }
 
         /// <summary>
-        /// Detects encoding of text data
+        /// Detects encoding of text data.
         /// </summary>
         public static Encoding DetectEncoding(byte[] data, long length = -1)
         {
+            if (data == null || data.Length == 0)
+                return Encoding.Default;
+
             if (length < 0 || length > data.Length)
                 length = data.Length;
 
+            // Check for BOM (Byte Order Mark) first
             if (length >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF)
                 return Encoding.UTF8;
             if (length >= 2 && data[0] == 0xFF && data[1] == 0xFE)
-                return Encoding.Unicode;
+            {
+                if (length >= 4 && data[2] == 0 && data[3] == 0)
+                    return Encoding.UTF32; // UTF-32 LE
+                return Encoding.Unicode; // UTF-16 LE
+            }
             if (length >= 2 && data[0] == 0xFE && data[1] == 0xFF)
-                return Encoding.BigEndianUnicode;
-            if (length >= 4 && data[0] == 0xFF && data[1] == 0xFE && data[2] == 0 && data[3] == 0)
-                return Encoding.UTF32;
+                return Encoding.BigEndianUnicode; // UTF-16 BE
+            if (length >= 4 && data[0] == 0 && data[1] == 0 && data[2] == 0xFE && data[3] == 0xFF)
+                return new UTF32Encoding(true, true); // UTF-32 BE
 
-            if (IsUtf8(data, length))
+            // For files without BOM, we need heuristics
+            // Sample size for analysis (limit to avoid performance issues)
+            int sampleSize = (int)Math.Min(length, 8192);
+
+            // Check for UTF-16 without BOM by looking for null bytes pattern
+            if (IsUtf16(data, sampleSize))
+                return Encoding.Unicode;
+
+            // Check for Shift-JIS before UTF-8 as some Shift-JIS can be misdetected as UTF-8
+            if (IsShiftJis(data, sampleSize))
+                return Encoding.GetEncoding(932);
+
+            // Check for valid UTF-8
+            if (IsValidUtf8(data, sampleSize))
                 return Encoding.UTF8;
 
-            if (IsShiftJis(data, length))
-                return Encoding.GetEncoding(932); // Shift-JIS
-
+            // Default to ANSI (system default code page)
             return Encoding.Default;
         }
 
-        private static bool IsUtf8(byte[] data, long length)
+        private static bool IsValidUtf8(byte[] data, int length)
         {
-            try
+            int i = 0;
+            while (i < length)
             {
-                var decoder = Encoding.UTF8.GetDecoder();
-                decoder.GetCharCount(data, 0, (int)length);
-                return true;
+                byte b = data[i];
+
+                // ASCII
+                if (b <= 0x7F)
+                {
+                    i++;
+                    continue;
+                }
+
+                // Multi-byte sequence
+                int sequenceLength;
+                if ((b & 0xE0) == 0xC0) sequenceLength = 2;
+                else if ((b & 0xF0) == 0xE0) sequenceLength = 3;
+                else if ((b & 0xF8) == 0xF0) sequenceLength = 4;
+                else return false; // Invalid UTF-8 start byte
+
+                if (i + sequenceLength > length)
+                    return false;
+
+                // Validate continuation bytes
+                for (int j = 1; j < sequenceLength; j++)
+                {
+                    if ((data[i + j] & 0xC0) != 0x80)
+                        return false;
+                }
+
+                i += sequenceLength;
             }
-            catch
-            {
-                return false;
-            }
+
+            return true;
         }
 
-        private static bool IsShiftJis(byte[] data, long length)
+        private static bool IsUtf16(byte[] data, int length)
         {
+            if (length < 2)
+                return false;
+
+            // Count null bytes in even and odd positions
+            int evenNulls = 0;
+            int oddNulls = 0;
+            int nonAsciiChars = 0;
+
+            for (int i = 0; i < length - 1; i += 2)
+            {
+                if (data[i] == 0) evenNulls++;
+                if (data[i + 1] == 0) oddNulls++;
+
+                // Check for non-ASCII characters
+                if (data[i] > 0x7F || data[i + 1] > 0x7F)
+                    nonAsciiChars++;
+            }
+
+            // If we have many nulls in one position but not the other, likely UTF-16
+            int threshold = length / 8; // At least 25% of bytes should be null
+
+            // Little Endian (more common on Windows)
+            if (oddNulls > threshold && evenNulls < threshold / 4)
+                return true;
+
+            // Big Endian
+            if (evenNulls > threshold && oddNulls < threshold / 4)
+                return true;
+
+            return false;
+        }
+
+        private static bool IsShiftJis(byte[] data, int length)
+        {
+            int validSequences = 0;
+            int invalidSequences = 0;
+
             for (int i = 0; i < length; i++)
             {
                 byte b = data[i];
-                if (b >= 0x81 && b <= 0x9F || b >= 0xE0 && b <= 0xFC)
+
+                // Single-byte characters
+                if (b <= 0x7F || (b >= 0xA1 && b <= 0xDF))
+                    continue;
+
+                // Two-byte character lead byte
+                if ((b >= 0x81 && b <= 0x9F) || (b >= 0xE0 && b <= 0xFC))
                 {
                     if (i + 1 < length)
                     {
                         byte b2 = data[i + 1];
-                        if (b2 >= 0x40 && b2 <= 0xFC && b2 != 0x7F)
-                            return true;
+                        if ((b2 >= 0x40 && b2 <= 0x7E) || (b2 >= 0x80 && b2 <= 0xFC))
+                        {
+                            validSequences++;
+                            i++; // Skip the second byte
+                        }
+                        else
+                            invalidSequences++;
                     }
                 }
+                else if (b >= 0x80)
+                {
+                    // High byte that's not valid in Shift-JIS
+                    invalidSequences++;
+                }
             }
-            return false;
+
+            return validSequences > 0 && invalidSequences < validSequences / 4;
         }
 
         /// <summary>
-        /// Finds appropriate script format handler for the given file
+        /// Finds appropriate script format handler for the given file.
         /// </summary>
         public static ScriptFormat FindFormat(IBinaryStream file)
         {
@@ -327,7 +428,7 @@ namespace GameRes
     }
 
     /// <summary>
-    /// Base implementation for generic script formats
+    /// Base implementation for generic script formats.
     /// </summary>
     public abstract class GenericScriptFormat : ScriptFormat
     {
@@ -368,6 +469,25 @@ namespace GameRes
             return scriptData;
         }
 
+        public override ScriptData Read(string name, Stream file, Encoding encoding)
+        {
+            byte[] data;
+            using (var ms = new MemoryStream())
+            {
+                file.CopyTo(ms);
+                data = ms.ToArray();
+            }
+
+            var text = encoding.GetString(data);
+
+            // Remove BOM if present
+            if (encoding.IsUtf16() && text.Length > 0 && text[0] == '\uFEFF')
+                text = text.Substring(1);
+
+            var scriptData = new ScriptData(text, GetScriptType(name)) { Encoding = encoding };
+            return scriptData;
+        }
+
         public override void Write(Stream file, ScriptData script)
         {
             script.Serialize(file);
@@ -382,14 +502,14 @@ namespace GameRes
     [Export(typeof(ScriptFormat))]
     public class TextScriptFormat : GenericScriptFormat
     {
-        public override string         Tag { get { return "TXT"; } }
-        public override string Description { get { return "Plain text file"; } }
-        public override uint     Signature { get { return 0; } }
+        public override string          Tag { get { return "TXT"; } }
+        public override string  Description { get { return "Plain text file"; } }
+        public override uint      Signature { get { return 0; } }
         public override ScriptType DataType { get { return ScriptType.PlainText; } }
 
         public TextScriptFormat()
         {
-            Extensions = new[] { "txt", "text", "log" };
+            Extensions = new[] { "txt", "text", "log", "md", "rs", "js", "css", "lua", "cpp", "cs" };
         }
     }
 
@@ -535,20 +655,6 @@ namespace GameRes
     }
 
     [Export(typeof(ScriptFormat))]
-    public class LuaScriptFormat : GenericScriptFormat
-    {
-        public override string         Tag { get { return "LUA"; } }
-        public override string Description { get { return "Lua script file"; } }
-        public override uint     Signature { get { return 0; } }
-        public override ScriptType DataType { get { return ScriptType.PlainText; } }
-
-        public LuaScriptFormat()
-        {
-            Extensions = new[] { "lua" };
-        }
-    }
-
-    [Export(typeof(ScriptFormat))]
     public class BinScriptFormat : ScriptFormat
     {
         public override string         Tag { get { return "SCR"; } }
@@ -578,6 +684,11 @@ namespace GameRes
         }
 
         public override ScriptData Read(string name, Stream file)
+        {
+            throw new NotSupportedException("Binary script reading not implemented");
+        }
+
+        public override ScriptData Read(string name, Stream file, Encoding e)
         {
             throw new NotSupportedException("Binary script reading not implemented");
         }

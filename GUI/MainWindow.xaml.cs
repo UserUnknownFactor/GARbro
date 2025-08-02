@@ -538,6 +538,7 @@ namespace GARbro.GUI
             if (item != null && m_last_selected != item)
             {
                 m_last_selected = item;
+                _textPreviewHandler.Reset();
                 PreviewEntry (item.Source);
             }
         }
@@ -917,9 +918,21 @@ namespace GARbro.GUI
                 VFS.FullPath = new string[] { filename };
             var vm = new DirectoryViewModel (VFS.FullPath, VFS.GetFiles(), VFS.IsVirtual);
             PushViewModel (vm);
-            if (null != VFS.CurrentArchive)
-                SetFileStatus (VFS.CurrentArchive.Description);
+            ShowCurrentArchiveStatus();
             lv_SelectItem (0);
+        }
+
+        private void ShowCurrentArchiveStatus()
+        {
+            if (null == VFS.CurrentArchive)
+                return;
+
+            SetFileStatus(VFS.CurrentArchive.Description);
+            string comment = "";
+            if (!string.IsNullOrEmpty(VFS.CurrentArchive.Comment))
+                comment = VFS.CurrentArchive.Comment + ": ";
+            comment += VFS.CurrentArchive.Dir.Count().Pluralize("MsgFiles");
+            SetPreviewStatus(comment);
         }
 
         private void OpenRecentExec (object control, ExecutedRoutedEventArgs e)
@@ -997,10 +1010,9 @@ namespace GARbro.GUI
             {
                 PushViewModel (vm);
                 if (VFS.Count > old_fs_count && null != VFS.CurrentArchive)
-                    SetFileStatus (string.Format("{0}: {1}", VFS.CurrentArchive.Description,
-                        VFS.CurrentArchive.Dir.Count().Pluralize("MsgFiles")));
-                else
-                    SetFileStatus("");
+                    ShowCurrentArchiveStatus();
+                else{
+                    SetFileStatus("");}
             }
             if (".." == entry.Name)
                 lv_SelectItem (Path.GetFileName (old_dir));
@@ -1148,6 +1160,8 @@ namespace GARbro.GUI
             {
                 list.Add (Encoding.Unicode);
                 list.Add (Encoding.BigEndianUnicode);
+                //list.Add (Encoding.UTF32);
+                //list.Add (new UTF32Encoding(true, true));
             }
             return list;
         }
@@ -1155,9 +1169,9 @@ namespace GARbro.GUI
         private void OnEncodingSelect (object sender, SelectionChangedEventArgs e)
         {
             var enc = this.EncodingChoice.SelectedItem as Encoding;
-            if (null == enc || null == CurrentTextInput)
+            if (null == enc || _textPreviewHandler == null || !_textPreviewHandler.IsActive)
                 return;
-            TextView.CurrentEncoding = enc;
+            RefreshPreviewPane();
         }
 
         /// <summary>
@@ -1193,7 +1207,6 @@ namespace GARbro.GUI
             // Note: Don't reset audio handler to keep audio playing
 
             m_video_base_info = "";
-            CurrentTextInput = null;
         }
 
         bool IsPreviewPossible (Entry entry)
@@ -1252,20 +1265,6 @@ namespace GARbro.GUI
             else
             {
                 m_preview_pending = true;
-            }
-        }
-
-        private Stream m_current_text;
-        private Stream CurrentTextInput
-        {
-            get { return m_current_text; }
-            set
-            {
-                if (value == m_current_text)
-                    return;
-                if (null != m_current_text)
-                    m_current_text.Dispose();
-                m_current_text = value;
             }
         }
 

@@ -30,7 +30,9 @@ namespace GARbro.GUI
                 else if (null != format)
                     initial_name = Path.ChangeExtension (initial_name, format.Extensions.FirstOrDefault());
             }
+
             ArchiveName.Text = initial_name;
+            ButtonOk.IsEnabled = false;
         }
 
         private readonly IEnumerable<ArchiveFormat> m_formats = FormatCatalog.Instance.ArcFormats.Where (f => f.CanWrite).OrderBy (f => f.Tag);
@@ -52,9 +54,7 @@ namespace GARbro.GUI
             }
             var format = this.ArchiveFormat.SelectedItem as ArchiveFormat;
             if (null != format)
-            {
                 ArchiveOptions = format.GetOptions (OptionsWidget.Content);
-            }
             DialogResult = true;
         }
 
@@ -118,7 +118,12 @@ namespace GARbro.GUI
 
             var format = this.ArchiveFormat.SelectedItem as ArchiveFormat;
             if (null == format)
+            {
+                ButtonOk.IsEnabled = false;
                 return;
+            }
+
+            ButtonOk.IsEnabled = format.CanWrite;
 
             var widget = format.GetCreationWidget();
             if (widget is UIElement ui_widget)

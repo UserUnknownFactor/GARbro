@@ -12,6 +12,9 @@ namespace GameRes
     {
         public override string Type { get { return "archive"; } }
 
+        /// <summary>Specific archive format comment. Like  its version or subtype.</summary>
+        public string Comment { get; set; }
+
         /// <summary>
         /// Whether archive file system could contain subdirectories.
         /// </summary>

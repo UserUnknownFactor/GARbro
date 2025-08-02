@@ -18,6 +18,9 @@ namespace GameRes
         /// <summary>Short archive format description.</summary>
         public string Description { get { return m_interface.Description; } }
 
+        /// <summary>Short archive format comment.</summary>
+        public string Comment { get { return m_interface.Comment; } }
+
         /// <summary>Tags of formats related to this archive format (could be null).</summary>
         public IEnumerable<string> ContainedFormats { get { return m_interface.ContainedFormats; } }
 

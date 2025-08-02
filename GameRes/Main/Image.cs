@@ -1,15 +1,21 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Collections.Generic;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace GameRes
 {
-    public class ImageMetaData
+    public interface IImageComment
+    {
+        string GetComment();
+    }
+
+    public class ImageMetaData : IImageComment
     {
         /// <summary>Image width in pixels.</summary>
-        public uint Width { get; set; }
+        public uint  Width { get; set; }
 
         /// <summary>Image height in pixels.</summary>
         public uint Height { get; set; }
@@ -21,13 +27,25 @@ namespace GameRes
         public int OffsetY { get; set; }
 
         /// <summary>Image bitdepth.</summary>
-        public int BPP { get; set; }
+        public int     BPP { get; set; }
 
         /// <summary>Image source file name, if any.</summary>
         public string FileName { get; set; }
 
         public int iWidth  { get { return (int)Width; } }
         public int iHeight { get { return (int)Height; } }
+
+        /// <summary>Image format specifics.<br/><br/>
+        /// <example>For a parser that supports multiple extensions: <br/>
+        /// $" PNG {Width} x {Height} x {BPP}bpp"</example></summary>
+        public virtual string GetComment()
+        { 
+            return string.Format(
+                " {0} x {1}{2}", Width, Height, 
+                BPP !=0 ?
+                string.Format(" x {0}bpp", BPP): ""
+            );
+        }
     }
 
     public class ImageEntry : Entry
@@ -55,11 +73,11 @@ namespace GameRes
         private BitmapSource m_bitmap;
 
         public BitmapSource Bitmap { get { return m_bitmap; } }
-        public uint Width { get { return (uint)m_bitmap.PixelWidth; } }
-        public uint Height { get { return (uint)m_bitmap.PixelHeight; } }
-        public int OffsetX { get; set; }
-        public int OffsetY { get; set; }
-        public int BPP { get { return m_bitmap.Format.BitsPerPixel; } }
+        public uint          Width { get { return (uint)m_bitmap.PixelWidth; } }
+        public uint         Height { get { return (uint)m_bitmap.PixelHeight; } }
+        public int         OffsetX { get; set; }
+        public int         OffsetY { get; set; }
+        public int             BPP { get { return m_bitmap.Format.BitsPerPixel; } }
 
         public static double DefaultDpiX { get; set; }
         public static double DefaultDpiY { get; set; }
@@ -78,15 +96,15 @@ namespace GameRes
         public ImageData (BitmapSource data, ImageMetaData meta)
         {
             m_bitmap = data;
-            OffsetX = meta.OffsetX;
-            OffsetY = meta.OffsetY;
+            OffsetX  = meta.OffsetX;
+            OffsetY  = meta.OffsetY;
         }
 
         public ImageData (BitmapSource data, int x = 0, int y = 0)
         {
             m_bitmap = data;
-            OffsetX = x;
-            OffsetY = y;
+            OffsetX  = x;
+            OffsetY  = y;
         }
 
         public static ImageData Create (ImageMetaData info, PixelFormat format, BitmapPalette palette,
@@ -118,6 +136,29 @@ namespace GameRes
             return new ImageData (flipped, info);
         }
     }
+    
+    public class AnimatedImageData : ImageData
+    {
+        public List<BitmapSource> Frames { get; set; }
+        public List<int>     FrameDelays { get; set; }
+        public bool           IsAnimated { get; set; }
+
+        public AnimatedImageData(BitmapSource bitmap, ImageMetaData info) 
+            : base(bitmap, info)
+        {
+            Frames      = new List<BitmapSource> { bitmap };
+            FrameDelays = new List<int> { 100 }; // Default delay 100ms
+            IsAnimated  = true;
+        }
+
+        public AnimatedImageData(List<BitmapSource> frames, List<int> delays, ImageMetaData info)
+            : base(frames.FirstOrDefault(), info)
+        {
+            Frames      = frames;
+            FrameDelays = delays;
+            IsAnimated  = frames.Count > 1;
+        }
+    }
 
     public abstract class ImageFormat : IResource
     {
@@ -133,8 +174,9 @@ namespace GameRes
             var format = FindFormat (file);
             if (null == format)
                 return null;
+
             file.Position = 0;
-            return format.Item1.Read (file, format.Item2);
+            return format.Item1.Read(file, format.Item2);
         }
 
         public static System.Tuple<ImageFormat, ImageMetaData> FindFormat (IBinaryStream file)

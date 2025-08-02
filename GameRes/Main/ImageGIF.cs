@@ -8,33 +8,16 @@ using System.Windows.Media;
 
 namespace GameRes
 {
-    public class AnimatedImageData : ImageData
-    {
-        public List<BitmapSource> Frames { get; set; }
-        public List<int>     FrameDelays { get; set; }
-        public bool           IsAnimated { get; set; }
-
-        public AnimatedImageData(BitmapSource bitmap, ImageMetaData info) 
-            : base(bitmap, info)
-        {
-            Frames = new List<BitmapSource> { bitmap };
-            FrameDelays = new List<int> { 100 }; // Default delay 100ms
-            IsAnimated = true;
-        }
-
-        public AnimatedImageData(List<BitmapSource> frames, List<int> delays, ImageMetaData info)
-            : base(frames.FirstOrDefault(), info)
-        {
-            Frames = frames;
-            FrameDelays = delays;
-            IsAnimated = frames.Count > 1;
-        }
-    }
-
     public class GifMetaData : ImageMetaData
     {
         public int  FrameCount { get; set; } = 1;
         public bool IsAnimated { get; set; } = false;
+
+        public override string GetComment()
+        {
+            var n_frames = IsAnimated ? " ({3} frames)" : "";
+            return string.Format(" {0} x {1} x {2}bpp{3}", Width, Height, BPP, n_frames);
+        }
     }
 
     [Export(typeof(ImageFormat))]

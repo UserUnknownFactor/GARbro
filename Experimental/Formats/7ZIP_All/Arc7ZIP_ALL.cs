@@ -78,7 +78,7 @@ namespace GameRes.Formats.SevenZip
                     return null;
                 }
 
-                //var strFormat = format.ToString().Replace("SevenZip.", "");
+                Comment = format.ToString();
 
                 return new SevenZipArchive(file, this, dir, inArchive, inStream, format);
             }

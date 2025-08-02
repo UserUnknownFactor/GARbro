@@ -33,10 +33,12 @@ namespace GameRes.Formats.RPGMaker
                 switch (version)
                 {
                 case 1:
+                    Comment = "XP Archive";
                     dir = ReadIndexV1 (index);
                     break;
                 case 2:
                 case 3:
+                    Comment = version == 2 ? "VX Archive" : "VX Ace Archive";
                     dir = ReadIndexV3 (index);
                     break;
                 }
@@ -116,7 +118,7 @@ namespace GameRes.Formats.RPGMaker
             ResourceOptions options, EntryCallback callback)
         {
             var rgss_options = GetOptions<RgssOptions>(options);
-            int version = rgss_options.Version;
+            byte version = rgss_options.Version;
 
             if (version < 1 || version > 3)
                 version = 3;
@@ -340,7 +342,7 @@ namespace GameRes.Formats.RPGMaker
 
     public class RgssOptions : ResourceOptions, IExtensionProvider
     {
-        public int    Version { get; set; }
+        public byte    Version { get; set; }
 
         public string GetExtension()
         {

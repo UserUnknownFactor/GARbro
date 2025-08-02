@@ -46,16 +46,16 @@ namespace GameRes.Formats.GUI
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value is int version)
-                return Math.Max(0, Math.Min(2, version - 1));
-            return 2;
+            if (value is Byte version)
+                return (Int32)Math.Max(0, Math.Min(2, version - 1));
+            return (Int32)2;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value is int index)
-                return index + 1;
-            return 3;
+            if (value is Int32 index)
+                return (Byte)index + 1;
+            return (Byte)3;
         }
     }
 }
