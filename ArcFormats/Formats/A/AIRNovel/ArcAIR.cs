@@ -162,13 +162,35 @@ namespace GameRes.Formats.AirNovel
         string QueryEncryptionKey (ArcView file)
         {
             var title = FormatCatalog.Instance.LookupGame (file.Name);
-            if (string.IsNullOrEmpty (title))
-                return null;
-            string key;
-            if (!KnownKeys.TryGetValue (title, out key))
-                return null;
-            return key;
+            if (!string.IsNullOrEmpty (title) && KnownKeys.TryGetValue (title, out string key))
+                return key;
+
+            var options = Query<AirOptions>("RC4 plain key:");
+            if (!string.IsNullOrWhiteSpace (options.key))
+                return options.key;
+
+            return null;
         }
+
+        public override object GetAccessWidget ()
+        {
+            return new GUI.WidgetAIR();
+        }
+
+        public override ResourceOptions GetOptions(object w)
+        {
+            var widget = w as GUI.WidgetAIR;
+            if (null != widget)
+            {
+                return new AirOptions { key = widget.ValueTextBox.Text };
+            }
+            return this.GetDefaultOptions();
+        }
+    }
+
+    class AirOptions : ResourceOptions
+    {
+        public string key;
     }
 
     internal class AirRc4Crypt

@@ -28,7 +28,7 @@ namespace GARbro.GUI
                 ActiveOption = ImageConversionOptions;
                 InitImageFormats (ImageConversionFormat);
             }
-            else if ("script" == entry.Type)
+            else if ("script" == entry.Type || "text" == entry.Type || "config" == entry.Type)
             {
                 ActiveOption = TextConversionOptions;
                 TextEncoding.IsEnabled = false;

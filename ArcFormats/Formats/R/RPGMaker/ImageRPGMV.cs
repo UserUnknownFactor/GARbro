@@ -29,6 +29,7 @@ namespace GameRes.Formats.RPGMaker
             var header = file.ReadHeader (0x14);
             if (header[4] != 'V')
                 return null;
+
             var key = RpgmvDecryptor.LastKey ?? RpgmvDecryptor.FindKeyFor (file.Name);
             if (null == key)
                 return null;
@@ -53,6 +54,7 @@ namespace GameRes.Formats.RPGMaker
                 var info = Png.ReadMetaData (png);
                 if (null == info)
                     return null;
+
                 return new RpgmvpMetaData
                 {
                     Width = info.Width,
@@ -87,9 +89,7 @@ namespace GameRes.Formats.RPGMaker
                 pngStream.Read(pngHeader, 0, pngHeader.Length);
 
                 for (int i = 0; i < key.Length; ++i)
-                {
                     pngHeader[i] ^= key[i];
-                }
 
                 file.Write(pngHeader, 0, pngHeader.Length);
 
@@ -114,11 +114,10 @@ namespace GameRes.Formats.RPGMaker
         {
             if ((hex.Length & 1) != 0)
                 throw new System.ArgumentException ("invalid key string");
+
             var key = new byte[hex.Length/2];
             for (int i = 0; i < key.Length; ++i)
-            {
                 key[i] = (byte)(HexToInt (hex[i * 2]) << 4 | HexToInt (hex[i * 2 + 1]));
-            }
             return key;
         }
 

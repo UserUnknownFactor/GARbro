@@ -17,9 +17,8 @@ namespace GameRes.Formats.Unity
         AudioQueue = 24,
     }
 
-    internal class AudioClip
+    internal class AudioClip: NamedObject
     {
-        public string   m_Name;
         public int      m_LoadType;
         public int      m_Channels;
         public int      m_Frequency;
@@ -35,10 +34,10 @@ namespace GameRes.Formats.Unity
         public long     m_Size;
         public int      m_CompressionFormat;
 
-        public void Load (AssetReader reader)
+        public new void Load (AssetReader reader)
         {
-            m_Name = reader.ReadString();
-            reader.Align();
+            base.Load(reader);
+
             if (reader.Format > 9)
             {
                 m_LoadType = reader.ReadInt32();
@@ -67,20 +66,6 @@ namespace GameRes.Formats.Unity
                 reader.ReadInt32();
                 m_Size = reader.ReadUInt32();
             }
-        }
-    }
-
-    internal class StreamingInfo
-    {
-        public long     Offset;
-        public uint     Size;
-        public string   Path;
-
-        public void Load (AssetReader reader)
-        {
-            Offset = reader.ReadOffset();
-            Size = reader.ReadUInt32();
-            Path = reader.ReadString();
         }
     }
 }

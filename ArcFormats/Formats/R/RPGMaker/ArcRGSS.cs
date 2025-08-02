@@ -4,21 +4,22 @@ using System.ComponentModel.Composition;
 using System.IO;
 using System.Linq;
 using System.Text;
+using GameRes.Formats.Properties;
 
 namespace GameRes.Formats.RPGMaker
 {
-    [Export(typeof(ArchiveFormat))]
+    [Export (typeof (ArchiveFormat))]
     public class RgssArchive : ArchiveFormat
     {
-        public override string   Tag { get { return "RGSSAD"; } }
-        public override string   Description { get { return "RPG Maker XP/VX/ACE engine resource archive"; } }
-        public override uint     Signature { get { return 0x53534752; } } // 'RGSS'
-        public override bool     IsHierarchic { get { return true; } }
-        public override bool     CanWrite { get { return true; } }
+        public override string         Tag { get { return "RGSSAD"; } }
+        public override string Description { get { return "RPG Maker XP/VX/ACE engine resource archive"; } }
+        public override uint     Signature { get { return  0x53534752; } } // 'RGSS'
+        public override bool  IsHierarchic { get { return  true; } }
+        public override bool      CanWrite { get { return  true; } }
 
-        public RgssArchive ()
+        public RgssArchive()
         {
-            Extensions = new string[] { "rgss3a", "rgss2a", "rgssad" };
+            Extensions = new string[] { "rgss3a", "rgssad", "rgss2a" };
         }
 
         public override ArcFile TryOpen (ArcView file)
@@ -29,10 +30,16 @@ namespace GameRes.Formats.RPGMaker
             using (var index = file.CreateStream())
             {
                 List<Entry> dir = null;
-                if (3 == version)
-                    dir = ReadIndexV3 (index);
-                else if (1 == version)
+                switch (version)
+                {
+                case 1:
                     dir = ReadIndexV1 (index);
+                    break;
+                case 2:
+                case 3:
+                    dir = ReadIndexV3 (index);
+                    break;
+                }
                 if (null == dir || 0 == dir.Count)
                     return null;
                 return new ArcFile (file, this, dir);
@@ -48,8 +55,10 @@ namespace GameRes.Formats.RPGMaker
             while (file.PeekByte() != -1)
             {
                 uint name_length = file.ReadUInt32() ^ key_gen.GetNext();
-                var name_bytes   = file.ReadBytes((int)name_length);
-                var name         = DecryptName(name_bytes, key_gen);
+                if (!IsSaneCount (name_length, 1000))
+                    return null;
+                var name_bytes   = file.ReadBytes ((int)name_length);
+                var name         = DecryptName (name_bytes, key_gen);
 
                 var entry = FormatCatalog.Instance.Create<RgssEntry>(name);
                 entry.Size   = file.ReadUInt32() ^ key_gen.GetNext();
@@ -77,6 +86,8 @@ namespace GameRes.Formats.RPGMaker
                 uint size        = file.ReadUInt32() ^ key;
                 uint entry_key   = file.ReadUInt32() ^ key;
                 uint name_length = file.ReadUInt32() ^ key;
+                if (!IsSaneCount (name_length, 1000))
+                    return null;
                 var name_bytes   = file.ReadBytes ((int)name_length);
                 var name         = DecryptName (name_bytes, key);
 
@@ -86,6 +97,7 @@ namespace GameRes.Formats.RPGMaker
                 entry.Key    = entry_key;
                 if (!entry.CheckPlacement (max_offset))
                     return null;
+
                 dir.Add (entry);
             }
             return dir;
@@ -95,147 +107,133 @@ namespace GameRes.Formats.RPGMaker
         {
             var rent = (RgssEntry)entry;
             var data = arc.File.View.ReadBytes (rent.Offset, rent.Size);
-            XORDataWithPRKey (data, new KeyGenerator (rent.Key));
+            XORDataWithKey (data, new KeyGenerator (rent.Key));
             return new BinMemoryStream (data);
         }
 
         public override void Create (
-          Stream output, IEnumerable<Entry> list,
-          ResourceOptions options, EntryCallback callback)
+            Stream output, IEnumerable<Entry> list,
+            ResourceOptions options, EntryCallback callback)
         {
             var rgss_options = GetOptions<RgssOptions>(options);
             int version = rgss_options.Version;
 
-            /*if (version == 0 && options.Widget != null)
-            {
-                var widget = options.Widget as GUI.CreateRGSSWidget;
-                if (widget != null && widget.Version.SelectedItem != null)
-                {
-                    var selected = widget.Version.SelectedItem as ComboBoxItem;
-                    if (selected != null && selected.Tag != null)
-                        version = (int)selected.Tag;
-                }
-            }*/
-
-            if (version != 1 && version != 3)
+            if (version < 1 || version > 3)
                 version = 3;
 
             var encoding = Encoding.UTF8;
-            var entries = list.ToArray ();
+            var entries = list.ToArray();
 
             using (var writer = new BinaryWriter (output, encoding, true))
             {
-                writer.Write (RgssArchive.DefaultHeader);
+                writer.Write (DefaultHeader);
                 writer.Write ((byte)version);
 
-                if (version == 1)
+                switch (version)
+                {
+                case 1:
                     WriteV1Archive (writer, entries, encoding, callback);
-                else
+                    break;
+                case 2:
+                case 3:
                     WriteV3Archive (writer, entries, encoding, callback);
+                    break;
+                }
             }
         }
 
         void WriteV1Archive (BinaryWriter output, Entry[] entries, Encoding encoding, EntryCallback callback)
         {
             var key_gen = new KeyGenerator (0xDEADCAFE);
-            long current_offset = output.BaseStream.Position;
+            var output_dir = Path.GetDirectoryName (Path.GetFullPath (entries[0].Name)) ?? "";
 
-            var output_dir = Environment.CurrentDirectory;
+            //int i = 0;
             foreach (var entry in entries)
             {
-                if (null != callback)
-                    callback (entries.Length, entry, null);
+                //if (null != callback)
+                //callback (i++, entry, string.Foramt("Adding file {0}/{1}", i, entries.Count));
 
                 string relativePath = GetRelativePath (entry.Name, output_dir);
                 var name_bytes      = encoding.GetBytes (relativePath);
-                var encrypted_name  = new byte[name_bytes.Length];
-                Array.Copy (name_bytes, encrypted_name, name_bytes.Length);
 
                 uint name_length_key = key_gen.GetNext();
-                output.Write ((uint)encrypted_name.Length ^ name_length_key);
+                output.Write ((uint)name_bytes.Length ^ name_length_key);
 
                 EncryptName (name_bytes, key_gen);
-                output.Write (encrypted_name, 0, encrypted_name.Length);
+                output.Write (name_bytes);
 
                 using (var input = File.OpenRead (entry.Name))
                 {
                     uint file_size = (uint)input.Length;
-                    uint size_key  = key_gen.GetNext();
+                    uint size_key = key_gen.GetNext();
                     output.Write (file_size ^ size_key);
                     EncryptAndCopyStream (input, output, key_gen.Current);
                 }
             }
         }
 
-        void WriteV3Archive(BinaryWriter output, Entry[] entries, Encoding encoding, EntryCallback callback)
+        void WriteV3Archive (BinaryWriter output, Entry[] entries, Encoding encoding, EntryCallback callback)
         {
             uint base_key = 0x55555555; // NOTE: This produces 0 key
             output.Write (base_key);
             uint key = base_key * 9 + 3;
 
             long index_size = 0;
-            var entryKeys = new Dictionary<Entry, uint>();
-            var relativePaths = new Dictionary<Entry, string>();
+            var entryInfo = new List<(Entry entry, string path, uint entryKey)>();
 
             var output_dir = Environment.CurrentDirectory;
             foreach (var entry in entries)
             {
                 index_size += 16; // offset + size + entry_key + name_length
-                string relativePath  = GetRelativePath (entry.Name, output_dir);
-                relativePaths[entry] = relativePath;
+                string relativePath = GetRelativePath (entry.Name, output_dir);
+                uint entryKey = 0;
+                entryInfo.Add ((entry, relativePath, entryKey));
                 index_size += encoding.GetByteCount (relativePath);
             }
             index_size += 4; // for terminating zero
 
-            long data_offset = RgssArchive.DefaultHeader.Length + 1 + 4 + index_size;
+            long data_offset = DefaultHeader.Length + 1 + 4 + index_size;
 
             // Write index
-            foreach (var entry in entries)
+            foreach (var info in entryInfo)
             {
-                using (var input = File.OpenRead (entry.Name))
-                {
-                    uint file_size = (uint)input.Length;
+                var fileInfo = new FileInfo(info.entry.Name);
+                uint file_size = (uint)fileInfo.Length;
 
-                    output.Write ((uint)data_offset ^ key);
-                    output.Write (file_size ^ key);
+                output.Write ((uint)data_offset ^ key);
+                output.Write (file_size ^ key);
+                output.Write (info.entryKey ^ key);
 
-                    uint entry_key = 0;
-                    entryKeys[entry] = entry_key;
-                    output.Write (entry_key ^ key);
+                var name_bytes = encoding.GetBytes (info.path);
+                output.Write ((uint)name_bytes.Length ^ key);
+                EncryptName (name_bytes, key);
+                output.Write (name_bytes);
 
-                    // Use the stored relative path
-                    string relativePath = relativePaths[entry];
-                    var name_bytes      = encoding.GetBytes(relativePath);
-                    output.Write ((uint)name_bytes.Length ^ key);
-
-                    EncryptName (name_bytes, key);
-                    output.Write (name_bytes, 0, name_bytes.Length);
-
-                    data_offset += file_size;
-                }
+                data_offset += file_size;
             }
 
-            // Write terminator 0 ^ key = key
-            output.Write((uint)key);
+            // Write terminator
+            output.Write (0u);
 
+            //int i = 0;
             // Write file data
-            foreach (var entry in entries)
+            foreach (var info in entryInfo)
             {
-                // callback is here because it's the slowest part
-                if (null != callback)
-                    callback (entries.Length, entry, null);
-                using (var input = File.OpenRead (entry.Name))
+                //if (null != callback)
+                //  callback (i++, entry, string.Foramt("Adding file {0}/{1}", i, entries.Count));
+
+                using (var input = File.OpenRead (info.entry.Name))
                 {
-                    EncryptAndCopyStream (input, output, entryKeys[entry]);
+                    EncryptAndCopyStream (input, output, info.entryKey);
                 }
             }
         }
 
         private string GetRelativePath (string fullPath, string basePath)
         {
-            // converts full path into a realtive one in the dir we choose to pack
+            // converts full path into a relative one in the dir we choose to pack
             string relativePath = fullPath;
-            if (relativePath.StartsWith(basePath))
+            if (relativePath.StartsWith (basePath))
             {
                 relativePath = relativePath.Substring (basePath.Length);
                 if (relativePath.StartsWith (@"\"))
@@ -248,23 +246,22 @@ namespace GameRes.Formats.RPGMaker
             return relativePath;//.Replace(@"\", "/");
         }
 
-
         void EncryptAndCopyStream (Stream input, BinaryWriter output, uint data_key)
         {
             var buffer = new byte[input.Length];
-            int bytes_read;
-            int position = 0;
-
             var key_gen = new KeyGenerator (data_key);
-            while ((bytes_read = input.Read (buffer, 0, (int)input.Length)) > 0)
+            int bytes_read;
+
+            while ((bytes_read = input.Read (buffer, 0, buffer.Length)) > 0)
             {
-                XORDataWithPRKey (buffer, key_gen);
-                position += bytes_read;
-                output.Write (buffer, 0, bytes_read);
+                var data = new byte[bytes_read];
+                Array.Copy (buffer, data, bytes_read);
+                XORDataWithKey (data, key_gen);
+                output.Write (data);
             }
         }
 
-        void XORDataWithPRKey (byte[] data, KeyGenerator key_gen, int position = 0)
+        void XORDataWithKey (byte[] data, KeyGenerator key_gen, int position = 0)
         {
             uint key = key_gen.GetNext();
             for (int i = 0; i < data.Length;)
@@ -308,13 +305,16 @@ namespace GameRes.Formats.RPGMaker
 
         public override ResourceOptions GetDefaultOptions()
         {
-            return new RgssOptions { Version = 3 };
+            return new RgssOptions 
+            { 
+                Version = Properties.Settings.Default.RGSSVersion
+            };
         }
 
-        /*public override object GetCreationWidget ()
+        public override object GetCreationWidget ()
         {
             return new GUI.CreateRGSSWidget ();
-        }*/
+        }
 
         internal static readonly byte[] DefaultHeader = { 0x52, 0x47, 0x53, 0x53, 0x41, 0x44, 0x00 };
     }
@@ -326,7 +326,8 @@ namespace GameRes.Formats.RPGMaker
 
     internal class KeyGenerator
     {
-        uint    m_seed;
+        uint   m_seed;
+
         public KeyGenerator (uint seed) { m_seed = seed; }
         public uint Current { get { return m_seed; } }
         public uint GetNext ()
@@ -337,8 +338,20 @@ namespace GameRes.Formats.RPGMaker
         }
     }
 
-    public class RgssOptions : ResourceOptions
+    public class RgssOptions : ResourceOptions, IExtensionProvider
     {
-        public int Version { get; set; }
+        public int    Version { get; set; }
+
+        public string GetExtension()
+        {
+            switch (Version)
+            {
+            case 1: return "rgssad";
+            case 2: return "rgss2a";
+            case 3:
+            default:
+                return "rgss3a";
+            }
+        }
     }
 }

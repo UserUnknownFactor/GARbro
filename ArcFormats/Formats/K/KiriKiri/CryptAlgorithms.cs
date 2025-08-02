@@ -1573,4 +1573,25 @@ namespace GameRes.Formats.KiriKiri
             }
         }
     }
+
+    [Serializable]
+    public class Kano2Crypt : ICrypt
+    {
+        public override void Decrypt(Xp3Entry entry, long offset, byte[] buffer, int pos, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                if ((i + pos) % 8 == 0) // only apply xor every 8 bytes
+                {
+                    buffer[i + pos] ^= (byte)entry.Hash;
+                    i += 7;
+                }
+            }
+        }
+
+        public override void Encrypt(Xp3Entry entry, long offset, byte[] buffer, int pos, int count)
+        {
+            Decrypt(entry, offset, buffer, pos, count);
+        }
+    }
 }

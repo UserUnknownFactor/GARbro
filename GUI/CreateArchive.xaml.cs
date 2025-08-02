@@ -6,8 +6,10 @@ using System.Collections.Generic;
 using System.Text;
 using System.Linq;
 using Microsoft.Win32;
+
 using GARbro.GUI.Strings;
 using GameRes;
+using GameRes.Formats.GUI;
 
 namespace GARbro.GUI
 {
@@ -23,7 +25,9 @@ namespace GARbro.GUI
             if (!string.IsNullOrEmpty (initial_name))
             {
                 var format = this.ArchiveFormat.SelectedItem as ArchiveFormat;
-                if (null != format)
+                if (this.ArchiveOptions is IExtensionProvider extensionProvider)
+                    initial_name = extensionProvider.GetExtension();
+                else if (null != format)
                     initial_name = Path.ChangeExtension (initial_name, format.Extensions.FirstOrDefault());
             }
             ArchiveName.Text = initial_name;
@@ -92,31 +96,72 @@ namespace GARbro.GUI
                     dir = parent.FullName;
             }
             dir = Path.GetFullPath (dir);
-            var dlg = new OpenFileDialog {
+            var dlg = new SaveFileDialog {
                 AddExtension = true,
-                CheckFileExists = false,
                 CheckPathExists = true,
                 FileName = initial,
                 Filter = GetFilters(),
                 InitialDirectory = dir,
-                Multiselect = false,
                 Title = guiStrings.TextChooseArchive,
+                OverwritePrompt = false
             };
             return dlg.ShowDialog (this).Value ? dlg.FileName : null;
         }
 
         void OnFormatSelect (object sender, SelectionChangedEventArgs e)
         {
+            if (OptionsWidget.Content is IExtensionChangeNotifier oldNotifier)
+                oldNotifier.ExtensionChanged -= OnWidgetExtensionChanged;
+
+            OptionsWidget.Content = null;
+            OptionsWidget.Visibility = Visibility.Hidden;
+
             var format = this.ArchiveFormat.SelectedItem as ArchiveFormat;
-            object widget = null;
-            if (null != format)
+            if (null == format)
+                return;
+
+            var widget = format.GetCreationWidget();
+            if (widget is UIElement ui_widget)
             {
-                widget = format.GetCreationWidget();
-                if (!string.IsNullOrEmpty (ArchiveName.Text))
-                    ArchiveName.Text = Path.ChangeExtension (ArchiveName.Text, format.Extensions.FirstOrDefault());
+                OptionsWidget.Content = ui_widget;
+                OptionsWidget.Visibility = Visibility.Visible;
+
+                if (widget is IExtensionChangeNotifier newNotifier)
+                {
+                    newNotifier.ExtensionChanged += OnWidgetExtensionChanged;
+                    UpdateArchiveExtension(newNotifier.CurrentExtension);
+                }
+                else if (!string.IsNullOrEmpty(ArchiveName.Text))
+                {
+                    if (this.ArchiveOptions is IExtensionProvider extensionProvider)
+                        UpdateArchiveExtension(extensionProvider.GetExtension());
+                    else 
+                        UpdateArchiveExtension(format.Extensions.FirstOrDefault());
+                }
             }
-            OptionsWidget.Content = widget;
-            OptionsWidget.Visibility = null != widget ? Visibility.Visible : Visibility.Hidden;
+            else if (!string.IsNullOrEmpty(ArchiveName.Text))
+            {
+                UpdateArchiveExtension(format.Extensions.FirstOrDefault());
+            }
+        }
+
+        /// <summary>
+        /// Called by any widget that fires the ExtensionChanged event.
+        /// </summary>
+        private void OnWidgetExtensionChanged(object sender, ExtensionChangedEventArgs e)
+        {
+            UpdateArchiveExtension(e.NewExtension);
+        }
+
+        /// <summary>
+        /// Helper method to centralize the logic for changing the extension.
+        /// </summary>
+        public void UpdateArchiveExtension(string newExtension)
+        {
+            if (!string.IsNullOrEmpty(newExtension) && !string.IsNullOrEmpty(ArchiveName.Text))
+            {
+                ArchiveName.Text = Path.ChangeExtension(ArchiveName.Text, newExtension);
+            }
         }
 
         void CanExecuteAlways (object sender, CanExecuteRoutedEventArgs e)
@@ -126,7 +171,7 @@ namespace GARbro.GUI
 
         private void ArchiveName_TextChanged (object sender, RoutedEventArgs e)
         {
-            this.ButtonOk.IsEnabled = ArchiveName.Text.Length > 0;
+            this.ButtonOk.IsEnabled = ArchiveName.Text.Length > 0 && ArchiveFormat.SelectedItem != null;
         }
     }
 }

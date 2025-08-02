@@ -136,6 +136,191 @@ namespace GameRes.Formats.NScripter
             return GetDefaultOptions();
         }
 
+        public override void Create(Stream output, IEnumerable<Entry> list, 
+                                                  ResourceOptions options, EntryCallback callback)
+        {
+            var ns2_options = GetOptions<NsaOptions>(options);
+            var encoding = Encodings.cp932.WithFatalFallback();
+            byte[] key = null;
+
+            if (!string.IsNullOrEmpty(ns2_options.Password))
+            {
+                key = Encoding.ASCII.GetBytes(ns2_options.Password);
+            }
+
+            var entries = list.ToArray<Entry>();
+
+            long header_size = 4; // base offset
+            foreach (var entry in entries)
+            {
+                try
+                {
+                    var name_bytes = encoding.GetBytes(entry.Name);
+                    header_size += 2 + name_bytes.Length + 4; // quotes + name + size
+                }
+                catch (EncoderFallbackException X)
+                {
+                    throw new InvalidFileName(entry.Name, arcStrings.MsgIllegalCharacters, X);
+                }
+            }
+
+            // Align to 16 bytes if encrypted
+            if (key != null && key.Length >= 96)
+                header_size = (header_size + 15) & ~15;
+
+            output.Position = header_size;
+            long current_offset = (uint)header_size;
+
+            foreach (var entry in entries)
+            {
+                if (null != callback)
+                    callback(entries.Length, entry, arcStrings.MsgAddingFile);
+
+                using (var input = File.OpenRead(entry.Name))
+                {
+                    var file_size = input.Length;
+                    if (file_size > uint.MaxValue)
+                        throw new FileSizeException();
+
+                    entry.Offset = current_offset;
+                    entry.Size = (uint)file_size;
+                    current_offset += entry.Size;
+
+                    if (key != null)
+                        CopyEncrypted(input, output, key);
+                    else
+                        input.CopyTo(output);
+                }
+            }
+
+            output.Position = 0;
+            using (var header = new BinaryWriter(output, encoding, true))
+            {
+                header.Write((uint)header_size);
+
+                foreach (var entry in entries)
+                {
+                    header.Write((byte)'"');
+                    header.Write(encoding.GetBytes(entry.Name));
+                    header.Write((byte)'"');
+                    header.Write(entry.Size);
+                }
+
+                if (key != null && key.Length >= 96)
+                {
+                    long padding = header_size - output.Position;
+                    if (padding > 0)
+                        header.Write(new byte[padding]);
+                }
+            }
+
+            if (key != null)
+                EncryptArchive(output, key, header_size);
+        }
+
+        private void CopyEncrypted(Stream input, Stream output, byte[] key)
+        {
+            if (key.Length < 96)
+            {
+                var buffer = new byte[4096];
+                int key_pos = 0;
+                int read;
+                while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    for (int i = 0; i < read; i++)
+                        buffer[i] ^= key[key_pos++ % key.Length];
+                    output.Write(buffer, 0, read);
+                }
+            }
+            else
+            {
+                input.CopyTo(output);
+            }
+        }
+
+        private void EncryptArchive(Stream output, byte[] key, long header_size)
+        {
+            if (key.Length < 96)
+                return; // this encryption already applied during copy
+
+            const int BlockSize = 32;
+            var md5 = new Cryptography.MD5();
+            var seed = new byte[64];
+            var temp = new byte[32];
+            var hash = new byte[16];
+            var block = new byte[BlockSize];
+
+            output.Position = 0;
+            long remaining = output.Length;
+
+            using (var temp_output = new MemoryStream())
+            {
+                while (remaining >= BlockSize)
+                {
+                    output.Read(block, 0, BlockSize);
+
+                    // Encrypt block
+                    int key1 = 0;
+                    int key2 = 48;
+
+                    // First half
+                    Buffer.BlockCopy(block, 16, seed, 0, 16);
+                    Buffer.BlockCopy(key, key2, seed, 16, 48);
+
+                    md5.Initialize();
+                    md5.Update(seed, 0, seed.Length);
+                    Buffer.BlockCopy(md5.State, 0, hash, 0, 16);
+
+                    for (int j = 0; j < 16; j++)
+                    {
+                        temp[16 + j] = (byte)(hash[j] ^ block[j]);
+                    }
+
+                    // Second half  
+                    Buffer.BlockCopy(temp, 16, seed, 0, 16);
+                    Buffer.BlockCopy(key, key1, seed, 16, 48);
+
+                    md5.Initialize();
+                    md5.Update(seed, 0, seed.Length);
+                    Buffer.BlockCopy(md5.State, 0, hash, 0, 16);
+
+                    for (int j = 0; j < 16; j++)
+                    {
+                        temp[j] = (byte)(hash[j] ^ block[16 + j]);
+                    }
+
+                    // Final round
+                    Buffer.BlockCopy(temp, 0, seed, 0, 16);
+                    Buffer.BlockCopy(key, key1, seed, 16, 48);
+
+                    md5.Initialize();
+                    md5.Update(seed, 0, seed.Length);
+                    Buffer.BlockCopy(md5.State, 0, hash, 0, 16);
+
+                    temp_output.Write(temp, 16, 16);
+                    for (int j = 0; j < 16; j++)
+                    {
+                        temp_output.WriteByte((byte)(hash[j] ^ temp[j]));
+                    }
+
+                    remaining -= BlockSize;
+                }
+
+                // Copy any remaining bytes
+                if (remaining > 0)
+                {
+                    var remainder = new byte[remaining];
+                    output.Read(remainder, 0, (int)remaining);
+                    temp_output.Write(remainder, 0, (int)remaining);
+                }
+
+                output.Position = 0;
+                temp_output.Position = 0;
+                temp_output.CopyTo(output);
+            }
+        }
+
+
         public override object GetAccessWidget ()
         {
             return new GUI.WidgetNSA (KnownKeys);

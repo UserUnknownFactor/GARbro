@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
+
 using GameRes;
 using GARbro.GUI.Strings;
 using GARbro.GUI.Properties;
@@ -52,7 +53,7 @@ namespace GARbro.GUI
                         entry.Type == "video")
                     {
                         // Use format conversion instead of extraction
-                        ConvertSingleFile(entry);
+                        ConvertSingleFile (entry);
                         return;
                     }
 
@@ -90,15 +91,15 @@ namespace GARbro.GUI
         /// <summary>
         /// Convert a single image or audio file using the conversion dialog.
         /// </summary>
-        private void ConvertSingleFile(EntryViewModel entry)
+        private void ConvertSingleFile (EntryViewModel entry)
         {
             if (entry == null || (entry.Type != "image" && entry.Type != "audio"))
                 return;
 
             var convert_dialog = new ConvertMedia();
 
-            string destination = Path.GetDirectoryName(entry.Source.Name);
-            if (!IsWritableDirectory(destination) && Directory.Exists(Settings.Default.appLastDestination))
+            string destination = Path.GetDirectoryName (entry.Source.Name);
+            if (!IsWritableDirectory (destination) && Directory.Exists (Settings.Default.appLastDestination))
                 destination = Settings.Default.appLastDestination;
             convert_dialog.DestinationDir.Text = destination;
 
@@ -110,8 +111,8 @@ namespace GARbro.GUI
             try
             {
                 destination = convert_dialog.DestinationDir.Text;
-                Directory.SetCurrentDirectory(destination);
-                var converter = new GarConvertMedia(this);
+                Directory.SetCurrentDirectory (destination);
+                var converter = new GarConvertMedia (this);
                 converter.IgnoreErrors = convert_dialog.IgnoreErrors.IsChecked ?? false;
 
                 var entries = new List<Entry> { entry.Source };
@@ -120,13 +121,13 @@ namespace GARbro.GUI
                 {
                     var imageFormat = convert_dialog.ImageConversionFormat.SelectedItem as ImageFormat;
                     if (imageFormat != null)
-                        converter.ConvertImages(entries, imageFormat);
+                        converter.ConvertImages (entries, imageFormat);
                 }
                 else if (entry.Type == "audio")
                 {
                     var audioFormat = convert_dialog.AudioConversionFormat.SelectedItem as AudioFormat;
                     if (audioFormat != null)
-                        converter.ConvertAudios(entries, audioFormat);
+                        converter.ConvertAudios (entries, audioFormat);
                 }
 
                 Settings.Default.appLastDestination = destination;
@@ -134,7 +135,7 @@ namespace GARbro.GUI
             }
             catch (Exception X)
             {
-                PopupError(X.Message, guiStrings.TextMediaConvertError);
+                PopupError (X.Message, guiStrings.TextMediaConvertError);
             }
         }
     }
@@ -408,6 +409,7 @@ namespace GARbro.GUI
             var pixels = new byte[height*dst_stride];
             int offset = y * dst_stride + x * image.BPP / 8;
             Int32Rect rect = new Int32Rect (src_x, src_y, (int)image.Width - src_x, 1);
+
             for (int row = src_y; row < image.Height; ++row)
             {
                 rect.Y = row;
@@ -458,9 +460,8 @@ namespace GARbro.GUI
             m_main.Activate();
             m_main.ListViewFocus();
             if (!m_main.ViewModel.IsArchive)
-            {
                 m_main.Dispatcher.Invoke (m_main.RefreshView);
-            }
+
             m_main.SetStatusText (Localization.Format ("MsgExtractedFiles", m_extract_count));
             this.Dispose();
         }

@@ -68,13 +68,13 @@ namespace GARbro.GUI
             }
             if (string.IsNullOrEmpty (dialog.ArchiveName.Text))
             {
-                m_main.SetStatusText ("Archive name is empty");
+                m_main.SetFileStatus (Localization._T("Archive name is empty"));
                 return false;
             }
             m_format = dialog.ArchiveFormat.SelectedItem as ArchiveFormat;
             if (null == m_format)
             {
-                m_main.SetStatusText ("Format is not selected");
+                m_main.SetFileStatus (Localization._T("Format is not selected"));
                 return false;
             }
             m_options = dialog.ArchiveOptions;
@@ -131,8 +131,9 @@ namespace GARbro.GUI
             m_pending_error = null;
             try
             {
-                using (var tmp_file = new GARbro.Shell.TemporaryFile (Path.GetDirectoryName (m_arc_name),
-                                                                    Path.GetRandomFileName ()))
+                using (var tmp_file = new GARbro.Shell.TemporaryFile (
+                        Path.GetDirectoryName (m_arc_name),
+                        Path.GetRandomFileName ()))
                 {
                     m_total = m_file_list.Count() + 1;
                     using (var file = File.Create (tmp_file.Name))
@@ -165,7 +166,7 @@ namespace GARbro.GUI
             else
             {
                 if (m_pending_error is OperationCanceledException)
-                    m_main.SetStatusText (m_pending_error.Message);
+                    m_main.SetFileStatus (m_pending_error.Message);
                 else
                     m_main.PopupError (m_pending_error.Message, guiStrings.TextCreateArchiveError);
             }

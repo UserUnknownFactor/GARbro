@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.IO;
 using System.Windows.Media;
+using System.Xml.Linq;
 using GameRes.Formats.DirectDraw;
 using GameRes.Utility;
 
@@ -25,166 +26,288 @@ namespace GameRes.Formats.Unity
         DXT5Crunched = 29,
     }
 
-    internal class Texture2D
+    internal class Texture2D: NamedObject
     {
-        public string   m_Name;
+        public int      m_ForcedFallbackFormat;
+        public bool     m_DownscaleFallback;
+        public bool     m_IsAlphaChannelOptional;
+
         public int      m_Width;
         public int      m_Height;
         public int      m_CompleteImageSize;
+        public int      m_MipsStripped;
         public TextureFormat m_TextureFormat;
         public int      m_MipCount;
+        public bool     m_MipMap;
         public bool     m_IsReadable;
+        public bool     m_IsPreProcessed;
+        public bool     m_IgnoreMasterTextureLimit;
+        public bool     m_IgnoreMipmapLimit;
+        public string   m_MipmapLimitGroupName;
         public bool     m_ReadAllowed;
+        public bool     m_StreamingMipmaps;
+        public int      m_StreamingMipmapsPriority;
         public int      m_ImageCount;
         public int      m_TextureDimension;
         public int      m_FilterMode;
         public int      m_Aniso;
         public float    m_MipBias;
         public int      m_WrapMode;
-        public int      m_LightFormat;
+        public int      m_WrapV;
+        public int      m_WrapW;
+        public int      m_LightmapFormat;
         public int      m_ColorSpace;
+        public byte[]   m_PlatformBlob;
         public int      m_DataLength;
         public byte[]   m_Data;
+        public StreamingInfo m_StreamData;
 
-        public void Load (AssetReader reader)
+        private AssetReader m_assetReader;
+
+        public new void Load(AssetReader reader)
         {
-            m_Name = reader.ReadString();
-            reader.Align();
-            m_Width = reader.ReadInt32();
-            m_Height = reader.ReadInt32();
-            m_CompleteImageSize = reader.ReadInt32();
-            m_TextureFormat = (TextureFormat)reader.ReadInt32();
-            m_MipCount = reader.ReadInt32();
-            if (reader.Format > 9)
+            Load(reader, new UnityTypeData());
+        }
+
+        public void Load(AssetReader reader, UnityTypeData type)
+        {
+            m_assetReader = reader;
+
+            var version = type.Version;
+
+            base.Load(reader);
+
+            if (version[0] > 2017 || (version[0] == 2017 && version[1] >= 3)) // 2017.3+
             {
-                m_IsReadable = reader.ReadBool();
-                m_ReadAllowed = reader.ReadBool();
+                if (version[0] < 2023 || (version[0] == 2023 && version[1] < 2)) // < 2023.2
+                {
+                    m_ForcedFallbackFormat = reader.ReadInt32();
+                    m_DownscaleFallback = reader.ReadBool();
+                }
+                if (version[0] > 2020 || (version[0] == 2020 && version[1] >= 2)) // 2020.2+
+                    m_IsAlphaChannelOptional = reader.ReadBool();
                 reader.Align();
             }
-            m_ImageCount = reader.ReadInt32();
-            m_TextureDimension = reader.ReadInt32();
-            m_FilterMode = reader.ReadInt32();
-            m_Aniso = reader.ReadInt32();
-            m_MipBias = reader.ReadFloat();
-            m_WrapMode = reader.ReadInt32();
-            m_LightFormat = reader.ReadInt32();
-            m_ColorSpace = reader.ReadInt32();
-            m_DataLength = reader.ReadInt32();
-        }
 
-        public void Load (AssetReader reader, UnityTypeData type)
-        {
-            if ("2021.1.3f1" == type.Version) // type.Hashes[28] == [0D 08 41 4C FD 5B DB 0D 22 79 20 11 BD A9 AB 26]
+            m_Width = reader.ReadInt32();
+            m_Height = reader.ReadInt32();
+            m_CompleteImageSize = reader.ReadInt32();
+
+            if (version[0] > 2020 || (version[0] == 2020 && version[1] >= 1)) // 2020.1+
+                m_MipsStripped = reader.ReadInt32();
+
+            m_TextureFormat = (TextureFormat)reader.ReadInt32();
+
+            if (version[0] < 5 || (version[0] == 5 && version[1] < 2)) // < 5.2
+                m_MipMap = reader.ReadBool();
+            else
+                m_MipCount = reader.ReadInt32();
+
+            if (version[0] > 2 || (version[0] == 2 && version[1] >= 6)) // 2.6+
+                m_IsReadable = reader.ReadBool();
+
+            if (version[0] > 2020 || (version[0] == 2020 && version[1] >= 1)) // 2020.1+
+                m_IsPreProcessed = reader.ReadBool();
+            if ((version[0] == 2019 && version[1] >= 3) || (version[0] > 2019 && version[0] < 2022) ||
+                (version[0] == 2022 && version[1] < 2)) // 2019.3 - 2022.2
+                m_IgnoreMasterTextureLimit = reader.ReadBool();
+
+            if (version[0] > 2022 || (version[0] == 2022 && version[1] >= 2)) // 2022.2+
             {
-                Load2021 (reader);
-                return;
+                m_IgnoreMipmapLimit = reader.ReadBool();
+                reader.Align();
+                m_MipmapLimitGroupName = reader.ReadString();
+                reader.Align();
             }
-            if (type.Version != "2017.3.1f1" && type.Version != "2019.3.0f1" && type.Version != "2017.4.3f1")
+            if (version[0] >= 3 && version[0] <= 5 && (version[0] < 5 || version[1] <= 4)) // 3.0 - 5.4
+                m_ReadAllowed = reader.ReadBool();
+
+            if (version[0] > 2018 || (version[0] == 2018 && version[1] >= 2)) // 2018.2+
+                m_StreamingMipmaps = reader.ReadBool();
+
+            reader.Align();
+
+            if (version[0] > 2018 || (version[0] == 2018 && version[1] >= 2)) // 2018.2+
+                m_StreamingMipmapsPriority = reader.ReadInt32();
+
+            m_ImageCount = reader.ReadInt32();
+            m_TextureDimension = reader.ReadInt32();
+
+            // GLTextureSettings
+            m_FilterMode = reader.ReadInt32();
+            m_Aniso = reader.ReadInt32();
+            m_MipBias = reader.ReadFloat();
+            m_WrapMode = reader.ReadInt32(); // m_WrapU
+            if (version[0] >= 2017) // 2017+
             {
-                Load (reader);
-                if (0 == m_DataLength && type.Version.StartsWith ("2017.")) // "2017.2.0f3" || "2017.1.1p1"
-                    reader.ReadInt64();
-                return;
+                m_WrapV = reader.ReadInt32();
+                m_WrapW = reader.ReadInt32();
             }
-            // type hash = [1E 87 D8 2D 4F D0 58 50 9A 3C 78 66 DB 0E 73 56]
-            m_Name = reader.ReadString();
-            reader.Align();
-            reader.ReadInt32(); // m_ForcedFallbackFormat
-            reader.ReadInt32(); // m_DownscaleFallback
-            m_Width = reader.ReadInt32();
-            m_Height = reader.ReadInt32();
-            m_CompleteImageSize = reader.ReadInt32();
-            m_TextureFormat = (TextureFormat)reader.ReadInt32();
-            m_MipCount = reader.ReadInt32();
-            m_IsReadable = reader.ReadBool();
-            reader.Align();
-            if ("2019.3.0f1" == type.Version) // type hash = [EE 6C 40 81 7D 29 51 92 9C DB 4F 5A 60 87 4F 5D]
-                reader.ReadInt32(); // m_StreamingMipmapsPriority
-            m_ImageCount = reader.ReadInt32();
-            m_TextureDimension = reader.ReadInt32();
-            m_FilterMode = reader.ReadInt32();
-            m_Aniso = reader.ReadInt32();
-            m_MipBias = reader.ReadFloat();
-            m_WrapMode = reader.ReadInt32(); // m_WrapU
-            reader.ReadInt32(); // m_WrapV
-            reader.ReadInt32(); // m_WrapW
-            reader.ReadInt32(); // m_LightmapFormat 
-            m_ColorSpace = reader.ReadInt32();
-            m_DataLength = reader.ReadInt32();
-        }
 
-        public void Load2017 (AssetReader reader)
-        {
-            m_Name = reader.ReadString();
-            reader.Align();
-            reader.ReadInt32(); // m_ForcedFallbackFormat
-            reader.ReadInt32(); // m_DownscaleFallback
-            m_Width = reader.ReadInt32();
-            m_Height = reader.ReadInt32();
-            m_CompleteImageSize = reader.ReadInt32();
-            m_TextureFormat = (TextureFormat)reader.ReadInt32();
-            m_MipCount = reader.ReadInt32();
-            m_IsReadable = reader.ReadBool();
-            reader.Align();
-            m_ImageCount = reader.ReadInt32();
-            m_TextureDimension = reader.ReadInt32();
-            m_FilterMode = reader.ReadInt32();
-            m_Aniso = reader.ReadInt32();
-            m_MipBias = reader.ReadFloat();
-            m_WrapMode = reader.ReadInt32(); // m_WrapU
-            reader.ReadInt32(); // m_WrapV
-            reader.ReadInt32(); // m_WrapW
-            reader.ReadInt32(); // m_LightmapFormat 
-            m_ColorSpace = reader.ReadInt32();
-            m_DataLength = reader.ReadInt32();
-        }
+            if (version[0] >= 3) // 3.0+
+                m_LightmapFormat = reader.ReadInt32();
+            if (version[0] > 3 || (version[0] == 3 && version[1] >= 5)) // 3.5+
+                m_ColorSpace = reader.ReadInt32();
+            if (version[0] > 2020 || (version[0] == 2020 && version[1] >= 2)) // 2020.2+
+            {
+                int platformBlobLength = reader.ReadInt32();
+                m_PlatformBlob = reader.ReadBytes(platformBlobLength);
+                reader.Align();
+            }
 
-        public void Load2021 (AssetReader reader)
-        {
-            m_Name = reader.ReadString();
-            reader.Align();
-            reader.ReadInt32(); // m_ForcedFallbackFormat
-            reader.ReadInt32(); // m_DownscaleFallback
-            m_Width = reader.ReadInt32();
-            m_Height = reader.ReadInt32();
-            m_CompleteImageSize = reader.ReadInt32();
-            reader.ReadInt32(); // m_MipsStripped;
-            m_TextureFormat = (TextureFormat)reader.ReadInt32();
-            m_MipCount = reader.ReadInt32();
-            m_IsReadable = reader.ReadBool();
-            reader.Align();
-            reader.ReadInt32(); // m_StreamingMipmapsPriority
-            m_ImageCount = reader.ReadInt32();
-            m_TextureDimension = reader.ReadInt32();
-            m_FilterMode = reader.ReadInt32();
-            m_Aniso = reader.ReadInt32();
-            m_MipBias = reader.ReadFloat();
-            m_WrapMode = reader.ReadInt32(); // m_WrapU
-            reader.ReadInt32(); // m_WrapV
-            reader.ReadInt32(); // m_WrapW
-            reader.ReadInt32(); // m_LightmapFormat 
-            m_ColorSpace = reader.ReadInt32();
-            reader.ReadInt32();
             m_DataLength = reader.ReadInt32();
+
+            if (m_DataLength > 0)
+                m_Data = reader.ReadBytes(m_DataLength);
+
+            if (version[0] > 5 || (version[0] == 5 && version[1] >= 3)) // 5.3+
+            {
+                m_StreamData = new StreamingInfo();
+                m_StreamData.Load(reader, type);
+            }
         }
 
         public void LoadData (AssetReader reader)
         {
-            m_Data = reader.ReadBytes (m_DataLength);
+            if (m_StreamData != null && m_StreamData.Size > 0 && !string.IsNullOrEmpty(m_StreamData.Path))
+                m_Data = LoadStreamingData(reader.Name);
+            else if (m_Data == null || m_Data.Length == 0)
+                m_Data = reader.ReadBytes(m_DataLength);
         }
+
+        private byte[] LoadStreamingData(string source)
+        {
+            if (m_StreamData == null || string.IsNullOrEmpty(m_StreamData.Path))
+                return null;
+
+            string resourcePath = m_StreamData.Path;
+            try
+            {
+                // First try to find the file in the entire VFS hierarchy
+                try
+                {
+                    var entry = VFS.FindFileInHierarchy(resourcePath);
+                    if (entry != null)
+                    {
+                        using (var input = VFS.OpenStreamInHierarchy(entry))
+                        {
+                            return VFS.ReadFromAnyStream(input, m_StreamData.Offset, m_StreamData.Size);
+                        }
+                    }
+                }
+                catch (FileNotFoundException)
+                {
+                }
+
+                // If not found and it's a .resS file, try relative to current archive
+                if (resourcePath.EndsWith(".resS", StringComparison.OrdinalIgnoreCase))
+                {
+                    var assetFile = m_assetReader;
+                    if (assetFile != null && VFS.CurrentArchive != null)
+                    {
+                        try
+                        {
+                            // Try to find in the same directory as the current archive
+                            var entry = VFS.FindFileInArchiveDirectory(resourcePath);
+                            if (entry != null)
+                            {
+                                using (var input = VFS.OpenStreamInHierarchy(entry))
+                                {
+                                    return VFS.ReadFromAnyStream(input, m_StreamData.Offset, m_StreamData.Size);
+                                }
+                            }
+                        }
+                        catch (FileNotFoundException)
+                        {
+                            // Continue
+                        }
+
+                        // If still not found, try the real filesystem as a last resort
+                        var dir = VFS.GetDirectoryName(VFS.CurrentArchive.File.Name);
+                        if (VFS.IsPathRooted(dir))
+                        {
+                            var fullPath = Path.Combine(dir, resourcePath);
+                            if (File.Exists(fullPath))
+                            {
+                                using (var input = BinaryStream.FromFile(fullPath))
+                                {
+                                    input.Position = m_StreamData.Offset;
+                                    var data = new byte[m_StreamData.Size];
+                                    input.Read(data, 0, (int)m_StreamData.Size);
+                                    return data;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Try with just the filename if all else fails
+                var fileName = VFS.GetFileName(resourcePath);
+                if (fileName != resourcePath)
+                {
+                    try
+                    {
+                        var entry = VFS.FindFileInHierarchy(fileName);
+                        if (entry != null)
+                        {
+                            using (var input = VFS.OpenStreamInHierarchy(entry))
+                            {
+                                return VFS.ReadFromAnyStream(input, m_StreamData.Offset, m_StreamData.Size);
+                            }
+                        }
+                    }
+                    catch (FileNotFoundException)
+                    {
+                        new FileNotFoundException(String.Format("Unable to find resource {}.", resourcePath));
+                    }
+                }
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
 
         public void Import (IDictionary fields)
         {
-            m_Name = fields["m_Name"] as string ?? "";
-            m_Width = (int)(fields["m_Width"] ?? 0);
-            m_Height = (int)(fields["m_Height"] ?? 0);
+            m_Name              = fields["m_Name"] as string ?? "";
+            m_Width             = (int)(fields["m_Width"] ?? 0);
+            m_Height            = (int)(fields["m_Height"] ?? 0);
             m_CompleteImageSize = (int)(fields["m_CompleteImageSize"] ?? 0);
-            m_TextureFormat = (TextureFormat)(fields["m_TextureFormat"] ?? 0);
-            m_MipCount = (int)(fields["m_MipCount"] ?? 0);
-            m_ImageCount = (int)(fields["m_ImageCount"] ?? 0);
-            m_TextureDimension = (int)(fields["m_TextureDimension"] ?? 0);
-            m_IsReadable = (bool)(fields["m_IsReadable"] ?? false);
-            m_Data = fields["image data"] as byte[] ?? Array.Empty<byte>();
+            m_TextureFormat     = (TextureFormat)(fields["m_TextureFormat"] ?? 0);
+            m_MipCount          = (int)(fields["m_MipCount"] ?? 0);
+            m_ImageCount        = (int)(fields["m_ImageCount"] ?? 0);
+            m_TextureDimension  = (int)(fields["m_TextureDimension"] ?? 0);
+            m_IsReadable        = (bool)(fields["m_IsReadable"] ?? false);
+            m_Data              = fields["image data"] as byte[] ?? Array.Empty<byte>();
+        }
+
+        private int[] ParseUnityVersion(string versionString)
+        {
+            // Parse version string like "2021.1.3f1" to [2021, 1, 3]
+            var parts = versionString.Split('.');
+            var version = new int[3] { 0, 0, 0 };
+
+            for (int i = 0; i < Math.Min(parts.Length, 3); i++)
+            {
+                // Extract numeric part only
+                var numStr = "";
+                foreach (char c in parts[i])
+                {
+                    if (char.IsDigit(c))
+                        numStr += c;
+                    else
+                        break;
+                }
+
+                if (!string.IsNullOrEmpty(numStr))
+                    version[i] = int.Parse(numStr);
+            }
+
+            return version;
         }
     }
 
@@ -202,7 +325,7 @@ namespace GameRes.Formats.Unity
 
         public Texture2DDecoder (Texture2D texture, AssetReader input)
         {
-            m_reader = input;
+            m_reader  = input;
             m_texture = texture;
             Info = new ImageMetaData {
                 Width   = (uint)m_texture.m_Width,
@@ -246,6 +369,10 @@ namespace GameRes.Formats.Unity
         {
             if (null == m_texture.m_Data || 0 == m_texture.m_Data.Length)
                 m_texture.LoadData (m_reader);
+
+            if (null == m_texture.m_Data || 0 == m_texture.m_Data.Length)
+                throw new NotImplementedException("Can't locate Texture2D data.");
+
             byte[] pixels;
             switch (m_texture.m_TextureFormat)
             {
@@ -288,8 +415,10 @@ namespace GameRes.Formats.Unity
                     break;
                 }
             default:
-                throw new NotImplementedException (string.Format ("Not supported Unity Texture2D format '{0}'.", m_texture.m_TextureFormat));
+                throw new NotImplementedException (string.Format ("Unsupported Texture2D format: '{0}'.", m_texture.m_TextureFormat));
             }
+            if (pixels == null)
+                throw new NotImplementedException("Cannot read Texture2D data.");
             return ImageData.CreateFlipped (Info, Format, null, pixels, (int)Info.Width*((Format.BitsPerPixel+7)/8));
         }
 
@@ -340,32 +469,4 @@ namespace GameRes.Formats.Unity
             }
         }
     }
-    /*
---- Texture2D --- 2017.3.1f1 ---
-    string  m_Name
-    int     m_ForcedFallbackFormat
-    int     m_DownscaleFallback
-    int     m_Width
-    int     m_Height
-    int     m_CompleteImageSize
-    int     m_TextureFormat
-    int     m_MipCount
-    bool    m_IsReadable
-    int     m_ImageCount
-    int     m_TextureDimension
-    GLTextureSettings   m_TextureSettings // sizeof = 0x18
-        int     m_FilterMode
-        int     m_Aniso
-        float   m_MipBias
-        int     m_WrapU
-        int     m_WrapV
-        int     m_WrapW
-    int     m_LightmapFormat
-    int     m_ColorSpace
-    byte[]      image data // int + byte[]
-    StreamingInfo   m_StreamData
-        uint    offset
-        uint    size
-        string  path
-    */
 }

@@ -107,6 +107,21 @@ namespace GameRes.Formats.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("3")]
+        public byte RGSSVersion
+        {
+            get
+            {
+                return ((byte)(this["RGSSVersion"]));
+            }
+            set
+            {
+                this["RGSSVersion"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("False")]
         public bool XP3RetainStructure {
             get {

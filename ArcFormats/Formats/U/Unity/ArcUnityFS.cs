@@ -128,7 +128,7 @@ namespace GameRes.Formats.Unity
             if (null == tex)
             {
                 tex = new Texture2D();
-                tex.Load (reader);
+                tex.Load (reader, obj.Asset.Tree);
             }
             return new Texture2DDecoder (tex, reader);
         }
@@ -158,7 +158,6 @@ namespace GameRes.Formats.Unity
     {
         public BundleEntry  Bundle;
         public UnityObject  AssetObject;
-        public bool         IsEncrypted;
     }
 
     internal class UnityBundle : ArcFile

@@ -31,6 +31,187 @@ namespace GameRes.Formats.PkWare
         }
     }
 
+    public class ZipPkEntry
+    {
+        public string           Name { get; set; }
+        public long           Offset { get; set; }
+        public uint   CompressedSize { get; set; }
+        public uint UncompressedSize { get; set; }
+        public int CompressionMethod { get; set; }
+        public int   LocalHeaderSize { get; set; }
+    }
+
+    public class ZipPkStream : Stream
+    {
+        private readonly Stream m_stream;
+        private readonly   bool m_leave_open;
+        private            long m_position;
+
+        public ZipPkStream (Stream stream, bool leaveOpen = true)
+        {
+            m_stream     = stream ?? throw new ArgumentNullException (nameof (stream));
+            m_leave_open = leaveOpen;
+            m_position   = stream.Position;
+        }
+
+        public override bool  CanRead => m_stream.CanRead;
+        public override bool  CanSeek => m_stream.CanSeek;
+        public override bool CanWrite => false;
+        public override long   Length => m_stream.Length;
+        public override long Position
+        {
+            get => m_stream.Position;
+            set => m_stream.Position = value;
+        }
+
+        public List<ZipPkEntry> ReadCentralDirectory()
+        {
+            var entries = new List<ZipPkEntry>();
+
+            var eocdPos = FindEndOfCentralDirectory();
+            if (eocdPos < 0)
+                return entries;
+
+            m_stream.Position = eocdPos;
+            var reader = new BinaryReader (m_stream, Encoding.UTF8, true);
+
+            // Read EOCD
+            uint signature = reader.ReadUInt32();
+            if (signature != 0x06054b50)
+                return entries;
+
+            ushort diskNumber     = reader.ReadUInt16();
+            ushort centralDirDisk = reader.ReadUInt16();
+            ushort entriesOnDisk  = reader.ReadUInt16();
+            ushort totalEntries   = reader.ReadUInt16();
+            uint centralDirSize   = reader.ReadUInt32();
+            uint centralDirOffset = reader.ReadUInt32();
+            ushort commentLength  = reader.ReadUInt16();
+
+            m_stream.Position = centralDirOffset;
+
+            for (int i = 0; i < totalEntries; i++)
+            {
+                var entry = ReadCentralDirectoryEntry (reader);
+                if (entry != null)
+                    entries.Add (entry);
+            }
+
+            return entries;
+        }
+
+        private ZipPkEntry ReadCentralDirectoryEntry (BinaryReader reader)
+        {
+            uint signature = reader.ReadUInt32();
+            if (signature != 0x02014b50)
+                return null;
+
+            reader.ReadUInt16(); // version made by
+            reader.ReadUInt16(); // version needed
+            ushort flags = reader.ReadUInt16();
+            ushort compressionMethod = reader.ReadUInt16();
+            reader.ReadUInt32(); // last mod time/date
+            reader.ReadUInt32(); // crc32
+            uint compressedSize = reader.ReadUInt32();
+            uint uncompressedSize = reader.ReadUInt32();
+            ushort fileNameLength = reader.ReadUInt16();
+            ushort extraFieldLength = reader.ReadUInt16();
+            ushort commentLength = reader.ReadUInt16();
+            reader.ReadUInt16(); // disk number start
+            reader.ReadUInt16(); // internal attributes
+            reader.ReadUInt32(); // external attributes
+            uint localHeaderOffset = reader.ReadUInt32();
+
+            byte[] nameBytes = reader.ReadBytes (fileNameLength);
+            string name = Encoding.UTF8.GetString (nameBytes);
+
+            if (extraFieldLength > 0)
+                reader.ReadBytes (extraFieldLength);
+            if (commentLength > 0)
+                reader.ReadBytes (commentLength);
+
+            // Calculate local header size
+            long savedPos = m_stream.Position;
+            m_stream.Position = localHeaderOffset;
+            int localHeaderSize = CalculateLocalHeaderSize (reader);
+            m_stream.Position = savedPos;
+
+            return new ZipPkEntry
+            {
+                Name = name,
+                Offset = localHeaderOffset,
+                CompressedSize = compressedSize,
+                UncompressedSize = uncompressedSize,
+                CompressionMethod = compressionMethod,
+                LocalHeaderSize = localHeaderSize
+            };
+        }
+
+        private int CalculateLocalHeaderSize (BinaryReader reader)
+        {
+            uint signature = reader.ReadUInt32();
+            if (signature != 0x04034b50)
+                return 30; // default size
+
+            reader.ReadUInt16(); // version
+            reader.ReadUInt16(); // flags
+            reader.ReadUInt16(); // compression
+            reader.ReadUInt32(); // time/date
+            reader.ReadUInt32(); // crc32
+            reader.ReadUInt32(); // compressed size
+            reader.ReadUInt32(); // uncompressed size
+            ushort fileNameLength = reader.ReadUInt16();
+            ushort extraFieldLength = reader.ReadUInt16();
+
+            return 30 + fileNameLength + extraFieldLength;
+        }
+
+        private long FindEndOfCentralDirectory()
+        {
+            const int maxCommentSize = 65535;
+            const int eocdSize = 22;
+            long searchStart = Math.Max (0, m_stream.Length - maxCommentSize - eocdSize);
+
+            m_stream.Position = searchStart;
+            byte[] buffer = new byte[m_stream.Length - searchStart];
+            m_stream.Read (buffer, 0, buffer.Length);
+
+            for (int i = buffer.Length - eocdSize; i >= 0; i--)
+            {
+                if (buffer[i] == 0x50 && buffer[i + 1] == 0x4b &&
+                    buffer[i + 2] == 0x05 && buffer[i + 3] == 0x06)
+                {
+                    return searchStart + i;
+                }
+            }
+
+            return -1;
+        }
+
+        public override void Flush() => m_stream.Flush();
+
+        public override int Read (byte[] buffer, int offset, int count)
+            => m_stream.Read (buffer, offset, count);
+
+        public override long Seek (long offset, SeekOrigin origin)
+            => m_stream.Seek (offset, origin);
+
+        public override void SetLength (long value)
+            => throw new NotSupportedException();
+
+        public override void Write (byte[] buffer, int offset, int count)
+            => throw new NotSupportedException();
+
+        protected override void Dispose (bool disposing)
+        {
+            if (disposing && !m_leave_open)
+            {
+                m_stream?.Dispose();
+            }
+            base.Dispose (disposing);
+        }
+    }
+
     internal class PkZipArchive : ArcFile
     {
         readonly SharpZip.ZipFile m_zip;
@@ -182,10 +363,10 @@ namespace GameRes.Formats.PkWare
             return new GUI.WidgetZIP (DefaultScheme.KnownKeys);
         }
 
-        // TODO: GUI widget for options
-
-        public override void Create (Stream output, IEnumerable<Entry> list, ResourceOptions options,
-                                     EntryCallback callback)
+        public override void Create(
+            Stream output, IEnumerable<Entry> list, 
+            ResourceOptions options,EntryCallback callback
+        )
         {
             var zip_options = GetOptions<ZipOptions> (options);
             int callback_count = 0;
