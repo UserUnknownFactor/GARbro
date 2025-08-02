@@ -1,6 +1,7 @@
 bin
 obj
 tags
+*.obj
 *.exe
 *.dll
 *.pdb
@@ -8,6 +9,8 @@ tags
 *.pfx
 *.psess
 *.vsp
+*.psd
+*.xcf
 *;*
 *~
 Makefile
@@ -20,3 +23,5 @@ packages
 *.ksy
 *.user
 GARbro*.zip
+*.rar
+*.7z

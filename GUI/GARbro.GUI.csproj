@@ -112,15 +112,9 @@
   <!-- Resources and splash screen -->
   <ItemGroup>
     <SplashScreen Include="Images\splashscreen.png" />
-    <Resource Include="Images\32x32\back button.png" />
-    <Resource Include="Images\32x32\forward button.png" />
-    <Resource Include="Images\32x32\help.png" />
-    <Resource Include="Images\64x64\info.png" />
     <Resource Include="Images\sample.ico" />
-    <Resource Include="Images\48x48\refresh.png" />
     <Resource Include="Images\search4files.ico" />
-    <Resource Include="Images\Cursors\grab.cur" />
-    <Resource Include="Images\Cursors\grabbing.cur" />
+    <Resource Include="Images\64x64\info.png" />
     <Resource Include="Images\64x64\actions.png" />
     <Resource Include="Images\64x64\alert.png" />
   </ItemGroup>
@@ -135,13 +129,4 @@
   </ItemGroup>
 
   <!-- PreBuildEvent and PostBuildEvent -->
-  <!--
-  <PropertyGroup>
-    <PreBuildEvent>perl "$(SolutionDir)inc-revision.cmd" "$(ProjectPath)" $(ConfigurationName) "$(SolutionDir)\" exit 0</PreBuildEvent>
-  </PropertyGroup>
-  <PropertyGroup>
-    <PostBuildEvent>
-    </PostBuildEvent>
-  </PropertyGroup>
-  -->
 </Project>

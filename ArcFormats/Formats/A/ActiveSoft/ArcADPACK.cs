@@ -44,7 +44,7 @@ namespace GameRes.Formats.AdPack
                 if (string.IsNullOrEmpty (name))
                     return null;
 
-                var entry = null;
+                Entry entry = null;
                 try
                 {
                     entry = FormatCatalog.Instance.Create<Entry> (name);

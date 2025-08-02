@@ -25,7 +25,7 @@ namespace GARbro.GUI
             var entry = CurrentDirectory.SelectedItem as EntryViewModel;
             if (null == entry && !ViewModel.IsArchive)
             {
-                SetStatusText (guiStrings.MsgChooseFiles);
+                SetFileStatus (guiStrings.MsgChooseFiles);
                 return;
             }
             GarExtract extractor = null;
@@ -75,7 +75,7 @@ namespace GARbro.GUI
             }
             catch (OperationCanceledException X)
             {
-                SetStatusText (X.Message);
+                SetFileStatus (X.Message);
             }
             catch (Exception X)
             {
@@ -131,7 +131,7 @@ namespace GARbro.GUI
                 }
 
                 Settings.Default.appLastDestination = destination;
-                SetStatusText(string.Format("Converted {0}", entry.Name));
+                SetFileStatus (Localization.Format("Converted {0}", entry.Name));
             }
             catch (Exception X)
             {
@@ -204,7 +204,7 @@ namespace GARbro.GUI
             var file_list = m_fs.GetFilesRecursive();
             if (!file_list.Any())
             {
-                m_main.SetStatusText (string.Format ("{1}: {0}", guiStrings.MsgEmptyArchive, m_arc_name));
+                m_main.SetFileStatus (string.Format ("{1}: {0}", guiStrings.MsgEmptyArchive, m_arc_name));
                 return;
             }
             var extractDialog = new ExtractArchiveDialog (m_arc_name, destination);
@@ -227,7 +227,7 @@ namespace GARbro.GUI
             if (!m_skip_images)
                 m_image_format = extractDialog.GetImageFormat (extractDialog.ImageConversionFormat);
 
-            m_main.SetStatusText (string.Format(guiStrings.MsgExtractingTo, m_arc_name, destination));
+            m_main.SetFileStatus (string.Format (guiStrings.MsgExtractingTo, m_arc_name, destination));
             ExtractFilesFromArchive (string.Format (guiStrings.MsgExtractingArchive, m_arc_name), file_list);
         }
 
@@ -244,7 +244,7 @@ namespace GARbro.GUI
 
             if (!file_list.Any())
             {
-                m_main.SetStatusText (guiStrings.MsgChooseFiles);
+                m_main.SetFileStatus (guiStrings.MsgChooseFiles);
                 return;
             }
 
@@ -286,7 +286,7 @@ namespace GARbro.GUI
                                                   !(m_skip_audio  && f.Type == "audio"));
             if (!file_list.Any())
             {
-                m_main.SetStatusText (string.Format ("{1}: {0}", guiStrings.MsgNoFiles, m_arc_name));
+                m_main.SetFileStatus (string.Format ("{1}: {0}", guiStrings.MsgNoFiles, m_arc_name));
                 return;
             }
             file_list = file_list.OrderBy (e => e.Offset);
@@ -462,7 +462,7 @@ namespace GARbro.GUI
             if (!m_main.ViewModel.IsArchive)
                 m_main.Dispatcher.Invoke (m_main.RefreshView);
 
-            m_main.SetStatusText (Localization.Format ("MsgExtractedFiles", m_extract_count));
+            m_main.SetFileStatus (m_extract_count.Pluralize ("MsgExtractedFiles"));
             this.Dispose();
         }
 

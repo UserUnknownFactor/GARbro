@@ -20,12 +20,6 @@
         <SolidColorBrush x:Key="AlternateColor2" Color="White" />
         <SolidColorBrush x:Key="InactiveInputBackground" Color="#ebf5fe" />
 
-        <!-- toolbar icons -->
-        <BitmapImage x:Key="Icon32x32Back"      UriSource="Images/32x32/back button.png"/>
-        <BitmapImage x:Key="Icon32x32Forward"   UriSource="Images/32x32/forward button.png"/>
-        <BitmapImage x:Key="Icon32x32Help"      UriSource="Images/32x32/help.png"/>
-        <BitmapImage x:Key="Icon48x48Refresh"   UriSource="Images/48x48/refresh.png"/>
-
         <!-- directory view internals -->
         <CollectionViewSource x:Key="ListViewSource" Source="{Binding}"/>
         <local:BooleanToCollapsedVisibilityConverter x:Key="booleanToCollapsedVisibilityConverter" />
@@ -50,7 +44,7 @@
         <DataTemplate x:Key="SortArrowNone">
             <TextBlock Margin="5,0,5,0" Text="{Binding}"/>
         </DataTemplate>
-        
+
         <Style x:Key="DefaultMenuItemStyle" TargetType="{x:Type MenuItem}">
             <Setter Property="FontWeight" Value="Bold" />
         </Style>
@@ -90,6 +84,8 @@
                           Command="{x:Static local:Commands.SetFileType}" CommandParameter="{Binding}"/>
                 <MenuItem DataContext="script" Header="{Binding Converter={StaticResource entryTypeConverter}}"
                           Command="{x:Static local:Commands.SetFileType}" CommandParameter="{Binding}"/>
+                <MenuItem DataContext="video" Header="{Binding Converter={StaticResource entryTypeConverter}}"
+                          Command="{x:Static local:Commands.SetFileType}" CommandParameter="{Binding}"/>
                 <MenuItem Header="{x:Static s:guiStrings.Type_NONE}"
                           Command="{x:Static local:Commands.SetFileType}" CommandParameter=""/>
             </MenuItem>
@@ -110,6 +106,21 @@
                       Visibility="{Binding Path=IsEnabled, RelativeSource={RelativeSource Self}, Mode=OneWay, Converter={StaticResource booleanToCollapsedVisibilityConverter}}"
                       Command="{x:Static local:Commands.ConvertMedia}" />
         </ContextMenu>
+
+        <!-- Media Control Button Style -->
+        <Style x:Key="MediaControlButton" TargetType="Button">
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Margin" Value="2"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Gray"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#E0E0E0"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
 
     </Window.Resources>
     <DockPanel LastChildFill="True">
@@ -184,7 +195,7 @@
                     <Style.Triggers>
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
-                                <Condition Property="IsTextBoxFocused" Value="False"/>
+                                <!--Condition Property="IsTextBoxFocused" Value="False"/-->
                                 <Condition Property="IsMouseOver" Value="False"/>
                             </MultiTrigger.Conditions>
                             <Setter Property="Background" Value="{StaticResource InactiveInputBackground}"/>
@@ -194,19 +205,9 @@
                 <Style TargetType="{x:Type Image}">
                     <Setter Property="UseLayoutRounding" Value="True"/>
                     <Setter Property="SnapsToDevicePixels" Value="True"/>
-                    <!--
-                    <Setter Property="Width" Value="{Binding RelativeSource={RelativeSource Self}, Path=Source.Width}"/>
-                    <Setter Property="Height" Value="{Binding RelativeSource={RelativeSource Self}, Path=Source.Height}"/>
-                    <Setter Property="Stretch" Value="None"/>
-                    -->
                     <Setter Property="Width" Value="24"/>
                     <Setter Property="Height" Value="24"/>
                     <Setter Property="Stretch" Value="Uniform"/>
-                    <!-- hack to make images within disabled toolbar buttons appear 'grayed out'.
-                         This doesn't gray them at all, but lowers their opacity so the (usually gray)
-                         background of the button shows through.  If WPF had a built-in facility for
-                         grayscaling images in disabled buttons, this kind of icky kludgery wouldn't be
-                         necessary -->
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type Button}, AncestorLevel=1}, Path=IsEnabled}" Value="False">
                             <Setter Property="Opacity" Value="0.33"/>
@@ -217,11 +218,43 @@
             <Separator DockPanel.Dock="Bottom" Height="1" Margin="0"/>
             <Button x:Name="ButtonBack" ToolTip="{x:Static s:guiStrings.TooltipBack}" Margin="5,2,0,2"
                     Command="{x:Static local:Commands.GoBack}">
-                <Image Source="{StaticResource Icon32x32Back}"/>
+                <Viewbox Width="30" Height="30">
+                    <Viewbox.Style>
+                        <Style TargetType="Viewbox">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
+                                    <Setter Property="Opacity" Value="0.4"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Viewbox.Style>
+                    <Canvas Width="30" Height="30">
+                        <Ellipse Width="30" Height="30" Fill="#4A90E2"/>
+                        <Path Data="m 17.5 9.5 l -5.5 5.5 l 5.5 5.5 l -1.5 1.5 l -7 -7 l 7 -7 z" 
+                              Stroke="White" StrokeThickness="2" Fill="White" 
+                              StrokeLineJoin="Round" StrokeEndLineCap="Round" StrokeStartLineCap="Round"/>
+                    </Canvas>
+                </Viewbox>
             </Button>
             <Button x:Name="ButtonForward" ToolTip="{x:Static s:guiStrings.TooltipForward}"
                     Command="{x:Static local:Commands.GoForward}">
-                <Image Source="{StaticResource Icon32x32Forward}"/>
+                <Viewbox Width="30" Height="30">
+                    <Viewbox.Style>
+                        <Style TargetType="Viewbox">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
+                                    <Setter Property="Opacity" Value="0.4"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Viewbox.Style>
+                    <Canvas Width="30" Height="30">
+                        <Ellipse Width="30" Height="30" Fill="#4A90E2"/>
+                        <Path Data="m 12.5 9.5 l 5.5 5.5 l -5.5 5.5 l 1.5 1.5 l 7 -7 l -7 -7 z" 
+                              Stroke="White" StrokeThickness="2" Fill="White" 
+                              StrokeLineJoin="Round" StrokeEndLineCap="Round" StrokeStartLineCap="Round"/>
+                    </Canvas>
+                </Viewbox>
             </Button>
             <Separator/>
             <StackPanel Orientation="Horizontal" x:Name="PathWidget">
@@ -230,7 +263,13 @@
                         Background="{Binding ElementName=pathLine, Path=Background}"
                         BorderBrush="{Binding ElementName=pathLine, Path=BorderBrush}" BorderThickness="1"
                         Command="{x:Static local:Commands.Refresh}">
-                    <Image Source="{StaticResource Icon48x48Refresh}" Height="16" Width="16"/>
+                    <Viewbox Width="16" Height="16">
+                        <Canvas Width="24" Height="24">
+                            <Ellipse Width="24" Height="24" Fill="#4A90E2"/>
+                            <Path Data="M 12 6 A 6 6 0 1 1 6 12 L 8 12 A 4 4 0 1 0 12 8 L 12 6 M 6 12 L 4 12 L 7 7 L 10 12 L 6 12" 
+                                  Fill="White" StrokeThickness="0"/>
+                        </Canvas>
+                    </Viewbox>
                 </Button>
             </StackPanel>
             <StackPanel Orientation="Horizontal" x:Name="EncodingWidget" Visibility="{Binding ElementName=TextView, Path=Visibility}">
@@ -242,9 +281,58 @@
                           SelectedValuePath="CodePage" SelectionChanged="OnEncodingSelect"/>
                 <Separator/>
             </StackPanel>
+
+            <!-- Unified Media Controls -->
+            <StackPanel x:Name="MediaControlPanel" Orientation="Horizontal" Visibility="Collapsed">
+                <Separator/>
+                <Button x:Name="MediaStopButton" Style="{StaticResource MediaControlButton}"
+                        Command="{x:Static local:Commands.StopPlayback}"
+                        ToolTip="{x:Static s:guiStrings.TooltipStop}">
+                    <Path Fill="Black" Width="10" Height="10" Stretch="Uniform"
+                          Data="M0,0 L10,0 L10,10 L0,10 Z"/>
+                </Button>
+                <Button x:Name="MediaPauseButton" Style="{StaticResource MediaControlButton}"
+                        Command="{x:Static local:Commands.PausePlayback}"
+                        ToolTip="{x:Static s:guiStrings.TooltipPause}">
+                    <Path x:Name="MediaPauseIcon" Fill="DarkOrange" Width="10" Height="10" Stretch="Uniform"
+                          Data="M0,0 L3,0 L3,10 L0,10 Z M7,0 L10,0 L10,10 L7,10 Z"/>
+                </Button>
+                <Button x:Name="MediaCycleButton" Style="{StaticResource MediaControlButton}"
+                        Command="{x:Static local:Commands.CyclePlayback}"
+                        ToolTip="{x:Static s:guiStrings.TooltipCycleOff}"
+                        Visibility="Collapsed">
+                    <Path x:Name="MediaCycleIcon" Fill="DarkMagenta" Width="12" Height="10" Stretch="Uniform"
+                          Data="M4,5 L4,3 C4,1.5 5.5,0 7,0 L11,0 C12.5,0 14,1.5 14,3 L14,5 L16,5 L13,8 L10,5 L12,5 L12,3 C12,2.5 11.5,2 11,2 L7,2 C6.5,2 6,2.5 6,3 L6,5 M12,7 L12,9 C12,10.5 10.5,12 9,12 L5,12 C3.5,12 2,10.5 2,9 L2,7 L0,7 L3,4 L6,7 L4,7 L4,9 C4,9.5 4.5,10 5,10 L9,10 C9.5,10 10,9.5 10,9 L10,7"/>
+                </Button>
+                <Button x:Name="MediaAutoButton" Style="{StaticResource MediaControlButton}"
+                        Command="{x:Static local:Commands.AutoPlayback}"
+                        ToolTip="{x:Static s:guiStrings.TooltipAutoOff}"
+                        Visibility="Collapsed">
+                    <Path x:Name="MediaAutoIcon" Fill="SeaGreen" Width="10" Height="10" Stretch="Uniform"
+                          Data="M0,2.5 L4,2.5 L4,3.5 L0,3.5 Z M0,4.5 L4,4.5 L4,5.5 L0,5.5 Z M0,6.5 L4,6.5 L4,7.5 L0,7.5 Z M5,2.5 L8,5 L5,7.5 L5,6.5 L7,5 L5,3.5 Z"/>
+                </Button>
+               <Separator/>
+               <TextBlock Text="🔊" VerticalAlignment="Center" Margin="5,0,2,0"/>
+               <Slider x:Name="MediaVolumeSlider" 
+                       Width="80" 
+                       Minimum="0" 
+                       Maximum="1" 
+                       Value="0.8"
+                       VerticalAlignment="Center"
+                       ToolTip="{x:Static s:guiStrings.TooltipVolume}"
+                       ValueChanged="MediaVolumeSlider_ValueChanged"/>
+                <Separator/>
+            </StackPanel>
+
             <Button ToolTip="{x:Static s:guiStrings.MenuAbout}" DockPanel.Dock="Right" Margin="0,2,10,2"
                     Command="{x:Static local:Commands.About}">
-                <Image Source="{StaticResource Icon32x32Help}"/>
+                <Viewbox Width="32" Height="32">
+                    <Canvas Width="32" Height="32">
+                        <Ellipse Width="32" Height="32" Fill="#4A90E2"/>
+                        <Path Data="M 16 8 C 13.2 8 11 10.2 11 13 L 13.5 13 C 13.5 11.6 14.6 10.5 16 10.5 C 17.4 10.5 18.5 11.6 18.5 13 C 18.5 14.4 17.4 15.5 16 15.5 C 15.2 15.5 14.5 16.2 14.5 17 L 14.5 18 L 17.5 18 L 17.5 17.2 C 19.5 16.5 21 14.5 21 12 C 21 9 19 8 16 8 Z M 14.5 20 L 17.5 20 L 17.5 23 L 14.5 23 Z" 
+                              Fill="White" StrokeThickness="0"/>
+                    </Canvas>
+                </Viewbox>
             </Button>
             <TextBlock Visibility="Hidden"/>
         </DockPanel>
@@ -253,18 +341,11 @@
             <Separator Height="1" Margin="0"/>
             <StatusBar>
                 <StatusBarItem Width="{Binding ElementName=CurrentDirectory, Path=ActualWidth}">
-                    <TextBlock x:Name="appStatusText"/>
+                    <TextBlock x:Name="appFileStatus"/>
                 </StatusBarItem>
                 <Separator Width="1"/>
-                <StatusBarItem x:Name="appPlaybackControl" Visibility="Collapsed">
-                    <Button Width="18" Height="18"
-                            HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
-                            Command="{x:Static local:Commands.StopPlayback}">
-                        <Rectangle Stretch="Fill" Fill="Black" Width="8" Height="8"/>
-                    </Button>
-                </StatusBarItem>
                 <StatusBarItem>
-                    <TextBlock x:Name="appResourceText"/>
+                    <TextBlock x:Name="appPreviewStatus"/>
                 </StatusBarItem>
             </StatusBar>
         </StackPanel>
@@ -321,16 +402,6 @@
                                 <Setter Property="Background" Value="{StaticResource AlternateColor2}"/>
                             </MultiTrigger>
                             <!-- END alternate row color -->
-                            <!-- BEGIN context menu trigger -->
-                            <!--
-                            <DataTrigger Binding="{Binding Path=IsArchive}" Value="True">
-                                <Setter Property="ContextMenu" Value="{StaticResource lvArcContextMenu}"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding Path=IsArchive}" Value="False">
-                                <Setter Property="ContextMenu" Value="{StaticResource lvDirContextMenu}"/>
-                            </DataTrigger>
-                            -->
-                            <!-- END context menu trigger -->
                         </Style.Triggers>
                     </Style>
                 </ListView.ItemContainerStyle>
@@ -365,7 +436,7 @@
                               SizeChanged="PreviewSizeChanged">
                     <Image Name="ImageCanvas" Stretch="None" UseLayoutRounding="True" SnapsToDevicePixels="True"
                            local:TouchScrolling.IsEnabled="True" RenderOptions.BitmapScalingMode="NearestNeighbor"
-                           Cursor="Images/Cursors/grab.cur" local:TouchScrolling.DraggingCursor="Images/Cursors/grabbing.cur" />
+                           Cursor="Hand" local:TouchScrolling.DraggingCursor="Hand" />
                 </ScrollViewer>
                 <jv:TextViewer x:Name="TextView" Visibility="Collapsed" BorderThickness="1,0,0,0" BorderBrush="Black"/>
             </Grid>
@@ -422,6 +493,9 @@
         <CommandBinding Command="{x:Static local:Commands.About}"      Executed="AboutExec"      CanExecute="CanExecuteAlways"/>
         <CommandBinding Command="{x:Static local:Commands.CheckUpdates}" Executed="CheckUpdatesExec" CanExecute="CanExecuteUpdate"/>
         <CommandBinding Command="{x:Static local:Commands.StopPlayback}" Executed="StopPlaybackExec" CanExecute="CanExecutePlaybackControl"/>
+        <CommandBinding Command="{x:Static local:Commands.PausePlayback}" Executed="PausePlaybackExec" CanExecute="CanExecutePlaybackControl"/>
+        <CommandBinding Command="{x:Static local:Commands.CyclePlayback}" Executed="CyclePlaybackExec" CanExecute="CanExecutePlaybackControl"/>
+        <CommandBinding Command="{x:Static local:Commands.AutoPlayback}" Executed="AutoPlaybackExec" CanExecute="CanExecutePlaybackControl"/>
         <CommandBinding Command="{x:Static local:Commands.Preferences}" Executed="PreferencesExec" CanExecute="CanExecuteAlways"/>
         <CommandBinding Command="{x:Static local:Commands.ScaleImage}"  Executed="ScaleImageExec" CanExecute="CanExecuteScaleImage"/>
         <CommandBinding Command="{x:Static local:Commands.TroubleShooting}" Executed="TroubleShootingExec" CanExecute="CanExecuteAlways"/>

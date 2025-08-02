@@ -10,12 +10,14 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using GARbro.GUI.Properties;
 using GARbro.GUI.Strings;
+using GARbro.GUI.Preview;
 using GameRes;
 using Rnd.Windows;
 using Microsoft.Win32;
@@ -24,28 +26,53 @@ using NAudio.Wave;
 
 namespace GARbro.GUI
 {
+    public enum MediaType
+    {
+        None,
+        Audio,
+        Video
+    }
+
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
     public partial class MainWindow : Window
     {
         private App m_app;
-
         public App App { get { return m_app; } }
 
         internal static readonly GuiResourceSetting DownScaleImage = new GuiResourceSetting ("winDownScaleImage");
 
         const StringComparison StringIgnoreCase = StringComparison.CurrentCultureIgnoreCase;
 
+        private bool _isShuttingDown = false;
+        private readonly List<IDisposable> _activeStreams = new List<IDisposable>();
+
+        private ImagePreviewHandler _imagePreviewHandler;
+        private AudioPreviewHandler _audioPreviewHandler;
+        private VideoPreviewHandler _videoPreviewHandler;
+        private  TextPreviewHandler _textPreviewHandler;
+        private        MediaControl _mediaControl;
+
+        internal bool _isAutoPlaying = false;
+        internal bool _isAutoCycling = false;
+
+        internal ImagePreviewControl m_animated_image_viewer;
+        private VideoPreviewControl  m_video_preview_ctl;
+        private               string m_video_base_info = "";
+
         public MainWindow()
         {
             m_app = Application.Current as App;
             InitializeComponent();
+
             if (this.Top < 0) this.Top = 0;
             if (this.Left < 0) this.Left = 0;
+
             InitDirectoryChangesWatcher();
             InitPreviewPane();
-            InitUpdatesChecker();
+            //InitUpdatesChecker();
+            InitializeMediaControls();
 
             if (null == Settings.Default.appRecentFiles)
                 Settings.Default.appRecentFiles = new StringCollection();
@@ -57,12 +84,77 @@ namespace GARbro.GUI
             CurrentDirectory.SizeChanged += (s, e) => {
                 if (e.WidthChanged)
                 {
-                    pathLine.MinWidth = e.NewSize.Width-79;
-                    this.MinWidth = e.NewSize.Width+79;
+                    pathLine.MinWidth = e.NewSize.Width - 79;
+                    this.MinWidth = e.NewSize.Width + 79;
                 }
             };
+
             DownScaleImage.PropertyChanged += (s, e) => ApplyDownScaleSetting();
             pathLine.EnterKeyDown += acb_OnKeyDown;
+
+            this.Closing += OnClosing;
+        }
+
+        /// <summary>
+        /// Initialize media control system using existing XAML elements.
+        /// </summary>
+        private void InitializeMediaControls ()
+        {
+            _mediaControl = new MediaControl (
+                MediaControlPanel,
+                MediaPauseButton,
+                MediaStopButton,
+                MediaCycleButton,
+                MediaAutoButton,
+                MediaVolumeSlider
+            );
+
+            _mediaControl.ConfigureForMediaType (MediaType.None);
+        }
+
+        private MediaType _currentMediaType = MediaType.None;
+
+        /// <summary>
+        /// Update media controls visibility based on current media type.
+        /// </summary>
+        internal void UpdateMediaControlsVisibility (MediaType mediaType)
+        {
+            _currentMediaType = mediaType;
+            Dispatcher.Invoke(() => _mediaControl.ConfigureForMediaType (mediaType));
+        }
+
+        /// <summary>
+        /// Clean up resources when window is closing.
+        /// </summary>
+        private void OnClosing (object sender, CancelEventArgs e)
+        {
+            _isShuttingDown = true;
+            try
+            {
+                StopAudioPlayback();
+                StopVideoPlayback();
+                StopAnimationPlayback();
+
+                //SaveSettings();
+                DisposeAllStreams();
+                DisposePreviewHandlers();
+            }
+            catch (Exception X)
+            {
+                Trace.WriteLine (X.Message, "[OnClosing]");
+                Trace.WriteLine (X.StackTrace, "Stack trace");
+            }
+        }
+
+        /// <summary>
+        /// Dispose all preview handlers.
+        /// </summary>
+        private void DisposePreviewHandlers ()
+        {
+            _imagePreviewHandler?.Dispose();
+            _audioPreviewHandler?.Dispose();
+            _videoPreviewHandler?.Dispose();
+            _textPreviewHandler?.Dispose();
         }
 
         void WindowLoaded (object sender, RoutedEventArgs e)
@@ -90,7 +182,7 @@ namespace GARbro.GUI
             ViewModel = vm;
             lv_SelectItem (0);
             if (!vm.IsArchive)
-                SetStatusText (guiStrings.MsgReady);
+                SetFileStatus (guiStrings.MsgReady);
         }
 
         void WindowKeyDown (object sender, KeyEventArgs e)
@@ -112,34 +204,9 @@ namespace GARbro.GUI
         }
 
         /// <summary>
-        /// Save settings when main window is about to close
-        /// </summary>
-        protected override void OnClosing (CancelEventArgs e)
-        {
-            try
-            {
-                SaveSettings();
-                if (AudioDevice != null)
-                     AudioDevice = null;
-                if (CurrentAudio != null)
-                    CurrentAudio = null;
-                if (m_animated_image_viewer != null)
-                    m_animated_image_viewer.StopAnimation();
-                if (m_video_preview != null)
-                    m_video_preview.Stop();
-            }
-            catch (Exception X)
-            {
-                Trace.WriteLine (X.Message, "[OnClosing]");
-                Trace.WriteLine (X.StackTrace, "Stack trace");
-            }
-            base.OnClosing (e);
-        }
-
-        /// <summary>
         /// Manually save settings that are not automatically saved by bindings.
         /// </summary>
-        private void SaveSettings()
+        private void SaveSettings ()
         {
             if (null != m_lvSortByColumn)
             {
@@ -165,24 +232,30 @@ namespace GARbro.GUI
         }
 
         /// <summary>
-        /// Set status line text. Could be called from any thread.
+        /// Set preview status line text.<br/> 
+        /// Could be called from any thread.
         /// </summary>
-        public void SetStatusText (string text)
+        public void SetFileStatus (string text)
         {
-            Dispatcher.Invoke (() => { appStatusText.Text = text.Trim(); });
-        }
-
-        public void SetResourceText (string text)
-        {
-            Dispatcher.Invoke (() => { appResourceText.Text = text.Trim(); });
+            Dispatcher.Invoke(() => { appFileStatus.Text = text.Trim(); });
         }
 
         /// <summary>
-        /// Popup error message box. Could be called from any thread.
+        /// Set directoty listing status line text.<br/> 
+        /// Could be called from any thread.
+        /// </summary>
+        public void SetPreviewStatus (string text)
+        {
+            Dispatcher.Invoke(() => { appPreviewStatus.Text = text.Trim(); });
+        }
+
+        /// <summary>
+        /// Popup error message box.<br/> 
+        /// Could be called from any thread.
         /// </summary>
         public void PopupError (string message, string title)
         {
-            Dispatcher.Invoke (() => MessageBox.Show (this, message, title, MessageBoxButton.OK, MessageBoxImage.Error));
+            Dispatcher.Invoke(() => MessageBox.Show (this, message, title, MessageBoxButton.OK, MessageBoxImage.Error));
         }
 
         internal FileErrorDialogResult ShowErrorDialog (string error_title, string error_text, IntPtr parent_hwnd)
@@ -223,12 +296,12 @@ namespace GARbro.GUI
         LinkedList<string> m_recent_files;
 
         // Item1 = file name, Item2 = menu item string
-        public IEnumerable<Tuple<string,string>> RecentFiles
+        public IEnumerable<Tuple<string, string>> RecentFiles
         {
             get
             {
                 int i = 1;
-                return m_recent_files.Select (f => Tuple.Create (f, string.Format ("_{0} {1}", i++, f)));
+                return m_recent_files.Select (f => Tuple.Create (f, string.Format("_{0} {1}", i++, f)));
             }
         }
 
@@ -252,9 +325,8 @@ namespace GARbro.GUI
         }
 
         /// <summary>
-        /// Set data context of the ListView.
+        /// Data context of the <see cref="ListView"/>
         /// </summary>
-
         public DirectoryViewModel ViewModel
         {
             get
@@ -273,7 +345,7 @@ namespace GARbro.GUI
                 // update path textbox
                 var path_component = value.Path.Last();
                 if (string.IsNullOrEmpty (path_component) && value.Path.Count > 1)
-                    path_component = value.Path[value.Path.Count-2];
+                    path_component = value.Path[value.Path.Count - 2];
                 pathLine.Text = path_component;
 
                 if (value.IsArchive && value.Path.Count <= 2)
@@ -317,14 +389,15 @@ namespace GARbro.GUI
         {
             m_busy_state = true;
             Mouse.OverrideCursor = Cursors.Wait;
-            Dispatcher.InvokeAsync (() => {
+            Dispatcher.InvokeAsync(() => {
                 m_busy_state = false;
                 Mouse.OverrideCursor = null;
             }, DispatcherPriority.ApplicationIdle);
         }
 
         /// <summary>
-        /// Create view model corresponding to <paramref name="path">. Returns null on error.
+        /// Create view model corresponding to <paramref name="path">.
+        /// Returns <b>null</b> on error.
         /// </summary>
         DirectoryViewModel TryCreateViewModel (string path)
         {
@@ -334,14 +407,14 @@ namespace GARbro.GUI
             }
             catch (Exception X)
             {
-                SetStatusText (string.Format ("{0}: {1}", Path.GetFileName (path), X.Message));
+                SetFileStatus (string.Format("{0}: {1}", Path.GetFileName (path), X.Message));
                 return null;
             }
         }
 
         /// <summary>
-        /// Create view model corresponding to <paramref name="path"> or empty view model if there was
-        /// an error accessing path.
+        /// Create view model corresponding to <paramref name="path">
+        /// or empty view model if there was an error accessing path.
         /// </summary>
         DirectoryViewModel CreateViewModel (string path, bool suppress_warning = false)
         {
@@ -401,7 +474,6 @@ namespace GARbro.GUI
         /// <summary>
         /// Select specified item within CurrentDirectory and bring it into a view.
         /// </summary>
-
         void lv_SelectItem (EntryViewModel item)
         {
             if (item != null)
@@ -487,13 +559,13 @@ namespace GARbro.GUI
         {
             int current = CurrentDirectory.SelectedIndex;
             if (-1 == current)
-                 return null;
+                return null;
 
             return CurrentDirectory.ItemContainerGenerator.ContainerFromIndex (current) as ListViewItem;
         }
 
-        GridViewColumnHeader    m_lvSortByColumn = null;
-        ListSortDirection       m_lvSortDirection = ListSortDirection.Ascending;
+        GridViewColumnHeader m_lvSortByColumn = null;
+        ListSortDirection m_lvSortDirection = ListSortDirection.Ascending;
 
         public string SortMode
         {
@@ -501,7 +573,7 @@ namespace GARbro.GUI
             private set { SetValue (SortModeProperty, value); }
         }
 
-        public static readonly DependencyProperty SortModeProperty = 
+        public static readonly DependencyProperty SortModeProperty =
             DependencyProperty.RegisterAttached ("SortMode", typeof(string), typeof(MainWindow), new UIPropertyMetadata());
 
         void lv_SetSortMode (string sortBy, ListSortDirection direction)
@@ -535,7 +607,7 @@ namespace GARbro.GUI
         }
 
         /// <summary>
-        /// Sort Listview by columns
+        /// Sort Listview by columns.
         /// </summary>
         void lv_ColumnHeaderClicked (object sender, RoutedEventArgs e)
         {
@@ -560,18 +632,13 @@ namespace GARbro.GUI
 
             // Remove arrow from previously sorted header 
             if (m_lvSortByColumn != null && m_lvSortByColumn != headerClicked)
-            {
                 m_lvSortByColumn.Column.HeaderTemplate = Resources["SortArrowNone"] as DataTemplate;
-            }
 
             if (ListSortDirection.Ascending == direction)
-            {
                 headerClicked.Column.HeaderTemplate = Resources["SortArrowUp"] as DataTemplate;
-            }
             else
-            {
                 headerClicked.Column.HeaderTemplate = Resources["SortArrowDown"] as DataTemplate;
-            }
+
             m_lvSortByColumn = headerClicked;
             m_lvSortDirection = direction;
         }
@@ -579,7 +646,6 @@ namespace GARbro.GUI
         /// <summary>
         /// Handle "Sort By" commands.
         /// </summary>
-
         private void SortByExec (object sender, ExecutedRoutedEventArgs e)
         {
             string sort_by = e.Parameter as string;
@@ -603,9 +669,8 @@ namespace GARbro.GUI
         }
 
         /// <summary>
-        /// Event handler for keys pressed in the directory view pane
+        /// Event handler for keys pressed in the directory view pane.
         /// </summary>
-
         private void lv_TextInput (object sender, TextCompositionEventArgs e)
         {
             LookupItem (e.Text, e.Timestamp);
@@ -673,12 +738,11 @@ namespace GARbro.GUI
         /// <summary>
         /// Lookup item in listview pane by first letters of name.
         /// </summary>
-
         private void LookupItem (string key, int timestamp)
         {
             if (string.IsNullOrEmpty (key))
                 return;
-            if ("\x1B" == key) // escape key
+            if ("\x1B" == key) // Esc key
             {
                 m_current_input.Reset();
                 return;
@@ -699,7 +763,7 @@ namespace GARbro.GUI
             if (1 == m_current_input.Phrase.Length)
             {
                 // lookup starting from the next item
-                if (start_index != -1 && start_index+1 < source.Count)
+                if (start_index != -1 && start_index + 1 < source.Count)
                     ++start_index;
             }
             var items = source.Cast<EntryViewModel>();
@@ -768,10 +832,10 @@ namespace GARbro.GUI
             }
             catch (Exception X)
             {
-                // if VFS.FullPath throws an exception, ViewModel becomes inconsistent at this point
-                // and should be rebuilt
+                // if VFS.FullPath throws an exception, ViewModel becomes
+                // inconsistent at this point and should be rebuilt
                 ViewModel = CreateViewModel (VFS.Top.CurrentDirectory, true);
-                SetStatusText (X.Message);
+                SetFileStatus (X.Message);
                 return false;
             }
         }
@@ -835,7 +899,7 @@ namespace GARbro.GUI
             }
             catch (OperationCanceledException X)
             {
-                SetStatusText (X.Message);
+                SetFileStatus (X.Message);
             }
             catch (Exception X)
             {
@@ -854,7 +918,7 @@ namespace GARbro.GUI
             var vm = new DirectoryViewModel (VFS.FullPath, VFS.GetFiles(), VFS.IsVirtual);
             PushViewModel (vm);
             if (null != VFS.CurrentArchive)
-                SetStatusText (VFS.CurrentArchive.Description);
+                SetFileStatus (VFS.CurrentArchive.Description);
             lv_SelectItem (0);
         }
 
@@ -871,6 +935,7 @@ namespace GARbro.GUI
         /// </summary>
         private void OpenItemExec (object control, ExecutedRoutedEventArgs e)
         {
+            SetBusyState();
             EntryViewModel entry = null;
             var lvi = e.OriginalSource as ListViewItem;
             if (lvi != null)
@@ -881,7 +946,12 @@ namespace GARbro.GUI
                 return;
             if ("audio" == entry.Type)
             {
-                PlayFile (entry.Source);
+                StartAudioPlayback (entry.Source);
+                return;
+            }
+            else if ("video" == entry.Type)
+            {
+                StartVideoPlayback (entry.Source);
                 return;
             }
             OpenDirectoryEntry (ViewModel, entry);
@@ -911,7 +981,7 @@ namespace GARbro.GUI
                 if (null != vm && !vm.IsArchive)
                     new_dir = Path.Combine (old_dir, entry.Name);
                 if (vm.Path.Count > 1 && string.IsNullOrEmpty (old_dir))
-                    old_dir = vm.Path[vm.Path.Count-2];
+                    old_dir = vm.Path[vm.Path.Count - 2];
             }
             Trace.WriteLine (new_dir, "OpenDirectoryEntry");
             int old_fs_count = VFS.Count;
@@ -927,10 +997,10 @@ namespace GARbro.GUI
             {
                 PushViewModel (vm);
                 if (VFS.Count > old_fs_count && null != VFS.CurrentArchive)
-                    SetStatusText (string.Format ("{0}: {1}", VFS.CurrentArchive.Description,
-                        Localization.Format ("MsgFiles", VFS.CurrentArchive.Dir.Count())));
+                    SetFileStatus (string.Format("{0}: {1}", VFS.CurrentArchive.Description,
+                        VFS.CurrentArchive.Dir.Count().Pluralize("MsgFiles")));
                 else
-                    SetStatusText ("");
+                    SetFileStatus("");
             }
             if (".." == entry.Name)
                 lv_SelectItem (Path.GetFileName (old_dir));
@@ -938,102 +1008,610 @@ namespace GARbro.GUI
                 lv_SelectItem (0);
         }
 
-        WaveOutEvent    m_audio_device;
-        WaveOutEvent    AudioDevice
+        #region Preview Management
+
+        private readonly BackgroundWorker m_preview_worker = new BackgroundWorker();
+        private PreviewFile m_current_preview = new PreviewFile();
+        private bool m_preview_pending = false;
+
+        private UIElement m_active_viewer;
+        public UIElement ActiveViewer
         {
-            get { return m_audio_device; }
+            get { return m_active_viewer; }
             set
             {
-                var old_value = m_audio_device;
-                m_audio_device = value;
-                if (old_value != null)
-                    old_value.Dispose();
+                if (value == m_active_viewer)
+                    return;
+                m_active_viewer = value;
+                m_active_viewer.Visibility = Visibility.Visible;
+                bool exists = false;
+                foreach (UIElement c in PreviewPane.Children)
+                {
+                    if (c != m_active_viewer)
+                        c.Visibility = Visibility.Collapsed;
+                    else
+                        exists = true;
+                }
+                if (!exists)
+                    PreviewPane.Children.Add (m_active_viewer);
             }
         }
 
-        WaveStream      m_audio_input;
-        WaveStream      CurrentAudio
+        /// <summary>
+        /// Show video preview and hide other viewers.
+        /// </summary>
+        public void ShowVideoPreview (VideoPreviewControl videoControl)
         {
-            get { return m_audio_input; }
-            set
-            {
-                var old_value = m_audio_input;
-                m_audio_input = value;
-                if (old_value != null)
-                    old_value.Dispose();
-            }
+            ImageCanvas.Visibility = Visibility.Collapsed;
+            m_animated_image_viewer.Visibility = Visibility.Collapsed;
+            videoControl.Visibility = Visibility.Visible;
+            ActiveViewer = videoControl;
+            UpdateMediaControlsVisibility (MediaType.Video);
         }
 
-        private void PlayFile (Entry entry)
+        /// <summary>
+        /// Show image preview and hide other viewers.
+        /// </summary>
+        public void ShowImagePreview()
         {
-            IBinaryStream input = null;
-            SoundInput sound = null;
+            m_animated_image_viewer.Visibility = Visibility.Collapsed;
+            if (m_video_preview_ctl != null)
+                m_video_preview_ctl.Visibility = Visibility.Collapsed;
+            ImageCanvas.Visibility = Visibility.Visible;
+            ActiveViewer = ImageView;
+        }
+
+        /// <summary>
+        /// Show animated image preview and hide other viewers.
+        /// </summary>
+        public void ShowAnimatedImagePreview (ImagePreviewControl animatedViewer)
+        {
+            ImageCanvas.Visibility = Visibility.Collapsed;
+            if (m_video_preview_ctl != null)
+                m_video_preview_ctl.Visibility = Visibility.Collapsed;
+            animatedViewer.Visibility = Visibility.Visible;
+            ActiveViewer = animatedViewer;
+        }
+
+        /// <summary>
+        /// Show text preview and hide other viewers (except audio controls if playing).
+        /// </summary>
+        public void ShowTextPreview()
+        {
+            ImageCanvas.Visibility = Visibility.Collapsed;
+            m_animated_image_viewer.Visibility = Visibility.Collapsed;
+            if (m_video_preview_ctl != null)
+                m_video_preview_ctl.Visibility = Visibility.Collapsed;
+            TextView.Visibility = Visibility.Visible;
+            ActiveViewer = TextView;
+        }
+
+        /// <summary>
+        /// Initialize preview pane and handlers.
+        /// </summary>
+        private void InitPreviewPane ()
+        {
+            m_preview_worker.DoWork += (s, e) => LoadPreviewImage (e.Argument as PreviewFile);
+            m_preview_worker.RunWorkerCompleted += (s, e) => {
+                if (m_preview_pending)
+                    RefreshPreviewPane();
+            };
+
+            m_animated_image_viewer = new ImagePreviewControl();
+            m_animated_image_viewer.Stretch = ImageCanvas.Stretch;
+            m_animated_image_viewer.StretchDirection = ImageCanvas.StretchDirection;
+
+            m_video_preview_ctl = new VideoPreviewControl();
+            m_video_preview_ctl.StatusChanged += (status) => {
+                m_video_base_info = status;
+                SetPreviewStatus (status);
+            };
+            m_video_preview_ctl.PositionChanged += (pos, dur) => UpdateVideoPosition (pos, dur);
+            m_video_preview_ctl.MediaEnded += () => OnVideoEnded (null, null);
+            m_video_preview_ctl.PlaybackStateChanged += (isPlaying) => UpdateVideoControls (isPlaying);
+
+            PreviewPane.Children.Add (m_animated_image_viewer);
+            PreviewPane.Children.Add (m_video_preview_ctl);
+
+            ActiveViewer = ImageView;
+            TextView.IsWordWrapEnabled = true;
+
+            _imagePreviewHandler = new ImagePreviewHandler (this, ImageCanvas, m_animated_image_viewer);
+            _audioPreviewHandler = new AudioPreviewHandler (this);
+            _videoPreviewHandler = new VideoPreviewHandler (this, m_video_preview_ctl);
+            _textPreviewHandler = new TextPreviewHandler (this);
+        }
+
+        private IEnumerable<Encoding> m_encoding_list = GetEncodingList();
+        public IEnumerable<Encoding> TextEncodings { get { return m_encoding_list; } }
+
+        internal static IEnumerable<Encoding> GetEncodingList (bool exclude_utf16 = false)
+        {
+            var list = new HashSet<Encoding>();
             try
             {
-                SetBusyState();
-                input = VFS.OpenBinaryStream (entry);
-                FormatCatalog.Instance.LastError = null;
-                sound = AudioFormat.Read (input);
-                if (null == sound)
-                {
-                    if (null != FormatCatalog.Instance.LastError)
-                        throw FormatCatalog.Instance.LastError;
-                    return;
-                }
-
-                if (AudioDevice != null)
-                {
-                    AudioDevice.PlaybackStopped -= OnPlaybackStopped;
-                    AudioDevice = null;
-                }
-                CurrentAudio = new WaveStreamImpl (sound);
-                AudioDevice = new WaveOutEvent();
-                // conversion to sample provider somehow removes crackling at the end of WAV sound clips.
-                if ("wav" == sound.SourceFormat || 8 == sound.Format.BitsPerSample)
-                    AudioDevice.Init (CurrentAudio.ToSampleProvider());
-                else
-                    AudioDevice.Init (CurrentAudio);
-                AudioDevice.PlaybackStopped += OnPlaybackStopped;
-                AudioDevice.Play();
-                appPlaybackControl.Visibility = Visibility.Visible;
-                var fmt = CurrentAudio.WaveFormat;
-                SetResourceText (string.Format (guiStrings.MsgPlaying, entry.Name,
-                                                fmt.SampleRate, sound.SourceBitrate / 1000,
-                                                CurrentAudio.TotalTime.ToString ("m':'ss")));
-                input = null;
+                list.Add (Encoding.Default);
+                var oem = CultureInfo.CurrentCulture.TextInfo.OEMCodePage;
+                list.Add (Encoding.GetEncoding (oem));
             }
             catch (Exception X)
             {
-                SetStatusText (X.Message);
-                if (null != sound)
-                    sound.Dispose();
+                if (X is ArgumentException || X is NotSupportedException)
+                    list.Add (Encoding.GetEncoding (20127)); //default to US-ASCII
+                else
+                    throw;
             }
-            finally
+            list.Add (Encoding.GetEncoding (932));
+            list.Add (Encoding.GetEncoding (936));
+            list.Add (Encoding.UTF8);
+            if (!exclude_utf16)
             {
-                if (input != null)
-                    input.Dispose();
+                list.Add (Encoding.Unicode);
+                list.Add (Encoding.BigEndianUnicode);
+            }
+            return list;
+        }
+
+        private void OnEncodingSelect (object sender, SelectionChangedEventArgs e)
+        {
+            var enc = this.EncodingChoice.SelectedItem as Encoding;
+            if (null == enc || null == CurrentTextInput)
+                return;
+            TextView.CurrentEncoding = enc;
+        }
+
+        /// <summary>
+        /// Display entry in preview panel.
+        /// </summary>
+        private void PreviewEntry (Entry entry)
+        {
+            if (m_current_preview.IsEqual (ViewModel.Path, entry) && entry.Type != "video")
+                return;
+            UpdatePreviewPane (entry);
+        }
+
+        void RefreshPreviewPane()
+        {
+            m_preview_pending = false;
+            var current = CurrentDirectory.SelectedItem as EntryViewModel;
+            if (null != current)
+                UpdatePreviewPane (current.Source);
+            else
+                ResetPreviewPane();
+        }
+
+        /// <summary>
+        /// Reset all preview panes to default state.
+        /// </summary>
+        void ResetPreviewPane()
+        {
+            ActiveViewer = ImageView;
+
+            _imagePreviewHandler?.Reset();
+            _videoPreviewHandler?.Reset();
+            _textPreviewHandler?.Reset();
+            // Note: Don't reset audio handler to keep audio playing
+
+            m_video_base_info = "";
+            CurrentTextInput = null;
+        }
+
+        bool IsPreviewPossible (Entry entry)
+        {
+            return "image" == entry.Type || "script" == entry.Type || "text" == entry.Type ||
+                   "config" == entry.Type || "video" == entry.Type ||
+                   (string.IsNullOrEmpty (entry.Type) && entry.Size < 0x100000);
+        }
+
+        /// <summary>
+        /// Update preview pane based on entry type.
+        /// </summary>
+        void UpdatePreviewPane (Entry entry)
+        {
+            var vm = ViewModel;
+            m_current_preview = new PreviewFile { Path = vm.Path, Name = entry.Name, Entry = entry, TempFile = null };
+
+            if ("video" == entry.Type)
+                StopAudioPlayback();  // since videos autoplay on preview
+            else if ("audio" == entry.Type && _videoPreviewHandler.IsActive)
+                StopVideoPlayback();  // stop video when audio is selected
+            else if (!_audioPreviewHandler.IsActive){
+                UpdateMediaControlsVisibility (MediaType.None);
+                SetFileStatus("");
+                SetPreviewStatus("");
+            }
+
+            //if (!(_audioPreviewHandler.IsActive && entry.Type != "audio"))
+                //SetFileStatus("");
+
+            if (!IsPreviewPossible (entry))
+            {
+                ResetPreviewPane();
+                return;
+            }
+
+            if ("video" == entry.Type)
+            {
+                _videoPreviewHandler.LoadContent (m_current_preview);
+            }
+            else if ("audio" == entry.Type)
+            {
+                StartAudioPlayback (entry);
+            }
+            else if ("image" != entry.Type)
+            {
+                _textPreviewHandler.LoadContent (m_current_preview);
+                // Keep audio controls visible if audio is playing
+                if (_audioPreviewHandler != null && _audioPreviewHandler.IsActive)
+                    UpdateMediaControlsVisibility (MediaType.Audio);
+            }
+            else if (!m_preview_worker.IsBusy)
+            {
+                m_preview_worker.RunWorkerAsync (m_current_preview);
+            }
+            else
+            {
+                m_preview_pending = true;
             }
         }
 
-        private void StopPlaybackExec (object sender, ExecutedRoutedEventArgs e)
+        private Stream m_current_text;
+        private Stream CurrentTextInput
         {
-            if (AudioDevice != null)
-                AudioDevice.Stop();
+            get { return m_current_text; }
+            set
+            {
+                if (value == m_current_text)
+                    return;
+                if (null != m_current_text)
+                    m_current_text.Dispose();
+                m_current_text = value;
+            }
         }
 
-        private void OnPlaybackStopped (object sender, StoppedEventArgs e)
+        /// <summary>
+        /// Load preview image using background worker.
+        /// </summary>
+        void LoadPreviewImage (PreviewFile preview)
         {
+            _imagePreviewHandler.LoadContent (preview);
+        }
+
+        #endregion
+
+        #region Audio Playback Management
+
+        /// <summary>
+        /// Start audio playback for entry.
+        /// </summary>
+        private void StartAudioPlayback (Entry entry)
+        {
+            StopVideoPlayback();
+            StopAudioPlayback();
+
+            var preview = new PreviewFile { Entry = entry, Name = entry.Name, Path = ViewModel.Path, TempFile = null };
+            _audioPreviewHandler.LoadContent (preview);
+        }
+
+        /// <summary>
+        /// Stop audio playback.
+        /// </summary>
+        private void StopAudioPlayback ()
+        {
+            if (_audioPreviewHandler != null && _audioPreviewHandler.IsActive)
+            {
+                _audioPreviewHandler.Reset();
+                if (_currentMediaType == MediaType.Audio)
+                {
+                    UpdateMediaControlsVisibility (MediaType.None);
+                    SetPreviewStatus("");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Pause/resume audio playback.
+        /// </summary>
+        private void PauseAudioPlayback ()
+        {
+            _audioPreviewHandler?.Pause();
+        }
+
+        /// <summary>
+        /// Update audio control button states.
+        /// </summary>
+        internal void UpdateAudioControls()
+        {
+            bool isPaused = _audioPreviewHandler?.IsPaused ?? false;
+            if (_currentMediaType == MediaType.Video)
+                isPaused = !(_videoPreviewHandler?.IsPlaying ?? false);
+
+            _mediaControl.UpdateButtonStates (isPaused, _isAutoPlaying, _isAutoCycling);
+        }
+
+        /// <summary>
+        /// Get auto play status string.
+        /// </summary>
+        internal string GetAutoPlayStatus()
+        {
+            if (_isAutoCycling)
+            {
+                if (_isAutoPlaying)
+                    return Localization._T("Repeat (Dir)");
+                else
+                    return Localization._T("Repeat (File)");
+            }
+            else if (_isAutoPlaying)
+            {
+                return Localization._T("Auto (Dir)");
+            }
+            return Localization._T("Manual");
+        }
+
+        /// <summary>
+        /// Handle playback stopped event.
+        /// </summary>
+        internal void OnPlaybackStopped (object sender, StoppedEventArgs e)
+        {
+            if (_isShuttingDown)
+                return;
+
             try
             {
-                SetResourceText ("");
-                CurrentAudio = null;
-                appPlaybackControl.Visibility = Visibility.Collapsed;
+                if (_isAutoCycling || _isAutoPlaying)
+                {
+                    if (PlayNextAudio())
+                        return;
+                    else
+                    {
+                        if (_isAutoPlaying && !_isAutoCycling)
+                            SetFileStatus (guiStrings.MsgReachedLastAudio);
+                    }
+                }
+                StopAudioPlayback();
             }
             catch (Exception X)
             {
                 Trace.WriteLine (X.Message, "[OnPlaybackStopped]");
             }
         }
+
+        /// <summary>
+        /// Play next audio file in directory.
+        /// </summary>
+        private bool PlayNextAudio ()
+        {
+            int currentIndex = CurrentDirectory.SelectedIndex;
+            if (currentIndex < 0)
+                return false;
+
+            for (int i = currentIndex; i < CurrentDirectory.Items.Count; i++)
+            {
+                var next_i = i + 1;
+                if (_isAutoCycling)
+                {
+                    if (!_isAutoPlaying)
+                        next_i = i;
+                    else if (next_i >= CurrentDirectory.Items.Count)
+                    {
+                        next_i = 0;
+                        var firstEntry = CurrentDirectory.Items[next_i] as EntryViewModel;
+                        while (firstEntry.Source is SubDirEntry && next_i < CurrentDirectory.Items.Count - 2)
+                        {
+                            next_i++;
+                            firstEntry = CurrentDirectory.Items[next_i] as EntryViewModel;
+                        }
+                    }
+                }
+                else
+                {
+                    if (next_i >= CurrentDirectory.Items.Count)
+                        return false;
+                }
+
+                var nextEntry = CurrentDirectory.Items[next_i] as EntryViewModel;
+                if (nextEntry != null && nextEntry.Type == "audio")
+                {
+                    CurrentDirectory.SelectedIndex = next_i;
+                    StartAudioPlayback (nextEntry.Source);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        #endregion
+
+        #region Video Playback Management
+
+        /// <summary>
+        /// Start video playback for entry.
+        /// </summary>
+        private void StartVideoPlayback (Entry entry)
+        {
+            StopVideoPlayback();
+            StopAudioPlayback();
+
+            if (m_video_preview_ctl != null && m_video_preview_ctl.Visibility == Visibility.Visible)
+            {
+                m_video_preview_ctl.Stop();
+                m_video_preview_ctl.Play();
+            }
+            else
+            {
+                PreviewEntry (entry);
+            }
+            UpdateMediaControlsVisibility (MediaType.Video);
+        }
+
+        /// <summary>
+        /// Stop video playback.
+        /// </summary>
+        private void StopVideoPlayback ()
+        {
+            if (_videoPreviewHandler != null && _videoPreviewHandler.IsActive)
+            {
+                _videoPreviewHandler.Reset();
+                if (_currentMediaType == MediaType.Video && !_audioPreviewHandler.IsActive)
+                {
+                    UpdateMediaControlsVisibility (MediaType.None);
+                    SetPreviewStatus ("");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Stop animation playback.
+        /// </summary>
+        private void StopAnimationPlayback ()
+        {
+            if (m_animated_image_viewer != null)
+                m_animated_image_viewer.StopAnimation();
+        }
+
+        private void UpdateVideoPosition (TimeSpan position, TimeSpan duration)
+        {
+            if (m_video_preview_ctl == null || !m_video_preview_ctl.IsVisible)
+                return;
+            var timeInfo = $"{FormatTimeSpan (position)} / {FormatTimeSpan (duration)}";
+            if (!string.IsNullOrEmpty (m_video_preview_ctl.CurrentCodecInfo))
+                SetPreviewStatus($"{m_video_preview_ctl.CurrentCodecInfo} | {timeInfo}");
+            else
+                SetPreviewStatus (Localization.Format("Video: {}", timeInfo));
+        }
+
+        private void UpdateVideoControls (bool isPlaying)
+        {
+            UpdateAudioControls();
+        }
+
+        private string FormatTimeSpan (TimeSpan timeSpan)
+        {
+            return timeSpan.Hours > 0
+                ? $"{timeSpan.Hours:D2}:{timeSpan.Minutes:D2}:{timeSpan.Seconds:D2}"
+                : $"{timeSpan.Minutes:D2}:{timeSpan.Seconds:D2}";
+        }
+
+        private void OnVideoEnded (object sender, RoutedEventArgs e)
+        {
+            StopVideoPlayback();
+        }
+
+        private void OnVideoFailed (object sender, ExceptionRoutedEventArgs e)
+        {
+            StopVideoPlayback();
+            SetFileStatus (Localization.Format("Video playback failed: {}", e.ErrorException.Message));
+        }
+
+        #endregion
+
+        #region Media Control Commands
+
+        /// <summary>
+        /// Handle volume slider changes.
+        /// </summary>
+        private void MediaVolumeSlider_ValueChanged (object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_currentMediaType == MediaType.Audio && _audioPreviewHandler != null)
+                _audioPreviewHandler.SetVolume((float)e.NewValue);
+            else if (_currentMediaType == MediaType.Video && _videoPreviewHandler != null)
+                _videoPreviewHandler.SetVolume (e.NewValue);
+        }
+
+        /// <summary>
+        /// Execute stop playback command.
+        /// </summary>
+        private void StopPlaybackExec (object sender, ExecutedRoutedEventArgs e)
+        {
+            if (_currentMediaType == MediaType.Audio)
+                StopAudioPlayback();
+            else if (_currentMediaType == MediaType.Video)
+                StopVideoPlayback();
+        }
+
+        /// <summary>
+        /// Execute pause playback command.
+        /// </summary>
+        private void PausePlaybackExec (object sender, ExecutedRoutedEventArgs e)
+        {
+            if (_currentMediaType == MediaType.Audio)
+                PauseAudioPlayback();
+            else if (_currentMediaType == MediaType.Video)
+            {
+                if (_videoPreviewHandler.IsPlaying)
+                    _videoPreviewHandler.Pause();
+                else
+                    _videoPreviewHandler.Play();
+            }
+        }
+
+        /// <summary>
+        /// Toggle cycle playback mode.
+        /// </summary>
+        private void CyclePlaybackExec (object sender, ExecutedRoutedEventArgs e)
+        {
+            _isAutoCycling = !_isAutoCycling;
+            UpdateAudioControls();
+        }
+
+        /// <summary>
+        /// Toggle auto playback mode.
+        /// </summary>
+        private void AutoPlaybackExec (object sender, ExecutedRoutedEventArgs e)
+        {
+            _isAutoPlaying = !_isAutoPlaying;
+            UpdateAudioControls();
+        }
+
+        #endregion
+
+        #region Stream Management
+
+        /// <summary>
+        /// Register a stream for cleanup.
+        /// </summary>
+        internal void RegisterStream (IDisposable stream)
+        {
+            lock (_activeStreams)
+            {
+                _activeStreams.Add (stream);
+            }
+        }
+
+        /// <summary>
+        /// Remove a stream from cleanup list.
+        /// </summary>
+        internal void RemoveStream (IDisposable stream)
+        {
+            lock (_activeStreams)
+            {
+                _activeStreams.Remove (stream);
+            }
+        }
+
+        /// <summary>
+        /// Dispose all active streams.
+        /// </summary>
+        private void DisposeAllStreams ()
+        {
+            lock (_activeStreams)
+            {
+                foreach (var stream in _activeStreams)
+                {
+                    try
+                    {
+                        stream.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        Trace.WriteLine ($"Error disposing stream: {ex.Message}");
+                    }
+                }
+                _activeStreams.Clear();
+            }
+        }
+
+        #endregion
 
         /// <summary>
         /// Launch specified file.
@@ -1046,7 +1624,7 @@ namespace GARbro.GUI
             }
             catch (Exception X)
             {
-                SetStatusText (X.Message);
+                SetFileStatus (X.Message);
             }
         }
 
@@ -1058,7 +1636,7 @@ namespace GARbro.GUI
             RefreshView();
         }
 
-        public void RefreshView ()
+        public void RefreshView()
         {
             VFS.Flush();
             var pos = GetCurrentPosition();
@@ -1068,7 +1646,6 @@ namespace GARbro.GUI
         /// <summary>
         /// Open current file in Explorer.
         /// </summary>
-
         private void ExploreItemExec (object sender, ExecutedRoutedEventArgs e)
         {
             var entry = CurrentDirectory.SelectedItem as EntryViewModel;
@@ -1077,11 +1654,10 @@ namespace GARbro.GUI
                 try
                 {
                     string name = Path.Combine (CurrentPath, entry.Name);
-                    Process.Start ("explorer.exe", "/select,"+name);
+                    Process.Start ("explorer.exe", "/select," + name);
                 }
                 catch (Exception X)
                 {
-                    // ignore
                     Trace.WriteLine (X.Message, "explorer.exe");
                 }
             }
@@ -1105,19 +1681,19 @@ namespace GARbro.GUI
                 {
                     string item_name = Path.Combine (CurrentPath, items.First().Name);
                     Trace.WriteLine (item_name, "DeleteItemExec");
-                    FileOperationHelper.DeleteToRecycleBin(item_name, true); // true = show dialogs
+                    FileOperationHelper.DeleteToRecycleBin (item_name, true); // true = show dialogs
                     DeleteItem (lv_GetCurrentContainer());
-                    SetStatusText (string.Format(guiStrings.MsgDeletedItem, item_name));
+                    SetFileStatus (string.Format (guiStrings.MsgDeletedItem, item_name));
                 }
                 else
                 {
                     int count = 0;
-                    StopWatchDirectoryChanges ();
+                    StopWatchDirectoryChanges();
                     try
                     {
                         var file_list = items.Select (entry => Path.Combine (CurrentPath, entry.Name));
-                        if (!GARbro.Shell.File.Delete (file_list, new WindowInteropHelper(this).Handle))
-                            throw new ApplicationException ("Delete operation failed.");
+                        if (!GARbro.Shell.File.Delete (file_list, new WindowInteropHelper (this).Handle))
+                            throw new ApplicationException("Delete operation failed.");
                         count = file_list.Count();
                     }
                     finally
@@ -1125,7 +1701,7 @@ namespace GARbro.GUI
                         ResumeWatchDirectoryChanges();
                     }
                     RefreshView();
-                    SetStatusText (Localization.Format ("MsgDeletedItems", count));
+                    SetFileStatus (Localization.Format("MsgDeletedItems", count));
                 }
             }
             catch (OperationCanceledException)
@@ -1133,7 +1709,7 @@ namespace GARbro.GUI
             }
             catch (Exception X)
             {
-                SetStatusText (X.Message);
+                SetFileStatus (X.Message);
             }
             finally
             {
@@ -1142,14 +1718,14 @@ namespace GARbro.GUI
         }
 
         /// <summary>
-        /// Delete item at the specified position within ListView, correctly adjusting current
+        /// Delete item at the specified position within ListView, correctly adjusting current.
         /// position.
         /// </summary>
         private void DeleteItem (ListViewItem item)
         {
             int i = CurrentDirectory.SelectedIndex;
             int next = -1;
-            if (i+1 < CurrentDirectory.Items.Count)
+            if (i + 1 < CurrentDirectory.Items.Count)
                 next = i + 1;
             else if (i > 0)
                 next = i - 1;
@@ -1167,7 +1743,7 @@ namespace GARbro.GUI
         /// <summary>
         /// Rename selected item.
         /// </summary>
-        private void RenameItemExec(object sender, ExecutedRoutedEventArgs e)
+        private void RenameItemExec (object sender, ExecutedRoutedEventArgs e)
         {
             RenameElement (lv_GetCurrentContainer());
         }
@@ -1175,11 +1751,11 @@ namespace GARbro.GUI
         /// <summary>
         /// Rename item contained within specified framework control.
         /// </summary>
-        void RenameElement (ListViewItem  item)
+        void RenameElement (ListViewItem item)
         {
             if (item == null)
                 return;
-/*
+            /*
             TextBlock block = FindByName (item, "item_Text") as TextBlock;
             TextBox box = FindSibling (block, "item_Input") as TextBox;
 
@@ -1193,7 +1769,7 @@ namespace GARbro.GUI
             box.Visibility = Visibility.Visible;
             box.Select (0, box.Text.Length);
             box.Focus();
-*/
+            */
         }
 
         /// <summary>
@@ -1210,7 +1786,7 @@ namespace GARbro.GUI
                     if (!string.IsNullOrEmpty (ext))
                         ext_list.Add (ext);
                 }
-                var selection = new EnterMaskDialog (ext_list.Select (ext => "*"+ext));
+                var selection = new EnterMaskDialog (ext_list.Select (ext => "*" + ext));
                 selection.Owner = this;
                 var result = selection.ShowDialog();
                 if (!result.Value)
@@ -1225,7 +1801,7 @@ namespace GARbro.GUI
                 var matching = ViewModel.Where (entry => glob.IsMatch (entry.Name));
                 if (!matching.Any())
                 {
-                    SetStatusText (string.Format (guiStrings.MsgNoMatching, selection.Mask.Text));
+                    SetFileStatus (string.Format (guiStrings.MsgNoMatching, selection.Mask.Text));
                     return;
                 }
                 var selected = CurrentDirectory.SelectedItems.Cast<EntryViewModel>();
@@ -1233,11 +1809,11 @@ namespace GARbro.GUI
                 int count = matching.Count();
                 CurrentDirectory.SetSelectedItems (selected.Concat (matching));
                 if (count != 0)
-                    SetStatusText (Localization.Format ("MsgSelectedFiles", count));
+                    SetFileStatus (count.Pluralize("MsgSelectedFiles"));
             }
             catch (Exception X)
             {
-                SetStatusText (X.Message);
+                SetFileStatus (X.Message);
             }
         }
 
@@ -1253,7 +1829,7 @@ namespace GARbro.GUI
             {
                 try
                 {
-                    Clipboard.SetText (string.Join ("\r\n", names));
+                    Clipboard.SetText (string.Join("\r\n", names));
                 }
                 catch (Exception X)
                 {
@@ -1280,9 +1856,11 @@ namespace GARbro.GUI
         /// </summary>
         void ExitExec (object sender, ExecutedRoutedEventArgs e)
         {
+            StopAudioPlayback();
+            StopVideoPlayback();
             Application.Current.Shutdown();
         }
- 
+
         private void AboutExec (object sender, ExecutedRoutedEventArgs e)
         {
             var about = new AboutBox();
@@ -1309,6 +1887,132 @@ namespace GARbro.GUI
             DownScaleImage.Value = !DownScaleImage.Get<bool>();
         }
 
+        /// <summary>
+        /// Apply down scale setting to image viewer.
+        /// </summary>
+        internal void ApplyDownScaleSetting()
+        {
+            bool image_need_scale = DownScaleImage.Get<bool>();
+
+            if (image_need_scale)
+            {
+                if (ImageCanvas.Source != null)
+                {
+                    var image = ImageCanvas.Source;
+                    image_need_scale = image.Width > ImageView.ActualWidth || image.Height > ImageView.ActualHeight;
+                }
+                else if (m_animated_image_viewer.Source != null)
+                {
+                    var image = m_animated_image_viewer.Source;
+                    image_need_scale = image.Width > ImageView.ActualWidth || image.Height > ImageView.ActualHeight;
+                }
+            }
+
+            SetImageScaleMode (image_need_scale);
+        }
+
+        /// <summary>
+        /// Apply scaling to animated image viewer.
+        /// </summary>
+        internal void ApplyScalingToAnimatedViewer()
+        {
+            bool image_need_scale = DownScaleImage.Get<bool>();
+            if (image_need_scale && m_animated_image_viewer.Source != null)
+            {
+                var image = m_animated_image_viewer.Source;
+                image_need_scale = image.Width > ImageView.ActualWidth || image.Height > ImageView.ActualHeight;
+            }
+
+            if (image_need_scale)
+            {
+                m_animated_image_viewer.Stretch = Stretch.Uniform;
+                RenderOptions.SetBitmapScalingMode (m_animated_image_viewer, BitmapScalingMode.HighQuality);
+            }
+            else
+            {
+                m_animated_image_viewer.Stretch = Stretch.None;
+                RenderOptions.SetBitmapScalingMode (m_animated_image_viewer, BitmapScalingMode.NearestNeighbor);
+            }
+        }
+
+        private void SetImageScaleMode (bool scale)
+        {
+            if (scale)
+            {
+                ImageCanvas.Stretch = Stretch.Uniform;
+                RenderOptions.SetBitmapScalingMode (ImageCanvas, BitmapScalingMode.HighQuality);
+                ImageView.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
+                ImageView.HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
+
+                m_animated_image_viewer.Stretch = Stretch.Uniform;
+                RenderOptions.SetBitmapScalingMode (m_animated_image_viewer, BitmapScalingMode.HighQuality);
+            }
+            else
+            {
+                ImageCanvas.Stretch = Stretch.None;
+                RenderOptions.SetBitmapScalingMode (ImageCanvas, BitmapScalingMode.NearestNeighbor);
+                ImageView.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+                ImageView.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
+
+                m_animated_image_viewer.Stretch = Stretch.None;
+                RenderOptions.SetBitmapScalingMode (m_animated_image_viewer, BitmapScalingMode.NearestNeighbor);
+            }
+        }
+
+        /// <summary>
+        /// Fit window size to image.
+        /// </summary>
+        private void FitWindowExec (object sender, ExecutedRoutedEventArgs e)
+        {
+            ImageSource image = null;
+            if (ImageCanvas.Visibility == Visibility.Visible)
+                image = ImageCanvas.Source;
+            else if (m_animated_image_viewer.Visibility == Visibility.Visible)
+                image = m_animated_image_viewer.Source;
+
+            if (null == image)
+                return;
+
+            var width = image.Width + Settings.Default.lvPanelWidth.Value + 1;
+            var height = image.Height;
+            width = Math.Max (ContentGrid.ActualWidth, width);
+            height = Math.Max (ContentGrid.ActualHeight, height);
+            if (width > ContentGrid.ActualWidth || height > ContentGrid.ActualHeight)
+            {
+                ContentGrid.Width = width;
+                ContentGrid.Height = height;
+                this.SizeToContent = SizeToContent.WidthAndHeight;
+                Dispatcher.InvokeAsync(() => {
+                    this.SizeToContent = SizeToContent.Manual;
+                    ContentGrid.Width = double.NaN;
+                    ContentGrid.Height = double.NaN;
+                }, DispatcherPriority.ContextIdle);
+            }
+        }
+
+        private void PreviewSizeChanged (object sender, SizeChangedEventArgs e)
+        {
+            ImageSource image = null;
+            if (ImageCanvas.Visibility == Visibility.Visible)
+                image = ImageCanvas.Source;
+            else if (m_animated_image_viewer.Visibility == Visibility.Visible)
+                image = m_animated_image_viewer.Source;
+
+            if (null == image || !DownScaleImage.Get<bool>())
+                return;
+
+            SetImageScaleMode (image.Width > e.NewSize.Width || image.Height > e.NewSize.Height);
+        }
+
+        private void OnEntrySelectionChanged (object sender, SelectionChangedEventArgs e)
+        {
+            if (m_animated_image_viewer != null)
+                m_animated_image_viewer.StopAnimation();
+
+            if (m_video_preview_ctl != null)
+                m_video_preview_ctl.Stop();
+        }
+
         private void CanExecuteScaleImage (object sender, CanExecuteRoutedEventArgs e)
         {
             e.CanExecute = ImageCanvas.Source != null;
@@ -1332,7 +2036,7 @@ namespace GARbro.GUI
 
         private void CanExecutePlaybackControl (object sender, CanExecuteRoutedEventArgs e)
         {
-            e.CanExecute = CurrentAudio != null;
+            e.CanExecute = _currentMediaType != MediaType.None;
         }
 
         private void CanExecuteConvertMedia (object sender, CanExecuteRoutedEventArgs e)
@@ -1467,12 +2171,54 @@ namespace GARbro.GUI
                     PushViewModel (vm);
                     filename = Path.GetFileName (filename);
                     lv_SelectItem (filename);
-                    SetStatusText (string.Format("{0}: {1}", filename, X.Message));
+                    SetFileStatus (string.Format("{0}: {1}", filename, X.Message));
                 }
             }
             catch (Exception X)
             {
                 Trace.WriteLine (X.Message, "Drop event failed");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Represents a file being previewed.
+    /// </summary>
+    public class PreviewFile : IDisposable
+    {
+        public IEnumerable<string> Path { get; set; }
+        public              string Name { get; set; }
+        public              Entry Entry { get; set; }
+        public          string TempFile { get; set; }
+
+        public bool IsEqual (IEnumerable<string> path, Entry entry)
+        {
+            return Path != null && path.SequenceEqual (Path) && Entry == entry;
+        }
+
+        public bool IsRealFile
+        {
+            get
+            {
+                return string.IsNullOrEmpty (TempFile);
+            }
+        }
+
+        public string GetDisplayName()
+        {
+            return Name ?? System.IO.Path.GetFileName (TempFile) ?? Localization._T("Unknown");
+        }
+
+        public void Dispose()
+        {
+            if (string.IsNullOrEmpty (TempFile)) return;
+            if (File.Exists (TempFile))
+            {
+                try
+                {
+                    File.Delete (TempFile);
+                }
+                catch { }
             }
         }
     }
@@ -1498,14 +2244,14 @@ namespace GARbro.GUI
     {
         #region IValueConverter Members
 
-        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        public object Convert (object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
         {
             //reverse conversion (false=>Visible, true=>collapsed) on any given parameter
             bool input = (null == parameter) ? (bool)value : !((bool)value);
             return (input) ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+        public object ConvertBack (object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
         {
             throw new NotImplementedException();
         }
@@ -1542,6 +2288,9 @@ namespace GARbro.GUI
         public static readonly RoutedCommand NextItem = new RoutedCommand();
         public static readonly RoutedCommand CopyNames = new RoutedCommand();
         public static readonly RoutedCommand StopPlayback = new RoutedCommand();
+        public static readonly RoutedCommand PausePlayback = new RoutedCommand();
+        public static readonly RoutedCommand CyclePlayback = new RoutedCommand();
+        public static readonly RoutedCommand AutoPlayback = new RoutedCommand();
         public static readonly RoutedCommand Preferences = new RoutedCommand();
         public static readonly RoutedCommand TroubleShooting = new RoutedCommand();
         public static readonly RoutedCommand Descend = new RoutedCommand();
@@ -1570,9 +2319,9 @@ namespace GARbro.GUI
 
         // NOTE: this project is Windows-only so this works better than VisualBasic .NET dependency
         [DllImport("shell32.dll", CharSet = CharSet.Auto)]
-        private static extern int SHFileOperation(ref SHFILEOPSTRUCT FileOp);
+        private static extern int SHFileOperation (ref SHFILEOPSTRUCT FileOp);
 
-        public static void DeleteToRecycleBin(string path, bool showDialog = true)
+        public static void DeleteToRecycleBin (string path, bool showDialog = true)
         {
             var fileOp = new SHFILEOPSTRUCT
             {
@@ -1585,7 +2334,7 @@ namespace GARbro.GUI
             {
                 fileOp.fFlags |= FOF_NOCONFIRMATION; // Remove FOF_NOCONFIRMATION if you want dialogs
             }
-            SHFileOperation(ref fileOp);
+            SHFileOperation (ref fileOp);
         }
     }
 }

@@ -494,7 +494,7 @@ namespace GARbro.GUI
             if (null != m_pending_error)
             {
                 if (m_pending_error is OperationCanceledException)
-                    m_main.SetStatusText (m_pending_error.Message);
+                    m_main.SetFileStatus (m_pending_error.Message);
                 else
                     m_main.PopupError (m_pending_error.Message, guiStrings.TextMediaConvertError);
             }

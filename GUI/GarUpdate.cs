@@ -152,7 +152,7 @@ namespace GARbro.GUI
             {
                 if (e.Error != null)
                 {
-                    m_main.SetStatusText (string.Format ("{0} {1}", guiStrings.MsgUpdateFailed, e.Error.Message));
+                    m_main.SetFileStatus (string.Format ("{0} {1}", guiStrings.MsgUpdateFailed, e.Error.Message));
                     return;
                 }
                 else if (e.Cancelled)
@@ -160,7 +160,7 @@ namespace GARbro.GUI
                 var result = e.Result as GarUpdateInfo;
                 if (null == result)
                 {
-                    m_main.SetStatusText (guiStrings.MsgNoUpdates);
+                    m_main.SetFileStatus (guiStrings.MsgNoUpdates);
                     return;
                 }
                 ShowUpdateResult (result);
@@ -185,7 +185,7 @@ namespace GARbro.GUI
 
             if (!has_app_update && !has_db_update)
             {
-                m_main.SetStatusText (guiStrings.MsgUpToDate);
+                m_main.SetFileStatus (guiStrings.MsgUpToDate);
                 return;
             }
             m_dialog = new UpdateDialog (result, has_app_update, has_db_update);
@@ -230,7 +230,7 @@ namespace GARbro.GUI
         void SetFormatsUpdateStatus (UpdateDialog dialog, string text1, string text2 = null)
         {
             if (dialog.IsClosed)
-                m_main.SetStatusText (text1);
+                m_main.SetFileStatus (text1);
             else if (null == text2)
                 dialog.FormatsUpdateText.Text = text1;
             else

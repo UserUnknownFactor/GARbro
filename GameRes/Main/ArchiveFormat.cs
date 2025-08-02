@@ -66,7 +66,7 @@ namespace GameRes
         }
 
         /// <summary>
-        /// Open <paramref name="arc"/>'s file referenced by <paramref name="entry" /> as an image. 
+        /// Open <paramref name="arc"/>'s file referenced by <paramref name="entry" /> as an image.
         /// </summary>
         /// <exception cref="InvalidFormatException">May be thrown if entry is not an image.
         /// characters.</exception>

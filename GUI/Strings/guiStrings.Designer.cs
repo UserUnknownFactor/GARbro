@@ -1353,5 +1353,86 @@ namespace GARbro.GUI.Strings {
                 return ResourceManager.GetString("winDownScaleImage", resourceCulture);
             }
         }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Stop.
+        /// </summary>
+        public static string TooltipStop {
+            get {
+                return ResourceManager.GetString("TooltipStop", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Pause.
+        /// </summary>
+        public static string TooltipPause {
+            get {
+                return ResourceManager.GetString("TooltipPause", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Resume.
+        /// </summary>
+        public static string TooltipResume {
+            get {
+                return ResourceManager.GetString("TooltipResume", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Cycle Playback (On).
+        /// </summary>
+        public static string TooltipCycleOn {
+            get {
+                return ResourceManager.GetString("TooltipCycleOn", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Cycle Playback (Off).
+        /// </summary>
+        public static string TooltipCycleOff {
+            get {
+                return ResourceManager.GetString("TooltipCycleOff", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Auto Playback (On).
+        /// </summary>
+        public static string TooltipAutoOn {
+            get {
+                return ResourceManager.GetString("TooltipAutoOn", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Auto Playback (Off).
+        /// </summary>
+        public static string TooltipAutoOff {
+            get {
+                return ResourceManager.GetString("TooltipAutoOff", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Reached the last audio file..
+        /// </summary>
+        public static string MsgReachedLastAudio {
+            get {
+                return ResourceManager.GetString("MsgReachedLastAudio", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Volume.
+        /// </summary>
+        public static string TooltipVolume {
+            get {
+                return ResourceManager.GetString("TooltipVolume", resourceCulture);
+            }
+        }
     }
 }

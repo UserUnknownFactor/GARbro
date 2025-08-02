@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Media;
+using GameRes;
 
 namespace JustView
 {
@@ -86,16 +87,7 @@ namespace JustView
 
         public Encoding GuessEncoding (Stream file)
         {
-            var enc = Encoding.Default;
-            if (3 == file.Read (m_test_buf, 0, 3))
-            {
-                if (IsUTF8())
-                    enc = Encoding.UTF8;
-                else if (IsUTF16BE())
-                    enc = Encoding.BigEndianUnicode;
-                else if (IsUTF16LE())
-                    enc = Encoding.Unicode;
-            }
+            var enc = ScriptFormat.DetectEncoding(file, 1024);
             file.Position = 0;
             return enc;
         }
