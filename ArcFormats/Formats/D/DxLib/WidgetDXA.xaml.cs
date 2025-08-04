@@ -17,7 +17,7 @@ using GameRes.Formats.DxLib;
 namespace GameRes.Formats.GUI
 {
     /// <summary>
-    /// Logika interakcji dla klasy WidgetDXA.xaml
+    /// Control logic for WidgetDXA.xaml
     /// </summary>
     public partial class WidgetDXA : StackPanel
     {

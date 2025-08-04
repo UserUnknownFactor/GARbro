@@ -32,16 +32,16 @@ namespace GameRes.Formats.DxLib
     {
         public override string         Tag { get { return "DXA"; } }
         public override string Description { get { return "DxLib engine resource archive"; } }
-        public override uint     Signature { get { return 0; } }
-        public override bool  IsHierarchic { get { return true; } }
-        public override bool      CanWrite { get { return false; } }
+        public override uint     Signature { get { return  0; } }
+        public override bool  IsHierarchic { get { return  true; } }
+        public override bool      CanWrite { get { return  false; } }
 
         public DxOpener ()
         {
             Extensions = new string[] { "dxa", "hud", "usi", "med", "dat", "bin", "bcx", "wolf" };
             Signatures = new uint[] {
-                0x19EF8ED4, 0xA9FCCEDD, 0x0AEE0FD3, 0x5523F211, 0x5524F211, 0x69FC5FE4, 0x09E19ED9, 0x7DCC5D83,
-                0xC55D4473, 0
+                0x19EF8ED4, 0xA9FCCEDD, 0x0AEE0FD3, 0x5523F211, 0x5524F211, 
+                0x69FC5FE4, 0x09E19ED9, 0x7DCC5D83, 0xC55D4473, 0
             };
         }
 
@@ -71,6 +71,8 @@ namespace GameRes.Formats.DxLib
                             KnownKeys.Remove (enc);
                             KnownKeys.Insert (0, enc);
                         }
+
+                        Comment = $"Version {version}";
                         return new DxArchive (file, this, dir, enc, version);
                     }
                     return null;
@@ -81,7 +83,7 @@ namespace GameRes.Formats.DxLib
             {
                 var encryption = arc.Encryption;
                 KnownKeys.Insert (0, encryption);
-                Trace.WriteLine (string.Format ("Restored key '{0}'", encryption.Password, "[DXA]"));
+                Trace.WriteLine (string.Format ("Restored key '{0}'", encryption.Password), $"[{Tag}]");
             }
             return arc;
         }
@@ -101,7 +103,7 @@ namespace GameRes.Formats.DxLib
             for (short version = 4; version >= 1; --version)
             {
                 file.View.Read (0, key, 0, 12);
-                key[0] ^= (byte)'D'; 
+                key[0] ^= (byte)'D';
                 key[1] ^= (byte)'X';
                 key[2] ^= (byte)version;
                 int base_offset = version > 3 ? 0x1C : 0x18;
@@ -130,7 +132,7 @@ namespace GameRes.Formats.DxLib
         byte[] GuessKeyV6 (ArcView file)
         {
             var header = file.View.ReadBytes (0, 0x30);
-            header[0] ^= (byte)'D'; 
+            header[0] ^= (byte)'D';
             header[1] ^= (byte)'X';
             header[2] ^= 6;
             uint key0 = header.ToUInt32 (0);
@@ -179,60 +181,112 @@ namespace GameRes.Formats.DxLib
             {
                 uint unpacked_size = input.ReadUInt32();
                 int remaining = input.ReadInt32() - 9;
+
+                if (unpacked_size > int.MaxValue || remaining < 0)
+                    throw new InvalidFormatException ("Invalid compressed data header");
+
                 var output = new byte[unpacked_size];
                 byte control_code = input.ReadByte();
                 int dst = 0;
-                while (remaining > 0)
+
+                while (remaining > 0 && dst < output.Length)
                 {
+                    if (remaining < 1)
+                        throw new InvalidFormatException ("Unexpected end of compressed data");
+
                     byte b = input.ReadByte();
                     --remaining;
+
                     if (b != control_code)
                     {
+                        if (dst >= output.Length)
+                            break; // buffer full
                         output[dst++] = b;
                         continue;
                     }
+
+                    if (remaining < 1)
+                        throw new InvalidFormatException ("Unexpected end of compressed data");
+
                     b = input.ReadByte();
                     --remaining;
+
                     if (b == control_code)
                     {
+                        if (dst >= output.Length)
+                            break; // buffer full
                         output[dst++] = b;
                         continue;
                     }
+
                     if (b > control_code)
                         --b;
+
                     int count = b >> 3;
                     if (0 != (b & 4))
                     {
+                        if (remaining < 1)
+                            throw new InvalidFormatException ("Unexpected end of compressed data");
                         count |= input.ReadByte() << 5;
                         --remaining;
                     }
                     count += 4;
+
+                    if (dst + count > output.Length)
+                        count = output.Length - dst;
+
+                    if (count <= 0)
+                        break; // nothing left to copy
+
                     int offset;
                     switch (b & 3)
                     {
-                    case 0:
-                        offset = input.ReadByte();
-                        --remaining;
-                        break;
+                        case 0:
+                            if (remaining < 1)
+                                throw new InvalidFormatException ("Unexpected end of compressed data");
+                            offset = input.ReadByte();
+                            --remaining;
+                            break;
 
-                    case 1:
-                        offset = input.ReadUInt16();
-                        remaining -= 2;
-                        break;
+                        case 1:
+                            if (remaining < 2)
+                                throw new InvalidFormatException ("Unexpected end of compressed data");
+                            offset = input.ReadUInt16();
+                            remaining -= 2;
+                            break;
 
-                    case 2:
-                        offset = input.ReadUInt16();
-                        offset |= input.ReadByte() << 16;
-                        remaining -= 3;
-                        break;
+                        case 2:
+                            if (remaining < 3)
+                                throw new InvalidFormatException ("Unexpected end of compressed data");
+                            offset = input.ReadUInt16();
+                            offset |= input.ReadByte() << 16;
+                            remaining -= 3;
+                            break;
 
-                    default:
-                        throw new InvalidFormatException ("DX decompression failed");
+                        default:
+                            throw new InvalidFormatException ("Invalid compression flag");
                     }
+
                     ++offset;
-                    Binary.CopyOverlapped (output, dst - offset, dst, count);
+
+                    // validate offset before using it
+                    if (offset > 0 && offset <= dst)
+                    {
+                        Binary.CopyOverlapped (output, dst - offset, dst, count);
+                    }
+                    else
+                    {
+                        Trace.WriteLine($"Invalid copy offset {offset} at position {dst}", $"[{Tag}]");
+                        for (int i = 0; i < count && dst < output.Length; i++)
+                            output[dst++] = 0;
+                        continue;
+                    }
                     dst += count;
                 }
+
+                if (dst != unpacked_size)
+                    Trace.WriteLine($"Decompression size mismatch: expected {unpacked_size}, got {dst}", $"[{Tag}]");
+
                 return output;
             }
         }
@@ -250,8 +304,10 @@ namespace GameRes.Formats.DxLib
             using (var index = new EncryptedStream (encrypted, version >= 6 ? 0 : dx.IndexOffset, key))
             using (var reader = IndexReader.Create (dx, version, index))
             {
-                return reader.Read();
+                if (reader != null)
+                    return reader.Read();
             }
+            return null;
         }
 
         DxHeader ReadArcHeaderV4 (ArcView file, int version, byte[] key)
@@ -261,12 +317,12 @@ namespace GameRes.Formats.DxLib
                 return null;
             Decrypt (header, 0, header.Length, 4, key);
             return new DxHeader {
-                IndexSize  = LittleEndian.ToUInt32 (header, 0),
-                BaseOffset = LittleEndian.ToUInt32 (header, 4),
+                IndexSize   = LittleEndian.ToUInt32 (header, 0),
+                BaseOffset  = LittleEndian.ToUInt32 (header, 4),
                 IndexOffset = LittleEndian.ToUInt32 (header, 8),
-                FileTable  = LittleEndian.ToUInt32 (header, 0x0C),
-                DirTable   = LittleEndian.ToUInt32 (header, 0x10),
-                CodePage   = 932,
+                FileTable   = LittleEndian.ToUInt32 (header, 0x0C),
+                DirTable    = LittleEndian.ToUInt32 (header, 0x10),
+                CodePage    = 932,
             };
         }
 
@@ -277,12 +333,12 @@ namespace GameRes.Formats.DxLib
                 return null;
             Decrypt (header, 0, header.Length, 4, key);
             return new DxHeader {
-                IndexSize  = LittleEndian.ToUInt32 (header, 0),
-                BaseOffset = LittleEndian.ToInt64 (header, 4),
-                IndexOffset = LittleEndian.ToInt64 (header, 0x0C),
-                FileTable  = LittleEndian.ToInt64 (header, 0x14),
-                DirTable   = LittleEndian.ToInt64 (header, 0x1C),
-                CodePage   = LittleEndian.ToInt32 (header, 0x24),
+                IndexSize   = LittleEndian.ToUInt32 (header, 0),
+                BaseOffset  = LittleEndian.ToInt64  (header, 4),
+                IndexOffset = LittleEndian.ToInt64  (header, 0x0C),
+                FileTable   = LittleEndian.ToInt64  (header, 0x14),
+                DirTable    = LittleEndian.ToInt64  (header, 0x1C),
+                CodePage    = LittleEndian.ToInt32  (header, 0x24),
             };
         }
 
@@ -341,10 +397,10 @@ namespace GameRes.Formats.DxLib
                 return new IndexReaderV2 (header, version, input);
             else if (version >= 6 && version < 8)
                 return new IndexReaderV6 (header, version, input);
-            else if (version >=8)
+            else if (version >= 8)
                 return new IndexReaderV8 (header, version, input);
             else
-                throw new InvalidFormatException ("Not supported DX archive version.");
+                throw new InvalidFormatException($"Not supported DX archive version {version}.");
         }
 
         public List<Entry> Read ()
@@ -396,10 +452,10 @@ namespace GameRes.Formats.DxLib
         DxDirectory ReadDirEntry ()
         {
             var dir = new DxDirectory();
-            dir.DirOffset = m_input.ReadInt32();
+            dir.DirOffset       = m_input.ReadInt32();
             dir.ParentDirOffset = m_input.ReadInt32();
-            dir.FileCount = m_input.ReadInt32();
-            dir.FileTable = m_input.ReadInt32();
+            dir.FileCount       = m_input.ReadInt32();
+            dir.FileTable       = m_input.ReadInt32();
             return dir;
         }
 
@@ -417,9 +473,9 @@ namespace GameRes.Formats.DxLib
             {
                 m_input.Position = current_pos;
                 uint name_offset = m_input.ReadUInt32();
-                uint attr = m_input.ReadUInt32();
+                uint attr        = m_input.ReadUInt32();
                 m_input.Seek (0x18, SeekOrigin.Current);
-                uint offset = m_input.ReadUInt32();
+                uint offset      = m_input.ReadUInt32();
                 if (0 != (attr & 0x10)) // FILE_ATTRIBUTE_DIRECTORY
                 {
                     if (0 == offset || table_offset == offset)
@@ -428,11 +484,11 @@ namespace GameRes.Formats.DxLib
                 }
                 else
                 {
-                    uint size = m_input.ReadUInt32();
+                    uint size       = m_input.ReadUInt32();
                     int packed_size = -1;
                     if (Version >= 2)
                         packed_size = m_input.ReadInt32();
-                    var entry = FormatCatalog.Instance.Create<PackedEntry> (Path.Combine (root, ExtractFileName (name_offset)));
+                    var entry = FormatCatalog.Instance.Create<PackedEntry>(Path.Combine (root, ExtractFileName (name_offset)));
                     entry.Offset = m_header.BaseOffset + offset;
                     entry.UnpackedSize = size;
                     entry.IsPacked = -1 != packed_size;
@@ -466,11 +522,11 @@ namespace GameRes.Formats.DxLib
 
         DxDirectory ReadDirEntry ()
         {
-            var dir = new DxDirectory();
-            dir.DirOffset = m_input.ReadInt64();
+            var dir             = new DxDirectory();
+            dir.DirOffset       = m_input.ReadInt64();
             dir.ParentDirOffset = m_input.ReadInt64();
-            dir.FileCount = (int)m_input.ReadInt64();
-            dir.FileTable = m_input.ReadInt64();
+            dir.FileCount       = (int)m_input.ReadInt64();
+            dir.FileTable       = m_input.ReadInt64();
             return dir;
         }
 
@@ -525,38 +581,41 @@ namespace GameRes.Formats.DxLib
             : base (stream, leave_open)
         {
             m_key = key;
-            m_base_pos = m_key.Length !=0 ?(int)(base_position % m_key.Length):0;
+            m_base_pos = m_key.Length != 0 ? (int)(base_position % m_key.Length) : 0;
         }
 
         public override int Read (byte[] buffer, int offset, int count)
         {
             var key_pos = m_base_pos + Position;
             int read = BaseStream.Read (buffer, offset, count);
-            if (read > 0)
-                DxOpener.Decrypt (buffer, offset, count, key_pos, m_key);
+            if (read > 0 && m_key.Length != 0)
+                DxOpener.Decrypt (buffer, offset, read, key_pos, m_key);
             return read;
         }
 
         public override int ReadByte ()
         {
             int b = BaseStream.ReadByte();
-            if (m_key.Length !=0)
+            if (m_key.Length != 0 && b != -1)
             {
-                int key_pos = (int)((m_base_pos + Position) % m_key.Length);
-                if (-1 != b)
-                {
-                    b ^= m_key[key_pos];
-                }
+                int key_pos = (int)((m_base_pos + Position - 1) % m_key.Length);
+                b ^= m_key[key_pos];
             }
             return b;
         }
 
         public override void Write (byte[] buffer, int offset, int count)
         {
+            if (buffer == null)
+                throw new ArgumentNullException (nameof (buffer));
+            if (offset < 0 || offset > buffer.Length)
+                throw new ArgumentOutOfRangeException (nameof (offset));
+            if (count < 0 || offset + count > buffer.Length)
+                throw new ArgumentOutOfRangeException (nameof (count));
 
-            byte[] write_buf = new byte[count];
             if (m_key.Length != 0)
             {
+                byte[] write_buf = new byte[count];
                 int key_pos = (int)((m_base_pos + Position) % m_key.Length);
                 for (int i = 0; i < count; ++i)
                 {
@@ -564,22 +623,24 @@ namespace GameRes.Formats.DxLib
                     if (m_key.Length == key_pos)
                         key_pos = 0;
                 }
-            } else
-            {
-                write_buf = buffer;
+                BaseStream.Write (write_buf, 0, count);
             }
-            BaseStream.Write (write_buf, 0, count);
+            else
+            {
+                BaseStream.Write (buffer, offset, count);
+            }
         }
 
         public override void WriteByte (byte value)
         {
-            if(m_key.Length != 0)
+            if (m_key.Length != 0)
             {
                 int key_pos = (int)((m_base_pos + Position) % m_key.Length);
                 BaseStream.WriteByte((byte)(value ^ m_key[key_pos]));
-            } else
+            }
+            else
             {
-                BaseStream.WriteByte ((byte)value);
+                BaseStream.WriteByte (value);
             }
         }
     }
