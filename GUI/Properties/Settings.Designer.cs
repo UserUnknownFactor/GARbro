@@ -393,5 +393,16 @@ namespace GARbro.GUI.Properties {
                 this["winDownScaleImage"] = value;
             }
         }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        public System.Collections.Specialized.StringCollection fileEncodingHistory {
+            get {
+                return ((System.Collections.Specialized.StringCollection)(this["fileEncodingHistory"]));
+            }
+            set {
+                this["fileEncodingHistory"] = value;
+            }
+        }
     }
 }

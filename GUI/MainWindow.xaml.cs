@@ -73,6 +73,7 @@ namespace GARbro.GUI
             InitPreviewPane();
             //InitUpdatesChecker();
             InitializeMediaControls();
+            LoadEncodingHistory();
 
             if (null == Settings.Default.appRecentFiles)
                 Settings.Default.appRecentFiles = new StringCollection();
@@ -1166,12 +1167,24 @@ namespace GARbro.GUI
             return list;
         }
 
+        private bool _isManualEncodingChange = false;
+
         private void OnEncodingSelect (object sender, SelectionChangedEventArgs e)
         {
             var enc = this.EncodingChoice.SelectedItem as Encoding;
             if (null == enc || _textPreviewHandler == null || !_textPreviewHandler.IsActive)
                 return;
+
+            _isManualEncodingChange = true;
+
+            if (m_current_preview != null)
+            {
+                var fileIdentifier = GetFileIdentifier (m_current_preview);
+                RememberFileEncoding (fileIdentifier, enc);
+            }
+
             RefreshPreviewPane();
+            _isManualEncodingChange = false;
         }
 
         /// <summary>
@@ -1222,7 +1235,25 @@ namespace GARbro.GUI
         void UpdatePreviewPane (Entry entry)
         {
             var vm = ViewModel;
+            var previousPreview = m_current_preview;
             m_current_preview = new PreviewFile { Path = vm.Path, Name = entry.Name, Entry = entry, TempFile = null };
+
+            if (!_isManualEncodingChange)
+            {
+                if (!m_current_preview.IsEqual (previousPreview?.Path, previousPreview?.Entry))
+                {
+                    if (entry.Type == "script" || entry.Type == "text" || entry.Type == "config" ||
+                        (string.IsNullOrEmpty (entry.Type) && entry.Size < 0x100000))
+                    {
+                        var fileIdentifier = GetFileIdentifier (m_current_preview);
+                        var rememberedEncoding = GetRememberedEncoding (fileIdentifier);
+                        if (rememberedEncoding != null)
+                            EncodingChoice.SelectedItem = rememberedEncoding;
+                        else
+                            EncodingChoice.SelectedItem = null;
+                    }
+                }
+            }
 
             if ("video" == entry.Type)
                 StopAudioPlayback();  // since videos autoplay on preview
@@ -2142,11 +2173,9 @@ namespace GARbro.GUI
 
         static void ToggleVisibility (UIElement item)
         {
-            var status = item.Visibility;
-            if (Visibility.Visible == status)
-                item.Visibility = Visibility.Collapsed;
-            else
-                item.Visibility = Visibility.Visible;
+            item.Visibility = (Visibility.Visible == item.Visibility) ? 
+                Visibility.Collapsed : 
+                Visibility.Visible;
         }
 
         private void OnDropEvent (object sender, DragEventArgs e)
@@ -2177,6 +2206,111 @@ namespace GARbro.GUI
             {
                 Trace.WriteLine (X.Message, "Drop event failed");
             }
+        }
+
+        private class FileEncodingEntry
+        {
+            public string FileIdentifier { get; set; }
+            public int CodePage { get; set; }
+        }
+
+        private readonly Dictionary<string, int> _fileEncodingCache = new Dictionary<string, int>();
+        private readonly LinkedList<FileEncodingEntry> _fileEncodingHistory = new LinkedList<FileEncodingEntry>();
+        private const int MAX_ENCODING_HISTORY = 20;
+
+        private void LoadEncodingHistory ()
+        {
+            try
+            {
+                if (Settings.Default.fileEncodingHistory != null)
+                {
+                    foreach (var entry in Settings.Default.fileEncodingHistory)
+                    {
+                        var parts = entry.Split('|');
+                        if (parts.Length >= 2 && int.TryParse(parts[1], out int codePage))
+                        {
+                            var historyEntry = new FileEncodingEntry
+                            {
+                                FileIdentifier = parts[0],
+                                CodePage = codePage
+                            };
+                            _fileEncodingHistory.AddLast(historyEntry);
+                            _fileEncodingCache[parts[0]] = codePage;
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void SaveEncodingHistory ()
+        {
+            try
+            {
+                var settings = Settings.Default;
+                if (settings.fileEncodingHistory == null)
+                    settings.fileEncodingHistory = new StringCollection();
+                else
+                    settings.fileEncodingHistory.Clear ();
+
+                foreach (var entry in _fileEncodingHistory)
+                {
+                    settings.fileEncodingHistory.Add ($"{entry.FileIdentifier}|{entry.CodePage}");
+                }
+
+                settings.Save();
+            }
+            catch { }
+        }
+
+        internal string GetFileIdentifier (PreviewFile preview)
+        {
+            if (preview?.Path != null && preview.Path.Any())
+            {
+                return string.Join("/", preview.Path.Concat(new[] { preview.Name }));
+            }
+            return preview?.Name ?? "";
+        }
+
+        internal void RememberFileEncoding (string fileIdentifier, Encoding encoding)
+        {
+            if (string.IsNullOrEmpty (fileIdentifier) || encoding == null)
+                return;
+
+            _fileEncodingCache[fileIdentifier] = encoding.CodePage;
+            var existingEntry = _fileEncodingHistory.FirstOrDefault (e => e.FileIdentifier == fileIdentifier);
+            if (existingEntry != null)
+                _fileEncodingHistory.Remove(existingEntry);
+
+            _fileEncodingHistory.AddFirst (new FileEncodingEntry
+            {
+                FileIdentifier = fileIdentifier,
+                CodePage = encoding.CodePage
+            });
+
+            while (_fileEncodingHistory.Count > MAX_ENCODING_HISTORY)
+                _fileEncodingHistory.RemoveLast();
+
+            SaveEncodingHistory();
+        }
+
+        private Encoding GetRememberedEncoding (string fileIdentifier)
+        {
+            if (string.IsNullOrEmpty (fileIdentifier))
+                return null;
+
+            if (_fileEncodingCache.TryGetValue (fileIdentifier, out int codePage))
+            {
+                try
+                {
+                    return Encoding.GetEncoding (codePage);
+                }
+                catch
+                {
+                    _fileEncodingCache.Remove (fileIdentifier);
+                }
+            }
+            return null;
         }
     }
 
@@ -2260,6 +2394,8 @@ namespace GARbro.GUI
 
     public static class Commands
     {
+        #region Commands Members
+
         public static readonly RoutedCommand OpenItem = new RoutedCommand();
         public static readonly RoutedCommand OpenFile = new RoutedCommand();
         public static readonly RoutedCommand OpenRecent = new RoutedCommand();
@@ -2295,6 +2431,8 @@ namespace GARbro.GUI
         public static readonly RoutedCommand Descend = new RoutedCommand();
         public static readonly RoutedCommand Ascend = new RoutedCommand();
         public static readonly RoutedCommand ScaleImage = new RoutedCommand();
+
+        #endregion
     }
 
     public static class FileOperationHelper

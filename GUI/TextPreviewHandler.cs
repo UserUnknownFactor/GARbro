@@ -8,6 +8,9 @@ namespace GARbro.GUI.Preview
 {
     public class TextPreviewHandler : PreviewHandlerBase
     {
+        private const uint MAX_FILE_PREVIEW = 128 * 1024 * 1024;
+        private const uint MAX_FILE_HEXDUMP = 1024 * 1024;
+
         private readonly MainWindow _mainWindow;
         private Stream _currentTextInput;
         private Encoding _currentEncoding;
@@ -29,40 +32,50 @@ namespace GARbro.GUI.Preview
                 var stream = VFS.OpenBinaryStream(preview.Entry);
                 file = stream.AsStream;
 
+                if (file.Length > MAX_FILE_PREVIEW)
+                {
+                    Reset();
+                    _mainWindow.SetPreviewStatus(Localization._T("File is too large for preview"));
+                    return;
+                }
+
                 ScriptFormat format = ScriptFormat.FindFormat(stream);
                 if (format == null)
                 {
                     if (!_mainWindow.TextView.IsTextFile(file) && !(
-                        preview.Entry.Type == "script" || preview.Entry.Type ==  "text"))
+                        preview.Entry.Type == "script" || preview.Entry.Type == "text"))
                     {
-                        if (file.Length <= 1024 * 1024)
+                        if (file.Length <= MAX_FILE_HEXDUMP)
                         {
                             DisplayHexDump(file, preview.Entry.Name);
                         }
                         else
                         {
                             Reset();
-                            _mainWindow.SetFileStatus(Localization.Format("Binary file too large for preview ({0:N0} bytes)", file.Length));
+                            _mainWindow.SetPreviewStatus(Localization._T("Binary file is too large for hex dump"));
                         }
                         return;
                     }
 
-                    if (_currentEncoding == null)
+                    Encoding encodingToUse = _mainWindow.EncodingChoice.SelectedItem as Encoding;
+                    if (encodingToUse == null)
                     {
-                        var newEncoding = ScriptFormat.DetectEncoding(file, 20000);
-                        _mainWindow.EncodingChoice.SelectedItem = newEncoding;
-                        _currentEncoding = newEncoding;
+                        encodingToUse = ScriptFormat.DetectEncoding(file, 20000);
+                        _mainWindow.EncodingChoice.SelectedItem = encodingToUse;
                     }
-                    _mainWindow.TextView.DisplayStream(file, _mainWindow.EncodingChoice.SelectedItem as Encoding);
+
+                    _currentEncoding = encodingToUse;
+                    _mainWindow.TextView.DisplayStream(file, encodingToUse);
                 }
                 else
                 {
                     file.Position = 0;
                     ScriptData scriptData = null;
                     var newEncoding = _mainWindow.EncodingChoice.SelectedItem as Encoding;
-                    if (_currentEncoding != null && _currentEncoding != newEncoding)
+                    if (newEncoding != null)
                     {
                         scriptData = format.Read(preview.Entry.Name, file, newEncoding);
+                        _currentEncoding = newEncoding;
                     }
                     else
                     {
@@ -95,7 +108,7 @@ namespace GARbro.GUI.Preview
             }
             catch (NotSupportedException)
             {
-                if (file != null && file.Length <= 1024 * 1024)
+                if (file != null && file.Length <= MAX_FILE_HEXDUMP)
                 {
                     file.Position = 0;
                     DisplayHexDump(file, preview.Entry.Name);
@@ -103,13 +116,13 @@ namespace GARbro.GUI.Preview
                 else
                 {
                     Reset();
-                    _mainWindow.SetFileStatus("Binary format cannot be shown as text");
+                    _mainWindow.SetPreviewStatus(Localization._T("Binary file is too large for hex dump"));
                 }
             }
             catch (Exception X)
             {
                 Reset();
-                _mainWindow.SetFileStatus(X.Message);
+                _mainWindow.SetPreviewStatus(X.Message);
             }
             finally
             {
@@ -139,7 +152,7 @@ namespace GARbro.GUI.Preview
             catch (Exception ex)
             {
                 Reset();
-                _mainWindow.SetFileStatus(Localization.Format("Failed to generate hex dump: {0}", ex.Message));
+                _mainWindow.SetPreviewStatus(Localization.Format("Failed to generate hex dump: {0}", ex.Message));
             }
         }
 
