@@ -41,7 +41,7 @@ namespace GARbro.GUI
         private App m_app;
         public App App { get { return m_app; } }
 
-        internal static readonly GuiResourceSetting DownScaleImage = new GuiResourceSetting ("winDownScaleImage");
+        public static readonly GuiResourceSetting DownScaleImage = new GuiResourceSetting ("winDownScaleImage");
 
         const StringComparison StringIgnoreCase = StringComparison.CurrentCultureIgnoreCase;
 
@@ -75,6 +75,8 @@ namespace GARbro.GUI
             InitializeMediaControls();
             LoadEncodingHistory();
 
+            FitWindowMenuItem.IsChecked = DownScaleImage.Get<bool>();
+
             if (null == Settings.Default.appRecentFiles)
                 Settings.Default.appRecentFiles = new StringCollection();
             m_recent_files = new LinkedList<string> (Settings.Default.appRecentFiles.Cast<string>().Take (MaxRecentFiles));
@@ -90,7 +92,10 @@ namespace GARbro.GUI
                 }
             };
 
-            DownScaleImage.PropertyChanged += (s, e) => ApplyDownScaleSetting();
+            DownScaleImage.PropertyChanged += (s, e) => {
+                ApplyDownScaleSetting();
+                FitWindowMenuItem.IsChecked = DownScaleImage.Get<bool>();
+            };
             pathLine.EnterKeyDown += acb_OnKeyDown;
 
             this.Closing += OnClosing;
@@ -1994,30 +1999,7 @@ namespace GARbro.GUI
         /// </summary>
         private void FitWindowExec (object sender, ExecutedRoutedEventArgs e)
         {
-            ImageSource image = null;
-            if (ImageCanvas.Visibility == Visibility.Visible)
-                image = ImageCanvas.Source;
-            else if (m_animated_image_viewer.Visibility == Visibility.Visible)
-                image = m_animated_image_viewer.Source;
-
-            if (null == image)
-                return;
-
-            var width = image.Width + Settings.Default.lvPanelWidth.Value + 1;
-            var height = image.Height;
-            width = Math.Max (ContentGrid.ActualWidth, width);
-            height = Math.Max (ContentGrid.ActualHeight, height);
-            if (width > ContentGrid.ActualWidth || height > ContentGrid.ActualHeight)
-            {
-                ContentGrid.Width = width;
-                ContentGrid.Height = height;
-                this.SizeToContent = SizeToContent.WidthAndHeight;
-                Dispatcher.InvokeAsync(() => {
-                    this.SizeToContent = SizeToContent.Manual;
-                    ContentGrid.Width = double.NaN;
-                    ContentGrid.Height = double.NaN;
-                }, DispatcherPriority.ContextIdle);
-            }
+            DownScaleImage.Value = !DownScaleImage.Get<bool>();
         }
 
         private void PreviewSizeChanged (object sender, SizeChangedEventArgs e)
@@ -2326,7 +2308,8 @@ namespace GARbro.GUI
 
         public bool IsEqual (IEnumerable<string> path, Entry entry)
         {
-            return Path != null && path.SequenceEqual (Path) && Entry == entry;
+            return Path != null && entry != null && path != null && 
+                    path.SequenceEqual (Path) && Entry == entry;
         }
 
         public bool IsRealFile

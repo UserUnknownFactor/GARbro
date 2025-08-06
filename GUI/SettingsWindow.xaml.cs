@@ -366,7 +366,7 @@ namespace GARbro.GUI
         }
     }
 
-    internal class GuiResourceSetting : ResourceSettingBase, INotifyPropertyChanged
+    public class GuiResourceSetting : ResourceSettingBase, INotifyPropertyChanged
     {
         public override object Value {
             get { return Settings.Default[Name]; }

@@ -167,7 +167,7 @@ Choose appropriate encryption scheme.</value>
     <value>Kogado game engine resource archive</value>
   </data>
   <data name="LabelPassphrase" xml:space="preserve">
-    <value>Passphrase</value>
+    <value>Password:</value>
   </data>
   <data name="LabelScheme" xml:space="preserve">
     <value>Scheme</value>

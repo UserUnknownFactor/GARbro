@@ -856,12 +856,24 @@ namespace GameRes.Formats.Properties {
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("DXARC")]
-        public string DXAPassword {
+        public string DXA_Password {
             get {
-                return ((string)(this["DXAPassword"]));
+                return ((string)(this["DXA_Password"]));
             }
             set {
-                this["DXAPassword"] = value;
+                this["DXA_Password"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string DXA_PasswordHistory {
+            get {
+                return ((string)(this["DXA_PasswordHistory"]));
+            }
+            set {
+                this["DXA_PasswordHistory"] = value;
             }
         }
 
@@ -886,6 +898,21 @@ namespace GameRes.Formats.Properties {
             }
             set {
                 this["TIM2AlphaFormat"] = value;
+            }
+        }
+
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string Password
+        {
+            get
+            {
+                return ((string)(this["Password"]));
+            }
+            set
+            {
+                this["Password"] = value;
             }
         }
     }

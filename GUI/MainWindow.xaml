@@ -149,8 +149,11 @@
                     <MenuItem Header="{x:Static s:guiStrings.MenuPreferences}" InputGestureText="Ctrl+P"
                               Command="{x:Static local:Commands.Preferences}"/>
                     <Separator/>
-                    <MenuItem Header="{x:Static s:guiStrings.MenuFitWindow}" InputGestureText="Ctrl+H"
-                          Command="{x:Static local:Commands.FitWindow}"/>
+                    <MenuItem x:Name="FitWindowMenuItem"
+                              Header="{x:Static s:guiStrings.MenuFitWindow}" 
+                              InputGestureText="Ctrl+H"
+                              Command="{x:Static local:Commands.FitWindow}"
+                              IsCheckable="True"/>
                     <MenuItem Header="{x:Static s:guiStrings.CtxMenuRefresh}" InputGestureText="F5"
                           Command="{x:Static local:Commands.Refresh}"/>
                     <Separator/>

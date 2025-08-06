@@ -4,6 +4,7 @@ using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using GameRes.Formats.Strings;
 using GameRes.Utility;
 
 namespace GameRes.Formats.DxLib
@@ -27,7 +28,12 @@ namespace GameRes.Formats.DxLib
         public IList<IDxKey> KnownKeys;
     }
 
-    [Export(typeof(ArchiveFormat))]
+    public class DxOptions : ResourceOptions
+    {
+        public string Password { get; set; }
+    }
+
+    [Export (typeof (ArchiveFormat))]
     public class DxOpener : ArchiveFormat
     {
         public override string         Tag { get { return "DXA"; } }
@@ -40,52 +46,149 @@ namespace GameRes.Formats.DxLib
         {
             Extensions = new string[] { "dxa", "hud", "usi", "med", "dat", "bin", "bcx", "wolf" };
             Signatures = new uint[] {
-                0x19EF8ED4, 0xA9FCCEDD, 0x0AEE0FD3, 0x5523F211, 0x5524F211, 
+                0x19EF8ED4, 0xA9FCCEDD, 0x0AEE0FD3, 0x5523F211, 0x5524F211,
                 0x69FC5FE4, 0x09E19ED9, 0x7DCC5D83, 0xC55D4473, 0
             };
         }
 
-        DxScheme DefaultScheme = new DxScheme { KnownKeys = new List<IDxKey>() };
+        public DxScheme DefaultScheme = new DxScheme { KnownKeys = new List<IDxKey>() };
 
         public IList<IDxKey> KnownKeys { get { return DefaultScheme.KnownKeys; } }
+
+        public override object GetAccessWidget()
+        {
+            return new WidgetPassword 
+            { 
+                FormatTag = this.Tag,
+                Scheme = this.Scheme
+            };
+        }
+
+        public override ResourceOptions GetOptions(object widget)
+        {
+            var passwordWidget = widget as WidgetPassword;
+            if (passwordWidget != null)
+            {
+                return new DxOptions
+                {
+                    Password = passwordWidget.Password
+                };
+            }
+            return GetDefaultOptions();
+        }
+
+        public override ResourceOptions GetDefaultOptions()
+        {
+            return new DxOptions { Password = string.Empty };
+        }
 
         public override ArcFile TryOpen (ArcView file)
         {
             if (file.MaxOffset < 0x1C)
                 return null;
-            uint signature = file.View.ReadUInt32 (0);
+
             foreach (var enc in KnownKeys)
             {
-                var key = enc.Key;
+                var arc = TryKeyWithFile(file, enc);
+                if (arc != null)
+                {
+                    if (KnownKeys[0] != enc)
+                    {
+                        // move last used key to the top of the known keys list
+                        KnownKeys.Remove (enc);
+                        KnownKeys.Insert (0, enc);
+                    }
+
+                    Comment = $"Version {arc.Version}";
+                    return arc;
+                }
+            }
+
+            var guessedArc = GuessKey (file);
+            if (guessedArc != null)
+            {
+                var encryption = guessedArc.Encryption;
+                KnownKeys.Insert (0, encryption);
+                Trace.WriteLine (string.Format ("Restored key '{0}'", encryption.Password), $"[{Tag}]");
+                return guessedArc;
+            }
+
+            var options = Query<DxOptions>(arcStrings.ArcEncryptedNotice);
+            if (options == null || string.IsNullOrWhiteSpace(options.Password))
+                return null;
+
+            var passwordArc = TryPassword(file, options.Password);
+            if (passwordArc != null)
+            {
+                var encryption = passwordArc.Encryption;
+                KnownKeys.Insert (0, encryption);
+                Trace.WriteLine (string.Format ("Password '{0}' successful", encryption.Password), $"[{Tag}]");
+
+                WidgetPassword.MarkPasswordAsSuccessful(this.Tag, options.Password);
+            }
+
+            return passwordArc;
+        }
+
+        DxArchive TryPassword (ArcView file, string password)
+        {
+            if (string.IsNullOrEmpty (password))
+                return null;
+
+            var dxKey = new DxKey (password);
+            var arc = TryKeyWithFile (file, dxKey);
+            if (arc != null)
+                return arc;
+
+            var dxKey7 = new DxKey7 (password);
+            arc = TryKeyWithFile (file, dxKey7);
+            if (arc != null)
+                return arc;
+
+            try
+            {
+                if (password.Length % 2 == 0 && password.Length >= 24)
+                {
+                    var hexKey = new byte[password.Length / 2];
+                    for (int i = 0; i < hexKey.Length; i++)
+                    {
+                        hexKey[i] = Convert.ToByte (password.Substring (i * 2, 2), 16);
+                    }
+
+                    var hexDxKey = new DxKey (hexKey);
+                    arc = TryKeyWithFile (file, hexDxKey);
+                    if (arc != null)
+                        return arc;
+                }
+            }
+            catch { }
+
+            return null;
+        }
+
+        DxArchive TryKeyWithFile (ArcView file, IDxKey dxKey)
+        {
+            try
+            {
+                var key = dxKey.Key;
+                if (key == null || key.Length < 12)
+                    return null;
+
+                uint signature = file.View.ReadUInt32 (0);
                 uint sig_key = LittleEndian.ToUInt32 (key, 0);
                 uint sig_test = signature ^ sig_key;
                 int version = (int)(sig_test >> 16);
+
                 if (0x5844 == (sig_test & 0xFFFF) && version <= 7) // 'DX'
                 {
                     var dir = ReadIndex (file, version, key);
-                    if (null != dir)
-                    {
-                        if (KnownKeys[0] != enc)
-                        {
-                            // move last used key to the top of the known keys list
-                            KnownKeys.Remove (enc);
-                            KnownKeys.Insert (0, enc);
-                        }
-
-                        Comment = $"Version {version}";
-                        return new DxArchive (file, this, dir, enc, version);
-                    }
-                    return null;
+                    if (dir != null)
+                        return new DxArchive (file, this, dir, dxKey, version);
                 }
             }
-            var arc = GuessKey (file);
-            if (arc != null)
-            {
-                var encryption = arc.Encryption;
-                KnownKeys.Insert (0, encryption);
-                Trace.WriteLine (string.Format ("Restored key '{0}'", encryption.Password), $"[{Tag}]");
-            }
-            return arc;
+            catch { }
+
+            return null;
         }
 
         DxArchive GuessKey (ArcView file)

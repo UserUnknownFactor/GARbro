@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.Remoting.Messaging;
 using System.Windows.Navigation;
+
 using static GameRes.Formats.DxLib.Dx8Opener;
 
 
@@ -24,7 +25,8 @@ namespace GameRes.Formats.DxLib
     {
         public byte huffmanMaxKB;
 
-        public DxArchive8 (ArcView arc, ArchiveFormat impl, ICollection<Entry> dir, IDxKey enc, int version,byte huffmanKB) : base (arc, impl, dir, enc, version)
+        public DxArchive8 (ArcView arc, ArchiveFormat impl, ICollection<Entry> dir, 
+                            IDxKey enc, int version,byte huffmanKB) : base (arc, impl, dir, enc, version)
         {
             huffmanMaxKB = huffmanKB;
         }
@@ -52,10 +54,6 @@ namespace GameRes.Formats.DxLib
             Signatures = new[] { 0x00085844u };
         }
 
-        //static readonly byte[] DefaultKey = new byte[] { 0xBE, 0xC8, 0x8A, 0xF5, 0x28, 0x50, 0xC9 };
-
-        DxScheme DefaultScheme = new DxScheme { KnownKeys = new List<IDxKey>() };
-
         internal enum DXA8Flags : UInt32
         {
             DXA_FLAG_NO_KEY        = 1,      // file is not encrypted
@@ -72,17 +70,17 @@ namespace GameRes.Formats.DxLib
         {
             return new DXAOpts
             {
-                Keyword = Properties.Settings.Default.DXAPassword
+                Keyword = Properties.Settings.Default.DXA_Password
             };
         }
 
         public override ResourceOptions GetOptions (object widget)
         {
-            if (widget is GUI.WidgetDXA)
+            if (widget is WidgetPassword)
             {
                 return new DXAOpts
                 {
-                    Keyword = ((GUI.WidgetDXA)widget).Password.Text
+                    Keyword = ((WidgetPassword)widget).Password
                 };
             }
             return GetDefaultOptions();
@@ -90,7 +88,12 @@ namespace GameRes.Formats.DxLib
 
         public override object GetAccessWidget ()
         {
-            return new GUI.WidgetDXA();
+            var parentFormat = FormatCatalog.Instance.Formats.FirstOrDefault(f => f.GetType() == typeof(DxOpener));
+            return new WidgetPassword
+            {
+                FormatTag = parentFormat?.Tag,
+                Scheme = parentFormat?.Scheme
+            };
         }
 
         public override ArcFile TryOpen (ArcView file)
@@ -111,9 +114,10 @@ namespace GameRes.Formats.DxLib
 
             var headerBuffer = file.View.ReadBytes (dx.IndexOffset, file.MaxOffset - dx.IndexOffset);
             bool isencrypted = (dx.Flags & DXA8Flags.DXA_FLAG_NO_KEY) == 0;
+            string keyStr = null;
             if (isencrypted)
             {
-                var keyStr = Query<DXAOpts>(arcStrings.ZIPEncryptedNotice).Keyword;
+                keyStr = Query<DXAOpts>(arcStrings.ZIPEncryptedNotice).Keyword;
                 key = new DxKey8 (keyStr,dx.CodePage);
             }
 
@@ -137,6 +141,11 @@ namespace GameRes.Formats.DxLib
             {
                 entries = reader.Read();
             }
+            if (entries == null)
+                return null;
+
+            if (isencrypted)
+                WidgetPassword.MarkPasswordAsSuccessful("DXA", keyStr);
 
             Comment = $"Version 8";
             return new DxArchive8 (file, this,entries ,key, 8,dx.HuffmanKB);
@@ -212,7 +221,7 @@ namespace GameRes.Formats.DxLib
         {
             public long DirOffset;
             public long ParentDirOffset;
-            public int FileCount;
+            public  int FileCount;
             public long FileTable;
         }
 
@@ -220,10 +229,10 @@ namespace GameRes.Formats.DxLib
         {
             var dir = new DxDirectory
             {
-                DirOffset = m_input.ReadInt64(),
+                DirOffset       = m_input.ReadInt64(),
                 ParentDirOffset = m_input.ReadInt64(),
-                FileCount = (int)m_input.ReadInt64(),
-                FileTable = m_input.ReadInt64()
+                FileCount       = (int)m_input.ReadInt64(),
+                FileTable       = m_input.ReadInt64()
             };
             return dir;
         }
