@@ -154,6 +154,7 @@ namespace GARbro.GUI.Preview
             if (_audioDevice != null)
             {
                 _audioDevice.PlaybackStopped -= _mainWindow.OnPlaybackStopped;
+                System.Threading.Thread.Sleep(200); // _audioDevice.DesiredLatency
                 _audioDevice.Stop();
                 _mainWindow.RemoveStream(_audioDevice);
                 _audioDevice.Dispose();

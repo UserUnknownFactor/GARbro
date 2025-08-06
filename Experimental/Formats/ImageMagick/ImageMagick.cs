@@ -26,6 +26,7 @@ namespace GARbro.ImageFormats
     }
 
     [Export(typeof(ImageFormat))]
+    [ExportMetadata("Priority", -1)] // try last
     public class ImageMagickFormat : ImageFormat
     {
         public override         string Tag { get { return "IMGMAGICK"; } }

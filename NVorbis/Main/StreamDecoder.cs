@@ -695,7 +695,7 @@ namespace NVorbis
         public TimeSpan TotalTime => TimeSpan.FromSeconds((double)TotalSamples / _sampleRate);
 
         /// <summary>
-        /// Gets the total number of samples in the decoded stream.
+        /// Gets the total number of samples per channel in the decoded stream.
         /// </summary>
         public long TotalSamples => _packetProvider?.GetGranuleCount() ?? throw new ObjectDisposedException(nameof(StreamDecoder));
 

@@ -1,11 +1,9 @@
-using System;
+//#define NAUDIO11
 using System.ComponentModel.Composition;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.ComTypes;
 using NAudio.CoreAudioApi.Interfaces;
 using NAudio.MediaFoundation;
-using NAudio.Utils;
 using NAudio.Wave;
 
 namespace GameRes.Formats
@@ -15,8 +13,8 @@ namespace GameRes.Formats
     {
         public override string         Tag { get { return "WMA"; } }
         public override string Description { get { return "Windows Media Audio format"; } }
-        public override uint     Signature { get { return 0x75B22630; } }
-        public override bool      CanWrite { get { return false; } }
+        public override uint     Signature { get { return  0x75B22630; } }
+        public override bool      CanWrite { get { return  false; } }
 
         public override SoundInput TryOpen (IBinaryStream file)
         {
@@ -111,7 +109,11 @@ namespace GameRes.Formats
 
         private static long GetDuration (IMFSourceReader reader)
         {
-            var variantPtr = Marshal.AllocHGlobal (MarshalHelpers.SizeOf<PropVariant>());
+#if NAUDIO11
+            var variantPtr = Marshal.AllocHGlobal(MarshalHelpers.SizeOf<PropVariant>());
+#else
+            var variantPtr = Marshal.AllocHGlobal(Marshal.SizeOf<PropVariant>());
+#endif
             try
             {
                 int hResult = reader.GetPresentationAttribute (MediaFoundationInterop.MF_SOURCE_READER_MEDIASOURCE,
@@ -120,8 +122,11 @@ namespace GameRes.Formats
                     return 0;
                 if (hResult != 0)
                     Marshal.ThrowExceptionForHR (hResult);
-
-                var variant = MarshalHelpers.PtrToStructure<PropVariant> (variantPtr);
+#if NAUDIO11
+                var variant = MarshalHelpers.PtrToStructure<PropVariant>(variantPtr);
+#else
+                var variant = Marshal.PtrToStructure<PropVariant>(variantPtr);
+#endif
                 return (long)variant.Value;
             }
             finally 

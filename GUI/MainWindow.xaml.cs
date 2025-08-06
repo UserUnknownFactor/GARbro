@@ -141,7 +141,7 @@ namespace GARbro.GUI
                 StopVideoPlayback();
                 StopAnimationPlayback();
 
-                //SaveSettings();
+                SaveSettings();
                 DisposeAllStreams();
                 DisposePreviewHandlers();
             }

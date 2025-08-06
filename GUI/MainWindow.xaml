@@ -113,13 +113,14 @@
             <Setter Property="Height" Value="30"/>
             <Setter Property="Margin" Value="2"/>
             <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderBrush" Value="Gray"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#E0E0E0"/>
-                </Trigger>
-            </Style.Triggers>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
     </Window.Resources>
@@ -291,28 +292,86 @@
                 <Button x:Name="MediaStopButton" Style="{StaticResource MediaControlButton}"
                         Command="{x:Static local:Commands.StopPlayback}"
                         ToolTip="{x:Static s:guiStrings.TooltipStop}">
-                    <Path Fill="Black" Width="10" Height="10" Stretch="Uniform"
-                          Data="M0,0 L10,0 L10,10 L0,10 Z"/>
+                    <Viewbox Width="30" Height="30">
+                        <Viewbox.Style>
+                            <Style TargetType="Viewbox">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
+                                        <Setter Property="Opacity" Value="0.4"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Viewbox.Style>
+                        <Canvas Width="30" Height="30">
+                            <Ellipse Width="30" Height="30" Fill="#FF9999"/>
+                            <Rectangle Width="10" Height="10" Fill="White" 
+                                      Canvas.Left="10" Canvas.Top="10"/>
+                        </Canvas>
+                    </Viewbox>
                 </Button>
                 <Button x:Name="MediaPauseButton" Style="{StaticResource MediaControlButton}"
                         Command="{x:Static local:Commands.PausePlayback}"
                         ToolTip="{x:Static s:guiStrings.TooltipPause}">
-                    <Path x:Name="MediaPauseIcon" Fill="DarkOrange" Width="10" Height="10" Stretch="Uniform"
-                          Data="M0,0 L3,0 L3,10 L0,10 Z M7,0 L10,0 L10,10 L7,10 Z"/>
+                    <Viewbox Width="30" Height="30">
+                        <Viewbox.Style>
+                            <Style TargetType="Viewbox">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
+                                        <Setter Property="Opacity" Value="0.4"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Viewbox.Style>
+                        <Canvas Width="30" Height="30">
+                            <Ellipse Width="30" Height="30" Fill="#F39C12"/>
+                            <Path x:Name="MediaPauseIcon" Fill="White" 
+                                  Data="M 10 10 L 10 20 L 13 20 L 13 10 Z M 17 10 L 17 20 L 20 20 L 20 10 Z"/>
+                        </Canvas>
+                    </Viewbox>
                 </Button>
                 <Button x:Name="MediaCycleButton" Style="{StaticResource MediaControlButton}"
                         Command="{x:Static local:Commands.CyclePlayback}"
                         ToolTip="{x:Static s:guiStrings.TooltipCycleOff}"
                         Visibility="Collapsed">
-                    <Path x:Name="MediaCycleIcon" Fill="DarkMagenta" Width="12" Height="10" Stretch="Uniform"
-                          Data="M4,5 L4,3 C4,1.5 5.5,0 7,0 L11,0 C12.5,0 14,1.5 14,3 L14,5 L16,5 L13,8 L10,5 L12,5 L12,3 C12,2.5 11.5,2 11,2 L7,2 C6.5,2 6,2.5 6,3 L6,5 M12,7 L12,9 C12,10.5 10.5,12 9,12 L5,12 C3.5,12 2,10.5 2,9 L2,7 L0,7 L3,4 L6,7 L4,7 L4,9 C4,9.5 4.5,10 5,10 L9,10 C9.5,10 10,9.5 10,9 L10,7"/>
+                    <Viewbox Width="30" Height="30">
+                        <Viewbox.Style>
+                            <Style TargetType="Viewbox">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
+                                        <Setter Property="Opacity" Value="0.4"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Viewbox.Style>
+                        <Canvas Width="30" Height="30">
+                            <Ellipse Width="30" Height="30" Fill="#9B59B6"/>
+                            <Path x:Name="MediaCycleIcon" Fill="White" 
+                                  Data="M11 13V10.5C11 9 12 8 13.474 7.673l2.973.031C18 8 19 9 19 10.5V12h1.5L18 15l-2.5-3H17V10.5c0-.5-.5-1-1-1H14c-.5 0-1 .5-1 1V13m6 4v2.5C19 21 18 22 16.5 22h-3C12 22 11 21 11 19.5V18H9.5L12 15l2.5 3H13v1.5c0 .5.5 1 1 1h2c.5 0 1-.5 1-1V17"
+                                  StrokeThickness="0"/>
+                        </Canvas>
+                    </Viewbox>
                 </Button>
                 <Button x:Name="MediaAutoButton" Style="{StaticResource MediaControlButton}"
                         Command="{x:Static local:Commands.AutoPlayback}"
                         ToolTip="{x:Static s:guiStrings.TooltipAutoOff}"
                         Visibility="Collapsed">
-                    <Path x:Name="MediaAutoIcon" Fill="SeaGreen" Width="10" Height="10" Stretch="Uniform"
-                          Data="M0,2.5 L4,2.5 L4,3.5 L0,3.5 Z M0,4.5 L4,4.5 L4,5.5 L0,5.5 Z M0,6.5 L4,6.5 L4,7.5 L0,7.5 Z M5,2.5 L8,5 L5,7.5 L5,6.5 L7,5 L5,3.5 Z"/>
+                    <Viewbox Width="30" Height="30">
+                        <Viewbox.Style>
+                            <Style TargetType="Viewbox">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Button}, Path=IsEnabled}" Value="False">
+                                        <Setter Property="Opacity" Value="0.4"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Viewbox.Style>
+                        <Canvas Width="30" Height="30">
+                            <Ellipse Width="30" Height="30" Fill="#27AE60"/>
+                            <Path x:Name="MediaAutoIcon" Fill="White" 
+                                  Data="M 9 10.5 L 15 10.5 L 15 12.5 L 9 12.5 Z M 9 14 L 15 14 L 15 16 L 9 16 Z M 9 17.5 L 15 17.5 L 15 19.5 L 9 19.5 Z M 17 10 L 23 15 L 17 20 L 17 17 L 20 15 L 17 13 Z"
+                                  StrokeThickness="0"/>
+                        </Canvas>
+                    </Viewbox>
                 </Button>
                <Separator/>
                <TextBlock Text="🔊" VerticalAlignment="Center" Margin="5,0,2,0"/>

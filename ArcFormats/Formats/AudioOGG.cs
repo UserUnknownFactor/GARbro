@@ -45,7 +45,9 @@ namespace GameRes.Formats
             format.BlockAlign               = (ushort)(4 * format.Channels);
             format.AverageBytesPerSecond    = format.SamplesPerSecond * format.BlockAlign;
             this.Format = format;
-            this.PcmSize = (long)(m_reader.TotalTime.TotalSeconds * format.SamplesPerSecond * format.Channels * sizeof(float));
+
+            this.PcmSize = m_reader.TotalSamples * format.Channels * sizeof(float);
+            //this.PcmSize = (long)Math.Round(m_reader.TotalTime.TotalSeconds * format.SamplesPerSecond) * format.Channels * sizeof(float);
         }
 
         public override void Reset ()
@@ -59,10 +61,10 @@ namespace GameRes.Formats
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            // adjust count so it is in floats instead of bytes
+            // count is in floats instead of bytes
             count /= sizeof(float);
 
-            // make sure we don't have an odd count
+            // make sure it's channels-aligned
             count -= count % m_reader.Channels;
 
             // get the buffer, creating a new one if none exists or the existing one is too small
@@ -72,7 +74,6 @@ namespace GameRes.Formats
                 cb = (_conversionBuffer = new float[count]);
             }
 
-            // let ReadSamples(float[], int, int) do the actual reading; adjust count back to bytes
             int cnt = m_reader.ReadSamples (cb, 0, count) * sizeof(float);
 
             // move the data back to the request buffer
@@ -104,8 +105,8 @@ namespace GameRes.Formats
     {
         public override string         Tag { get { return "OGG"; } }
         public override string Description { get { return "Ogg/Vorbis audio format"; } }
-        public override uint     Signature { get { return 0x5367674f; } } // 'OggS'
-        public override bool      CanWrite { get { return false; } }
+        public override uint     Signature { get { return  0x5367674f; } } // 'OggS'
+        public override bool      CanWrite { get { return  false; } }
 
         LocalResourceSetting FixCrc = new LocalResourceSetting ("OGGFixCrc");
 
@@ -126,7 +127,8 @@ namespace GameRes.Formats
                 uint fmt_size = header.ToUInt32 (0x10);
                 long fmt_pos = file.Position;
                 ushort format = file.ReadUInt16();
-                if (format != 0x676F && format != 0x6770 && format != 0x6771 && format != 0x674F)
+                if (format != 0x676F && format != 0x6770 &&
+                    format != 0x6771 && format != 0x674F)
                     return null;
                 // interpret WAVE 'data' section as Ogg stream
                 file.Position = fmt_pos + ((fmt_size + 1) & ~1);
@@ -213,16 +215,20 @@ namespace GameRes.Formats
                 m_eof = true;
                 return;
             }
+
             if (m_page_length < 0x1B || !m_page.AsciiEqual ("OggS"))
             {
                 m_ogg_ended = true;
                 return;
             }
+
             int segment_count = m_page[0x1A];
+
             m_page[0x16] = 0;
             m_page[0x17] = 0;
             m_page[0x18] = 0;
             m_page[0x19] = 0;
+
             if (segment_count != 0)
             {
                 int table_length = BaseStream.Read (m_page, 0x1B, segment_count);
@@ -238,6 +244,7 @@ namespace GameRes.Formats
                     segments_length += m_page[segment_table++];
                 m_page_length += BaseStream.Read (m_page, 0x1B+segment_count, segments_length);
             }
+
             uint crc = Crc32Normal.UpdateCrc (0, m_page, 0, m_page_length);
             LittleEndian.Pack (crc, m_page, 0x16);
         }

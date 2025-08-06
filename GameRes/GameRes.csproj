@@ -60,7 +60,7 @@
     <Reference Include="PresentationCore" />
     <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="WindowsBase" />
-    <PackageReference Include="NAudio" Version="1.10.0" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="System.ComponentModel" Version="4.3.0" />
   </ItemGroup>
@@ -74,11 +74,13 @@
     </None>
   </ItemGroup>
 
-  <!-- PreBuildEvents -->
-  <!--
-  <PropertyGroup>
-    <PreBuildEvent>perl "$(SolutionDir)inc-revision.cmd" "$(ProjectPath)" $(ConfigurationName)
-exit 0</PreBuildEvent>
+   <!-- PreBuildEvent and PostBuildEvent -->
+  <PropertyGroup> <!-- way too big and unnecessary stuff -->
+  <PostBuildEvent>
+del /F /Q "$(TargetDir)Magick.Native-Q8-arm64.dll" 2>nul 
+del /F /Q "$(TargetDir)Magick.Native-Q8-x86.dll" 2>nul
+del /F /Q "$(TargetDir)NAudio.Midi.dll" 2>nul
+del /F /Q "$(TargetDir)NAudio.Asio.dll" 2>nul
+    </PostBuildEvent>
   </PropertyGroup>
-  -->
 </Project>

@@ -19,11 +19,20 @@ namespace GARbro.GUI
         private readonly Button _cycleButton;
         private readonly Button _autoButton;
         private readonly Slider _volumeSlider;
-        
-        // Icon paths for button states
+
         private readonly Path _pauseIcon;
         private readonly Path _cycleIcon;
         private readonly Path _autoIcon;
+
+        private readonly Ellipse _pauseEllipse;
+        private readonly Ellipse _cycleEllipse;
+        private readonly Ellipse _autoEllipse;
+
+        private readonly Brush _pauseActiveColor = new SolidColorBrush(Color.FromRgb(0xFF, 0xCC, 0x80));  // brighter pastel orange
+        private readonly Brush _cycleActiveColor = new SolidColorBrush(Color.FromRgb(0xCC, 0x99, 0xE6));  // brighter pastel purple
+        private readonly Brush _autoActiveColor = new SolidColorBrush(Color.FromRgb(0x80, 0xE6, 0x80));   // brighter pastel green
+
+        private readonly Brush _inactiveColor = new SolidColorBrush(Color.FromRgb(0xB0, 0xB0, 0xB0)); // gray
 
         public MediaControl(StackPanel controlPanel, Button pauseButton, Button stopButton, 
                           Button cycleButton, Button autoButton, Slider volumeSlider)
@@ -35,10 +44,29 @@ namespace GARbro.GUI
             _autoButton = autoButton;
             _volumeSlider = volumeSlider;
 
-            // Get icon references from buttons
-            _pauseIcon = _pauseButton.Content as Path;
-            _cycleIcon = _cycleButton.Content as Path;
-            _autoIcon = _autoButton.Content as Path;
+            ExtractButtonElements(_pauseButton, out _pauseIcon, out _pauseEllipse);
+            ExtractButtonElements(_cycleButton, out _cycleIcon, out _cycleEllipse);
+            ExtractButtonElements(_autoButton, out _autoIcon, out _autoEllipse);
+        }
+
+        private void ExtractButtonElements(Button button, out Path icon, out Ellipse ellipse)
+        {
+            icon = null;
+            ellipse = null;
+
+            if (button?.Content is Viewbox viewbox)
+            {
+                if (viewbox.Child is Canvas canvas)
+                {
+                    foreach (var child in canvas.Children)
+                    {
+                        if (child is Path path)
+                            icon = path;
+                        else if (child is Ellipse ell)
+                            ellipse = ell;
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -78,16 +106,16 @@ namespace GARbro.GUI
         public void UpdateButtonStates(bool isPaused, bool isAutoPlaying, bool isAutoCycling)
         {
             _pauseButton.ToolTip = isPaused ? guiStrings.TooltipResume : guiStrings.TooltipPause;
-            if (_pauseIcon != null)
-                _pauseIcon.Fill = isPaused ? Brushes.Orange : Brushes.DarkOrange;
+            if (_pauseEllipse != null)
+                _pauseEllipse.Fill = isPaused ? _inactiveColor : _pauseActiveColor;
 
             _autoButton.ToolTip = isAutoPlaying ? guiStrings.TooltipAutoOn : guiStrings.TooltipAutoOff;
-            if (_autoIcon != null)
-                _autoIcon.Fill = isAutoPlaying ? Brushes.LimeGreen : Brushes.SeaGreen;
+            if (_autoEllipse != null)
+                _autoEllipse.Fill = isAutoPlaying ? _autoActiveColor : _inactiveColor;
 
             _cycleButton.ToolTip = isAutoCycling ? guiStrings.TooltipCycleOn : guiStrings.TooltipCycleOff;
-            if (_cycleIcon != null)
-                _cycleIcon.Fill = isAutoCycling ? Brushes.Magenta : Brushes.DarkMagenta;
+            if (_cycleEllipse != null)
+                _cycleEllipse.Fill = isAutoCycling ? _cycleActiveColor : _inactiveColor;
         }
 
         public double Volume
