@@ -56,6 +56,8 @@ namespace GARbro.GUI
 
         internal bool _isAutoPlaying = false;
         internal bool _isAutoCycling = false;
+        private  string  _filterText = string.Empty;
+        private bool _isFilterActive = false;
 
         internal ImagePreviewControl m_animated_image_viewer;
         private VideoPreviewControl  m_video_preview_ctl;
@@ -298,6 +300,33 @@ namespace GARbro.GUI
             }
         }
 
+        private ScrollViewer GetScrollViewer (DependencyObject o)
+        {
+            if (o is ScrollViewer)
+                return o as ScrollViewer;
+
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount (o); i++)
+            {
+                var child = VisualTreeHelper.GetChild (o, i);
+                var result = GetScrollViewer (child);
+                if (result != null)
+                    return result;
+            }
+            return null;
+        }
+
+        private void UpdateFilterMargin ()
+        {
+            var scrollViewer = GetScrollViewer (CurrentDirectory);
+            if (scrollViewer != null)
+            {
+                var margin = scrollViewer.ComputedVerticalScrollBarVisibility == Visibility.Visible 
+                    ? new Thickness (0, 0, SystemParameters.VerticalScrollBarWidth, 0) 
+                    : new Thickness (0);
+                CurrentDirectory.Tag = margin;
+            }
+        }
+
         const int MaxRecentFiles = 9;
         LinkedList<string> m_recent_files;
 
@@ -345,14 +374,29 @@ namespace GARbro.GUI
             private set
             {
                 StopWatchDirectoryChanges();
+                ClearFilter();
+
                 var cvs = this.Resources["ListViewSource"] as CollectionViewSource;
                 cvs.Source = value;
 
                 // update path textbox
-                var path_component = value.Path.Last();
-                if (string.IsNullOrEmpty (path_component) && value.Path.Count > 1)
-                    path_component = value.Path[value.Path.Count - 2];
-                pathLine.Text = path_component;
+                bool showPhysical = true;
+                if (value.IsArchive && value.Path.Count > 1)
+                {
+                    // for archives, show the path relative to archive root
+                    var archivePath = value.Path.Skip(1).Where(p => !string.IsNullOrEmpty(p));
+                    pathLine.Text = string.Join("/", archivePath);
+                    if (!string.IsNullOrEmpty(pathLine.Text))
+                        showPhysical = false;
+                }
+                if (showPhysical)
+                {
+                    // for physical filesystem, show just the current directory
+                    var path_component = value.Path.Last();
+                    if (string.IsNullOrEmpty (path_component) && value.Path.Count > 1)
+                        path_component = value.Path[value.Path.Count - 2];
+                    pathLine.Text = path_component;
+                }
 
                 if (value.IsArchive && value.Path.Count <= 2)
                     PushRecentFile (value.Path.First());
@@ -675,12 +719,175 @@ namespace GARbro.GUI
             }
         }
 
+        private void ShowFilterInput ()
+        {
+            UpdateFilterMargin();
+            FilterInputBorder.Visibility = Visibility.Visible;
+            FilterInput.Focus();
+            _isFilterActive = true;
+        }
+
+        private void HideFilterInput ()
+        {
+            if (string.IsNullOrEmpty (FilterInput.Text))
+            {
+                FilterInputBorder.Visibility = Visibility.Collapsed;
+                _filterText = string.Empty;
+                _isFilterActive = false;
+                ApplyFilter();
+                ListViewFocus();
+                SetFileStatus ("");
+            }
+        }
+
+        private void FilterInput_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            _filterText = FilterInput.Text;
+            ApplyFilter();
+
+            if (string.IsNullOrEmpty (_filterText))
+                SetFileStatus ("");
+        }
+
+        private void FilterInput_LostFocus (object sender, RoutedEventArgs e)
+        {
+            // Check if the focus went to the clear button
+            if (ClearFilterButton.IsKeyboardFocusWithin)
+                return;
+
+            HideFilterInput();
+        }
+
+        private void FilterInput_KeyDown (object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape)
+            {
+                FilterInput.Text = string.Empty;
+                HideFilterInput();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Enter)
+            {
+                ListViewFocus();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Up || e.Key == Key.Down)
+            {
+                // Allow navigation in the filtered list
+                ListViewFocus();
+                if (CurrentDirectory.Items.Count > 0)
+                {
+                    if (CurrentDirectory.SelectedIndex == -1)
+                        CurrentDirectory.SelectedIndex = 0;
+
+                    var container = CurrentDirectory.ItemContainerGenerator.ContainerFromIndex (CurrentDirectory.SelectedIndex) as ListViewItem;
+                    container?.Focus();
+                }
+                e.Handled = true;
+            }
+        }
+
+        private void ClearFilterButton_Click (object sender, RoutedEventArgs e)
+        {
+            FilterInput.Text = string.Empty;
+            _filterText = string.Empty;
+            _isFilterActive = false;
+            FilterInputBorder.Visibility = Visibility.Collapsed;
+            ApplyFilter();
+            ListViewFocus();
+            SetFileStatus ("");
+        }
+
+        private void ApplyFilter ()
+        {
+            var view = CollectionViewSource.GetDefaultView (CurrentDirectory.ItemsSource) as ListCollectionView;
+            if (view != null)
+            {
+                if (string.IsNullOrEmpty (_filterText))
+                {
+                    view.Filter = null;
+                }
+                else
+                {
+                    view.Filter = item =>
+                    {
+                        var entry = item as EntryViewModel;
+                        if (entry == null) return true;
+
+                        // Always show parent directory entry
+                        if (entry.Name == "..")
+                            return true;
+
+                        return entry.Name.IndexOf (_filterText, StringComparison.OrdinalIgnoreCase) >= 0;
+                    };
+                }
+
+                // Update margin after filtering
+                Dispatcher.BeginInvoke (new Action (() => UpdateFilterMargin()), 
+                    System.Windows.Threading.DispatcherPriority.Loaded);
+
+                // Update status to show filter results
+                if (!string.IsNullOrEmpty (_filterText))
+                {
+                    int visibleCount = CurrentDirectory.Items.Count;
+                    int totalCount = ViewModel.Count;
+
+                    bool hasParentDir = ViewModel.Any (e => e.Name == "..");
+                    if (hasParentDir)
+                    {
+                        totalCount--;
+                        bool parentDirVisible = CurrentDirectory.Items.Cast<EntryViewModel>().Any (e => e.Name == "..");
+                        if (parentDirVisible)
+                            visibleCount--;
+                    }
+
+                    if (visibleCount > 0 && totalCount > 0)
+                        SetFileStatus(Localization.Format ("Filter: {0} of {1} items", visibleCount, totalCount));
+                    else
+                        SetFileStatus(Localization._T ("No matching files"));
+                }
+                else
+                    SetFileStatus ("");
+
+                // Select first item if any items remain after filtering
+                if (CurrentDirectory.Items.Count > 0 && CurrentDirectory.SelectedIndex == -1)
+                    CurrentDirectory.SelectedIndex = 0;
+            }
+        }
+
+        private void ClearFilter ()
+        {
+            if (_isFilterActive || !string.IsNullOrEmpty(_filterText))
+            {
+                _filterText = string.Empty;
+                _isFilterActive = false;
+                FilterInput.Text = string.Empty;
+                FilterInputBorder.Visibility = Visibility.Collapsed;
+
+                var view = CollectionViewSource.GetDefaultView (CurrentDirectory.ItemsSource) as ListCollectionView;
+                if (view != null)
+                    view.Filter = null;
+            }
+            SetFileStatus ("");
+        }
+
         /// <summary>
         /// Event handler for keys pressed in the directory view pane.
         /// </summary>
         private void lv_TextInput (object sender, TextCompositionEventArgs e)
         {
-            LookupItem (e.Text, e.Timestamp);
+            if (!FilterInputBorder.IsVisible && !string.IsNullOrEmpty (e.Text) && e.Text != "\x1B")
+            {
+                ShowFilterInput();
+                FilterInput.Text = e.Text;
+                FilterInput.CaretIndex = FilterInput.Text.Length;
+                e.Handled = true;
+                return;
+            }
+
+            if (!_isFilterActive)
+                LookupItem (e.Text, e.Timestamp);
+
             e.Handled = true;
         }
 
@@ -1671,13 +1878,22 @@ namespace GARbro.GUI
             RefreshView();
         }
 
-        public void RefreshView()
+        public void RefreshView ()
         {
             VFS.Flush();
             var pos = GetCurrentPosition();
+            var currentFilter = _filterText;
             SetCurrentPosition (pos);
-        }
 
+            if (!string.IsNullOrEmpty (currentFilter))
+            {
+                _filterText = currentFilter;
+                FilterInput.Text = currentFilter;
+                FilterInputBorder.Visibility = Visibility.Visible;
+                _isFilterActive = true;
+                ApplyFilter();
+            }
+        }
         /// <summary>
         /// Open current file in Explorer.
         /// </summary>
