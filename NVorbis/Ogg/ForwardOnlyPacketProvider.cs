@@ -196,8 +196,11 @@ namespace NVorbis.Ogg
             long? granulePos = null;
             if (isLast)
             {
-                granulePos = BitConverter.ToInt64(pageBuf, 6);
-
+                var gp = BitConverter.ToInt64(pageBuf, 6);
+                if (gp >= 0)
+                {
+                    granulePos = gp;
+                }
                 // fifth, set flags from the end page
                 if (((PageFlags)pageBuf[5] & PageFlags.EndOfStream) != 0 || (_isEndOfStream && _pageQueue.Count == 0))
                 {

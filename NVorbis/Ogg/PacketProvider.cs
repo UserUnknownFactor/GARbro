@@ -101,7 +101,7 @@ namespace NVorbis.Ogg
             }
             else
             {
-                return (0, 0, 0);
+                return (-1, 0, 0);  // Use -1 to indicate no previous page
             }
         }
 
@@ -175,10 +175,10 @@ namespace NVorbis.Ogg
                     }
                 }
                 // if we're not on the first page, there's a problem...
-                // technically there could still be a problem on the first page, but we're ignoring it
-                else if (pageIndex > _reader.FirstDataPageIndex)
+                // but add tolerance for end-of-stream pages
+                else if (pageIndex > _reader.FirstDataPageIndex && pageIndex < _reader.PageCount - 1)
                 {
-                    // unknown error...
+                    // Unknown Error... only throw for non-final pages
                     throw new System.IO.InvalidDataException($"GranulePos mismatch: Page {pageIndex}, expected {lastPageGranulePos}, calculated {endGP}");
                 }
             }
@@ -238,7 +238,11 @@ namespace NVorbis.Ogg
             // we have to use the absolute value for this to work right
             diff = Math.Abs(diff);
 
-            // find the count for y
+            // Some encoders have a bug where they report incorrect granule positions
+            // This tries to detect and compensate for that
+            // Allow small differences near the end of the file
+            if (diff <= 2) return true;
+
             var temp = diff;
             var shortBlockBits = 0;
             while (temp > 0 && (temp & 1) == 0)
@@ -318,6 +322,7 @@ namespace NVorbis.Ogg
                 pageIndex = _nextPacketPageIndex;
                 packetIndex = _nextPacketPacketIndex;
             }
+
             return _lastPacket;
         }
 
@@ -455,6 +460,9 @@ namespace NVorbis.Ogg
             if (ReferenceEquals(_lastPacket, packet))
             {
                 _lastPacket = null;
+                // Also invalidate the indices to force re-read
+                _lastPacketPacketIndex = -1;
+                _lastPacketPageIndex = -1;
             }
         }
     }

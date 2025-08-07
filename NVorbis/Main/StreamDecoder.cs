@@ -166,7 +166,7 @@ namespace NVorbis
             {
                 return string.Empty;
             }
-            
+
             var buf = new byte[len];
             var cnt = packet.Read(buf, 0, len);
             if (cnt < len)
@@ -365,24 +365,29 @@ namespace NVorbis
 
                 // we read out the valid samples from the previous packet
                 var copyLen = Math.Min((tgt - idx) / _channels, _prevPacketEnd - _prevPacketStart);
-                if (copyLen > 0)
+
+                // Safety check to prevent infinite loop
+                if (copyLen <= 0)
                 {
-                    if (ClipSamples)
-                    {
-                        idx += ClippingCopyBuffer(buffer, idx, copyLen);
-                    }
-                    else
-                    {
-                        idx += CopyBuffer(buffer, idx, copyLen);
-                    }
+                    _prevPacketStart = _prevPacketEnd;
+                    continue;
+                }
+
+                if (ClipSamples)
+                {
+                    idx += ClippingCopyBuffer(buffer, idx, copyLen);
+                }
+                else
+                {
+                    idx += CopyBuffer(buffer, idx, copyLen);
                 }
             }
 
-            // update the count of floats written
             count = idx - offset;
 
-            // update the position
-            _currentPosition += count / _channels;
+            // Ensure sample position is updated correctly (account for all channels)
+            var samplesRead = count / _channels;
+            _currentPosition += samplesRead;
 
             // return count of floats written
             return count;
@@ -418,21 +423,28 @@ namespace NVorbis
         {
             // decode the next packet now so we can start overlapping with it
             var curPacket = DecodeNextPacket(out var startIndex, out var validLen, out var totalLen, out var isEndOfStream, out samplePosition, out var bitsRead, out var bitsRemaining, out var containerOverheadBits);
+
             _eosFound |= isEndOfStream;
+
             if (curPacket == null)
             {
                 _stats.AddPacket(0, bitsRead, bitsRemaining, containerOverheadBits);
                 return false;
             }
 
-            // if we get a max sample position, back off our valid length to match
+            // Ensure we handle granule position correctly
             if (samplePosition.HasValue && isEndOfStream)
             {
                 var actualEnd = _currentPosition + bufferedSamples + validLen - startIndex;
                 var diff = (int)(samplePosition.Value - actualEnd);
-                if (diff < 0)
+
+                if (Math.Abs(diff) <= 4) // Allow small differences (rounding errors)
                 {
                     validLen += diff;
+                }
+                else if (diff < 0) // Significant negative difference - clamp to valid range
+                {
+                    validLen = Math.Max(startIndex, validLen + diff);
                 }
             }
 
@@ -531,7 +543,8 @@ namespace NVorbis
 
         private static void OverlapBuffers(float[][] previous, float[][] next, int prevStart, int prevLen, int nextStart, int channels)
         {
-            for (; prevStart < prevLen; prevStart++, nextStart++)
+            var nextLen = next[0]?.Length;
+            for (; prevStart < prevLen && nextStart < nextLen; prevStart++, nextStart++)
             {
                 for (var c = 0; c < channels; c++)
                 {
@@ -570,7 +583,7 @@ namespace NVorbis
                     // no-op
                     break;
                 case SeekOrigin.Current:
-                    samplePosition = SamplePosition - samplePosition;
+                    samplePosition = SamplePosition + samplePosition; // Fixed: was subtracting
                     break;
                 case SeekOrigin.End:
                     samplePosition = TotalSamples - samplePosition;
@@ -581,16 +594,17 @@ namespace NVorbis
 
             if (samplePosition < 0) throw new ArgumentOutOfRangeException(nameof(samplePosition));
 
+            // Clear any end-of-stream state before seeking
+            _eosFound = false;
+
             int rollForward;
             if (samplePosition == 0)
             {
-                // short circuit for the looping case...
                 _packetProvider.SeekTo(0, 0, GetPacketGranules);
                 rollForward = 0;
             }
             else
             {
-                // seek the stream to the correct position
                 var pos = _packetProvider.SeekTo(samplePosition, 1, GetPacketGranules);
                 rollForward = (int)(samplePosition - pos);
             }
@@ -599,27 +613,34 @@ namespace NVorbis
             ResetDecoder();
             _hasPosition = true;
 
-            // read the pre-roll packet
+            // Try to read the pre-roll packet
             if (!ReadNextPacket(0, out _))
             {
-                // we'll use this to force ReadSamples to fail to read
-                _eosFound = true;
-                if (_packetProvider.GetGranuleCount() != samplePosition)
+                // If we can't read a packet at position 0, the stream might be empty
+                if (samplePosition == 0)
                 {
-                    throw new InvalidOperationException("Could not read pre-roll packet!  Try seeking again prior to reading more samples.");
+                    _currentPosition = 0;
+                    return;
                 }
-                _prevPacketStart = _prevPacketStop;
-                _currentPosition = samplePosition;
-                return;
+
+                // For non-zero positions, check if we're at the end
+                if (_packetProvider.GetGranuleCount() == samplePosition)
+                {
+                    _prevPacketStart = _prevPacketStop;
+                    _currentPosition = samplePosition;
+                    return;
+                }
+
+                throw new InvalidOperationException("Could not read pre-roll packet! Try seeking again prior to reading more samples.");
             }
 
-            // read the actual packet
-            if (!ReadNextPacket(0, out _))
+            // Only read second packet if we're not at position 0
+            if (samplePosition > 0 && !ReadNextPacket(0, out _))
             {
                 ResetDecoder();
                 // we'll use this to force ReadSamples to fail to read
                 _eosFound = true;
-                throw new InvalidOperationException("Could not read pre-roll packet!  Try seeking again prior to reading more samples.");
+                throw new InvalidOperationException("Could not read pre-roll packet! Try seeking again prior to reading more samples.");
             }
 
             // adjust our indexes to match what we want

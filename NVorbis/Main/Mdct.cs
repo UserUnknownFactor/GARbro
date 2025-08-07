@@ -64,6 +64,9 @@ namespace NVorbis
 
             internal void CalcReverse(float[] buffer)
             {
+                if (buffer.Length < _n)
+                    throw new ArgumentException($"Buffer too small: {buffer.Length} < {_n}");
+
                 float[] u, v;
 
                 var buf2 = new float[_n2];

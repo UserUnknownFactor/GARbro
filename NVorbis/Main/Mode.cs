@@ -129,6 +129,14 @@ namespace NVorbis
 
             if (_blockFlag)
             {
+                if (packet.BitsRemaining < 2)
+                {
+                    windowIndex = 0;
+                    packetStartIndex = 0;
+                    packetValidLength = 0;
+                    packetTotalLength = 0;
+                    return false;
+                }
                 var prevFlag = packet.ReadBit();
                 var nextFlag = packet.ReadBit();
 

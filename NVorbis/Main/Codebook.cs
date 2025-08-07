@@ -11,15 +11,9 @@ namespace NVorbis
         // FastRange is "borrowed" from GitHub: TechnologicalPizza/MonoGame.NVorbis
         class FastRange : IReadOnlyList<int>
         {
-            [ThreadStatic]
-            static FastRange _cachedRange;
-
             internal static FastRange Get(int start, int count)
             {
-                var fr = _cachedRange ?? (_cachedRange = new FastRange());
-                fr._start = start;
-                fr._count = count;
-                return fr;
+                return new FastRange { _start = start, _count = count };
             }
 
             int _start;

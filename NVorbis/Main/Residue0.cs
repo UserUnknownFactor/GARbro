@@ -69,8 +69,10 @@ namespace NVorbis
             var partvals = 1;
             while (dim > 0)
             {
+                if (partvals > entries / _classifications)
+                    throw new InvalidDataException("Partition value overflow");
+
                 partvals *= _classifications;
-                if (partvals > entries) throw new InvalidDataException();
                 --dim;
             }
 

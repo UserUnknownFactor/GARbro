@@ -168,10 +168,12 @@ namespace NVorbis
                 }
 
                 i = 0;
-                while (i < n)
+                while (i < n && i < barkMap.Length - 1)
                 {
                     int j;
                     var k = barkMap[i];
+                    if (k < 0 || k >= wMap.Length) break;
+
                     var p = .5f;
                     var q = .5f;
                     var w = wMap[k];

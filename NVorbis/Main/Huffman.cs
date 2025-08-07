@@ -56,6 +56,10 @@ namespace NVorbis
                     for (int j = 0; j < maxVal; j++)
                     {
                         var idx = (j << itemBits) | item.Bits;
+                        if (idx >= prefixList.Capacity)
+                        {
+                            prefixList.Capacity = idx + 1;
+                        }
                         while (prefixList.Count <= idx)
                         {
                             prefixList.Add(null);
