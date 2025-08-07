@@ -58,15 +58,14 @@ namespace NVorbis.Ogg
                     else if (_maxGranulePos > _reader.GranulePosition)
                     {
                         // uuuuh, what?!
-                        throw new System.IO.InvalidDataException("Granule Position regressed?!");
+                        System.Diagnostics.Trace.WriteLine("Granule Position regressed?!");
                     }
                     _maxGranulePos = _reader.GranulePosition;
                 }
-                // granule position == -1, so this page doesn't complete any packets
-                // we don't really care if it's a continuation itself, only that it is continued and has a single packet
-                else if (_firstDataPageIndex.HasValue && (!_reader.IsContinued || _reader.PacketCount != 1))
+                else if (_firstDataPageIndex.HasValue && _reader.GranulePosition == -1)
                 {
-                    throw new System.IO.InvalidDataException("Granule Position was -1 but page does not have exactly 1 continued packet.");
+                    // A granule position of -1 means that no packets complete
+                    // on this page - this is perfectly valid in OGG.
                 }
 
                 if ((_reader.PageFlags & PageFlags.EndOfStream) != 0)

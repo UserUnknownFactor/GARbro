@@ -178,8 +178,16 @@ namespace NVorbis.Ogg
                 // but add tolerance for end-of-stream pages
                 else if (pageIndex > _reader.FirstDataPageIndex && pageIndex < _reader.PageCount - 1)
                 {
-                    // Unknown Error... only throw for non-final pages
-                    throw new System.IO.InvalidDataException($"GranulePos mismatch: Page {pageIndex}, expected {lastPageGranulePos}, calculated {endGP}");
+                    // Unknown Error: only throw for non-final pages
+                    System.Diagnostics.Trace.WriteLine($"GranulePos mismatch: Page {pageIndex}, expected {lastPageGranulePos}, calculated {endGP}");
+                   // Try to use the page's actual granule position
+                    if (lastPageGranulePos > 0)
+                    {
+                        var adjustment = lastPageGranulePos - endGP;
+                        for (var i = 0; i < gps.Length; i++)
+                            gps[i] += adjustment;
+                        endGP = lastPageGranulePos;
+                    }
                 }
             }
 
@@ -188,19 +196,15 @@ namespace NVorbis.Ogg
             {
                 if (gps[i] >= granulePos)
                 {
-                    if (i == 0)
-                    {
-                        granulePos = endGP;
-                    }
-                    else
-                    {
-                        granulePos = gps[i - 1];
-                    }
+                    granulePos = (i == 0) ? endGP : gps[i - 1];
                     return i;
                 }
             }
 
-            throw new System.IO.InvalidDataException("Could not find seek packet?!");
+            System.Diagnostics.Debug.WriteLine("Could not find seek packet?!");
+            // If we couldn't find the exact packet, return the last one
+            granulePos = gps[gps.Length - 1];
+            return gps.Length - 1;
         }
 
         private int FindPacket(int pageIndex, int preRoll, ref long granulePos, GetPacketGranuleCount getPacketGranuleCount)

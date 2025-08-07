@@ -24,18 +24,23 @@ namespace NVorbis
         public void Init(IPacket packet, int channels, int block0Size, int block1Size, IMapping[] mappings)
         {
             _channels = channels;
-
             _blockFlag = packet.ReadBit();
-            if (0 != packet.ReadBits(32))
+
+            // Read and ignore reserved fields (window type and transform type)
+            var windowType = packet.ReadBits(16);
+            var transformType = packet.ReadBits(16);
+
+            if (windowType != 0 || transformType != 0)
             {
-                throw new System.IO.InvalidDataException("Mode header had invalid window or transform type!");
+                System.Diagnostics.Debug.WriteLine($"Warning: Mode header has non-zero reserved fields: window={windowType}, transform={transformType}");
             }
 
             var mappingIdx = (int)packet.ReadBits(8);
             if (mappingIdx >= mappings.Length)
             {
-                throw new System.IO.InvalidDataException("Mode header had invalid mapping index!");
+                throw new System.IO.InvalidDataException($"Mode header had invalid mapping index: {mappingIdx}!");
             }
+
             _mapping = mappings[mappingIdx];
 
             if (_blockFlag)
@@ -95,7 +100,7 @@ namespace NVorbis
                 x *= x;
                 array[rightbegin + i] = (float)Math.Sin(x * M_PI2);
             }
-        
+
             return array;
         }
 
@@ -107,7 +112,7 @@ namespace NVorbis
             var packetStartIndex = blockSize / 4 - leftOverlapHalfSize;
             var packetTotalLength = blockSize / 4 * 3 + rightOverlapHalfSize;
             var packetValidLength = packetTotalLength - rightOverlapHalfSize * 2;
-        
+
             return new OverlapInfo
             {
                 PacketStartIndex = packetStartIndex,

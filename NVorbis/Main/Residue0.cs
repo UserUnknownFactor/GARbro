@@ -61,7 +61,14 @@ namespace NVorbis
             for (var i = 0; i < acc; i++)
             {
                 bookNums[i] = (int)packet.ReadBits(8);
-                if (codebooks[bookNums[i]].MapType == 0) throw new InvalidDataException();
+                if (bookNums[i] >= codebooks.Length)
+                {
+                    throw new InvalidDataException($"Invalid codebook number {bookNums[i]}");
+                }
+                if (codebooks[bookNums[i]].MapType == 0)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Warning: Residue using codebook {bookNums[i]} with MapType 0");
+                }
             }
 
             var entries = _classBook.Entries;

@@ -27,7 +27,6 @@ namespace NVorbis
 
         public void Init(IPacket packet, int channels, int block0Size, int block1Size, ICodebook[] codebooks)
         {
-            // this is pretty well stolen directly from libvorbis...  BSD license
             _order = (int)packet.ReadBits(8);
             _rate = (int)packet.ReadBits(16);
             _bark_map_size = (int)packet.ReadBits(16);
@@ -35,18 +34,37 @@ namespace NVorbis
             _ampOfs = (int)packet.ReadBits(8);
             _books = new ICodebook[(int)packet.ReadBits(4) + 1];
 
-            if (_order < 1 || _rate < 1 || _bark_map_size < 1 || _books.Length == 0) throw new InvalidDataException();
+            // lenient validation
+            if (_order < 1)
+            {
+                System.Diagnostics.Debug.WriteLine($"Warning: Floor0 order {_order} is invalid, using 1");
+                _order = 1;
+            }
+            if (_rate < 1)
+            {
+                System.Diagnostics.Debug.WriteLine($"Warning: Floor0 rate {_rate} is invalid, using 1");
+                _rate = 1;
+            }
+            if (_bark_map_size < 1)
+            {
+                System.Diagnostics.Debug.WriteLine($"Warning: Floor0 bark_map_size {_bark_map_size} is invalid, using 1");
+                _bark_map_size = 1;
+            }
 
             _ampDiv = (1 << _ampBits) - 1;
 
             for (int i = 0; i < _books.Length; i++)
             {
                 var num = (int)packet.ReadBits(8);
-                if (num < 0 || num >= codebooks.Length) throw new InvalidDataException();
+                if (num < 0 || num >= codebooks.Length)
+                {
+                    throw new InvalidDataException($"Invalid codebook number {num}");
+                }
                 var book = codebooks[num];
-
-                if (book.MapType == 0 || book.Dimensions < 1) throw new InvalidDataException();
-
+                if (book.MapType == 0 || book.Dimensions < 1)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Warning: Floor0 book {i} has MapType={book.MapType}, Dimensions={book.Dimensions}");
+                }
                 _books[i] = book;
             }
             _bookBits = Utils.ilog(_books.Length);

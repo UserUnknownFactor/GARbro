@@ -11,7 +11,7 @@ namespace NVorbis.Ogg
 
         private readonly ICrc _crc = CreateCrc();
         private readonly HashSet<int> _ignoredSerials = new HashSet<int>();
-        private readonly byte[] _headerBuf = new byte[305]; // 27 - 4 + 27 + 255 (found sync at end of first buffer, and found page has full segment count)
+        private readonly byte[] _headerBuf = new byte[305]; // 27 - 4 + 27 + 255 (sync at end of first buffer, and page has full segment count)
         private byte[] _overflowBuf;
         private int _overflowBufIndex;
 
@@ -230,10 +230,11 @@ namespace NVorbis.Ogg
             if (!CheckLock()) throw new InvalidOperationException("Must be locked prior to reading!");
 
             var isResync = false;
-
             var ofs = 0;
             int cnt;
+
             PrepareStreamForNextPage();
+
             while ((cnt = FillHeader(_headerBuf, ofs, 27 - ofs)) > 0)
             {
                 cnt += ofs;
@@ -285,6 +286,7 @@ namespace NVorbis.Ogg
 
             if (cnt == 0)
             {
+                // End of stream reached (possibly without EOS flag)
                 SetEndOfStreams();
             }
 
