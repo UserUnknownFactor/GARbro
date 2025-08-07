@@ -113,6 +113,9 @@ namespace GameRes.Formats.DxLib
                 return guessedArc;
             }
 
+            if (!HasMatchingExtension(file))
+                return null;
+
             var options = Query<DxOptions>(arcStrings.ArcEncryptedNotice);
             if (options == null || string.IsNullOrWhiteSpace(options.Password))
                 return null;

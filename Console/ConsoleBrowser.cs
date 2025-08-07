@@ -1,8 +1,4 @@
-﻿//! \file       Program.cs
-//! \date       2025 Jul 17
-//! \brief      Console game resources browser.
-//
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;

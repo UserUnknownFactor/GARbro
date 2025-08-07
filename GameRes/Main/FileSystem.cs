@@ -355,7 +355,7 @@ namespace GameRes
 
         public bool IsDirectory (string path)
         {
-            var dirPath = path.TrimEnd ('/', '\\') + "/";
+            var dirPath = path.TrimEnd ('/', '\\') + VFS.DIR_DELIMITER;
             return m_dir.Keys.Any (k => k.StartsWith (dirPath, StringComparison.OrdinalIgnoreCase));
         }
 
@@ -424,9 +424,9 @@ namespace GameRes
             {
                 if (string.IsNullOrEmpty (value))
                     return;
-                if (".." == value || "." == value)
+                if (VFS.DIR_PARENT == value || VFS.DIR_CURRENT == value)
                     return;
-                if ("\\" == value || "/" == value)
+                if ("\\" == value || VFS.DIR_DELIMITER == value)
                     return;
                 throw new DirectoryNotFoundException();
             }
@@ -506,7 +506,7 @@ namespace GameRes
         public TreeArchiveFileSystem (ArcFile arc) : base (arc)
         {
             m_cwd = "";
-            PathDelimiter = "/";
+            PathDelimiter = VFS.DIR_DELIMITER;
         }
 
         public override string CurrentDirectory
@@ -604,7 +604,7 @@ namespace GameRes
             {
                 if (!(entry is SubDirEntry)) // add ordinary file
                     result.Add (entry);
-                else if (".." == entry.Name) // skip reference to parent directory
+                else if (VFS.DIR_PARENT == entry.Name) // skip reference to parent directory
                     continue;
                 else // add all files contained within directory, recursive
                 {
@@ -673,7 +673,7 @@ namespace GameRes
             {
                 path = path.TrimStart (m_path_delimiters);
             }
-            else if (".." == path && !string.IsNullOrEmpty (m_cwd))
+            else if (VFS.DIR_PARENT == path && !string.IsNullOrEmpty (m_cwd))
             {
                 cur_dir.AddRange (m_cwd.Split (m_path_delimiters));
             }
@@ -681,11 +681,11 @@ namespace GameRes
             var path_list = path.Split (m_path_delimiters);
             foreach (var dir in path_list)
             {
-                if ("." == dir)
+                if (VFS.DIR_CURRENT == dir)
                 {
                     continue;
                 }
-                else if (".." == dir)
+                else if (VFS.DIR_PARENT == dir)
                 {
                     if (0 == cur_dir.Count)
                         continue;
@@ -749,7 +749,7 @@ namespace GameRes
         {
             if (entry is SubDirEntry)
             {
-                if (Count > 1 && ".." == entry.Name && string.IsNullOrEmpty (Top.CurrentDirectory))
+                if (Count > 1 && VFS.DIR_PARENT == entry.Name && string.IsNullOrEmpty (Top.CurrentDirectory))
                 {
                     Pop();
                     if (!string.IsNullOrEmpty (LastVisitedPath))
@@ -865,6 +865,10 @@ namespace GameRes
 
         private static string[] m_top_path = new string[1];
 
+        public static readonly    string DIR_PARENT = "..";
+        public static readonly   string DIR_CURRENT = ".";
+        public static readonly string DIR_DELIMITER = "/";
+
         public static IEnumerable<string> FullPath
         {
             get
@@ -948,8 +952,8 @@ namespace GameRes
 
         public static Entry FindFile (string filename)
         {
-            if (".." == filename)
-                return new SubDirEntry ("..");
+            if (VFS.DIR_PARENT == filename)
+                return new SubDirEntry (VFS.DIR_PARENT);
 
             WeakReference cachedRef;
             if (_entryCache.TryGetValue (filename, out cachedRef))

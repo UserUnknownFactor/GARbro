@@ -35,6 +35,49 @@ namespace GameRes
         public abstract ArcFile TryOpen (ArcView file);
 
         /// <summary>
+        /// Checks if another file Entry's filename extension matches any of the format's supported extensions.
+        /// </summary>
+        /// <param name="entry">The entry to check</param>
+        /// <returns>true if the extension matches, false otherwise</returns>
+        public bool HasMatchingExtension (Entry entry)
+        {
+            if (entry == null || string.IsNullOrEmpty (entry.Name))
+                return false;
+
+            return HasMatchingExtension (entry.Name);
+        }
+
+        /// <summary>
+        /// Checks if the ArcView's filename extension matches any of the format's supported extensions.
+        /// </summary>
+        /// <param name="file">The file view to check</param>
+        /// <returns>true if the extension matches, false otherwise</returns>
+        public bool HasMatchingExtension (ArcView file)
+        {
+            if (file == null || string.IsNullOrEmpty (file.Name))
+                return false;
+
+            return HasMatchingExtension (file.Name);
+        }
+
+        /// <summary>
+        /// Checks if the filename's extension matches any of the format's supported extensions.
+        /// </summary>
+        /// <param name="filename">The filename to check</param>
+        /// <returns>true if the extension matches, false otherwise</returns>
+        public bool HasMatchingExtension (string filename)
+        {
+            if (string.IsNullOrEmpty (filename) || Extensions == null || !Extensions.Any())
+                return false;
+
+            var fileExtension = Path.GetExtension (filename)?.TrimStart ('.').ToLowerInvariant();
+            if (string.IsNullOrEmpty (fileExtension))
+                return false;
+
+            return Extensions.Any(ext => ext.Equals (fileExtension, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
         /// Create <see cref="Entry"/> corresponding to <paramref name="filename"/>'s extension.
         /// </summary>
         /// <exception cref="System.ArgumentException">May be thrown if filename contains invalid
@@ -84,8 +127,9 @@ namespace GameRes
         /// supplied <paramref name="list"/> and applying necessary <paramref name="options"/>.
         /// </summary>
         /// <exception cref="NotImplementedException"/>
-        public virtual void Create (Stream file, IEnumerable<Entry> list, ResourceOptions options = null,
-                                    EntryCallback callback = null)
+        public virtual void Create (
+            Stream file, IEnumerable<Entry> list, ResourceOptions options = null,
+            EntryCallback callback = null)
         {
             throw new NotImplementedException ("ArchiveFormat.Create is not implemented");
         }
@@ -100,13 +144,13 @@ namespace GameRes
         }
 
         /// <inheritdoc cref="IsSaneCount (int, int)" />
-        public static bool IsSaneCount(long count, long possible_max = 0x40000)
+        public static bool IsSaneCount (long count, long possible_max = 0x40000)
         {
             return count > 0 && count < possible_max;
         }
 
         /// <inheritdoc cref="IsSaneCount (int, int)" />
-        public static bool IsSaneCount(uint count, uint possible_max = 0x40000)
+        public static bool IsSaneCount (uint count, uint possible_max = 0x40000)
         {
             return count > 0 && count < possible_max;
         }
@@ -117,10 +161,10 @@ namespace GameRes
         /// Useful when we are 100% sure that the format is correct, but it cannot be parsed:<br/>
         /// can be better than returning <b>null</b> and searching for other formats.</summary>
         /// <exception cref="InvalidFormatException"/>
-        public static void IsSaneCountWithException(int count, int possible_max = 0x40000, string comment=null)
+        public static void IsSaneCountEx (int count, int possible_max = 0x40000, string comment=null)
         {
             if (count < 0 && count > possible_max)
-                throw new InvalidFormatException(comment);
+                throw new InvalidFormatException (comment);
         }
 
         /// <summary>

@@ -385,7 +385,7 @@ namespace GARbro.GUI
                 {
                     // for archives, show the path relative to archive root
                     var archivePath = value.Path.Skip(1).Where(p => !string.IsNullOrEmpty(p));
-                    pathLine.Text = string.Join("/", archivePath);
+                    pathLine.Text = string.Join(VFS.DIR_DELIMITER, archivePath);
                     if (!string.IsNullOrEmpty(pathLine.Text))
                         showPhysical = false;
                 }
@@ -815,7 +815,7 @@ namespace GARbro.GUI
                         if (entry == null) return true;
 
                         // Always show parent directory entry
-                        if (entry.Name == "..")
+                        if (entry.Name == VFS.DIR_PARENT)
                             return true;
 
                         return entry.Name.IndexOf (_filterText, StringComparison.OrdinalIgnoreCase) >= 0;
@@ -832,11 +832,11 @@ namespace GARbro.GUI
                     int visibleCount = CurrentDirectory.Items.Count;
                     int totalCount = ViewModel.Count;
 
-                    bool hasParentDir = ViewModel.Any (e => e.Name == "..");
+                    bool hasParentDir = ViewModel.Any (e => e.Name == VFS.DIR_PARENT);
                     if (hasParentDir)
                     {
                         totalCount--;
-                        bool parentDirVisible = CurrentDirectory.Items.Cast<EntryViewModel>().Any (e => e.Name == "..");
+                        bool parentDirVisible = CurrentDirectory.Items.Cast<EntryViewModel>().Any (e => e.Name == VFS.DIR_PARENT);
                         if (parentDirVisible)
                             visibleCount--;
                     }
@@ -1170,17 +1170,23 @@ namespace GARbro.GUI
                 entry = CurrentDirectory.SelectedItem as EntryViewModel;
             if (null == entry)
                 return;
-            if ("audio" == entry.Type)
+
+            switch (entry.Type) 
             {
+            case "audio":
                 StartAudioPlayback (entry.Source);
                 return;
-            }
-            else if ("video" == entry.Type)
-            {
+            case "video":
                 StartVideoPlayback (entry.Source);
                 return;
+            case "text":
+            case "script":
+            case "image":
+                return; // don't try to open those as archive
+            default:
+                OpenDirectoryEntry (ViewModel, entry);
+                break;
             }
-            OpenDirectoryEntry (ViewModel, entry);
         }
 
         private void DescendExec (object control, ExecutedRoutedEventArgs e)
@@ -1193,7 +1199,7 @@ namespace GARbro.GUI
         private void AscendExec (object control, ExecutedRoutedEventArgs e)
         {
             var vm = ViewModel;
-            var parent_dir = vm.FirstOrDefault (entry => entry.Name == "..");
+            var parent_dir = vm.FirstOrDefault (entry => entry.Name == VFS.DIR_PARENT);
             if (parent_dir != null)
                 OpenDirectoryEntry (vm, parent_dir);
         }
@@ -1202,7 +1208,7 @@ namespace GARbro.GUI
         {
             string old_dir = null == vm ? "" : vm.Path.Last();
             string new_dir = entry.Source.Name;
-            if (".." == new_dir)
+            if (VFS.DIR_PARENT == new_dir)
             {
                 if (null != vm && !vm.IsArchive)
                     new_dir = Path.Combine (old_dir, entry.Name);
@@ -1227,7 +1233,7 @@ namespace GARbro.GUI
                 else{
                     SetFileStatus("");}
             }
-            if (".." == entry.Name)
+            if (VFS.DIR_PARENT == entry.Name)
                 lv_SelectItem (Path.GetFileName (old_dir));
             else
                 lv_SelectItem (0);
@@ -2465,7 +2471,8 @@ namespace GARbro.GUI
         {
             if (preview?.Path != null && preview.Path.Any())
             {
-                return string.Join("/", preview.Path.Concat(new[] { preview.Name }));
+                return string.Join(VFS.DIR_DELIMITER, 
+                                    preview.Path.Concat(new[] { preview.Name }));
             }
             return preview?.Name ?? "";
         }

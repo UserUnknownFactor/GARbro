@@ -33,7 +33,7 @@ namespace GARbro.GUI
             var last_dir = Path.Last();
             if (IsArchive || !string.IsNullOrEmpty (last_dir) && null != Directory.GetParent (last_dir))
             {
-                Add (new EntryViewModel (new SubDirEntry (".."), -2));
+                Add (new EntryViewModel (new SubDirEntry (VFS.DIR_PARENT), -2));
             }
             foreach (var entry in Source)
             {
@@ -59,7 +59,7 @@ namespace GARbro.GUI
 
         private string GetRelativePath(string fullPath)
         {
-            if (string.IsNullOrEmpty(fullPath) || fullPath == "..")
+            if (string.IsNullOrEmpty(fullPath) || fullPath == VFS.DIR_PARENT)
                 return fullPath;
 
             if (!Path.IsPathRooted(fullPath))

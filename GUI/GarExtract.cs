@@ -41,7 +41,7 @@ namespace GARbro.GUI
                         destination = Path.GetDirectoryName (vm.Path.First());
                     var archive_name = vm.Path[vm.Path.Count-2];
                     extractor = new GarExtract (this, archive_name, VFS.Top as ArchiveFileSystem);
-                    if (null == entry || (entry.Name == ".." && string.IsNullOrEmpty (vm.Path.Last()))) // root entry
+                    if (null == entry || (entry.Name == VFS.DIR_PARENT && string.IsNullOrEmpty (vm.Path.Last()))) // root entry
                         extractor.ExtractAll (destination);
                     else
                         extractor.Extract (entry, destination);
@@ -235,7 +235,7 @@ namespace GARbro.GUI
         {
             var view_model = m_main.ViewModel;
             var selected = m_main.CurrentDirectory.SelectedItems.Cast<EntryViewModel>();
-            if (!selected.Any() && entry.Name == "..")
+            if (!selected.Any() && entry.Name == VFS.DIR_PARENT)
                 selected = view_model;
 
             IEnumerable<Entry> file_list = selected.Select (e => e.Source);
@@ -475,7 +475,7 @@ namespace GARbro.GUI
             {
                 if (m_should_ascend)
                 {
-                    VFS.ChDir ("..");
+                    VFS.ChDir (VFS.DIR_PARENT);
                 }
                 disposed = true;
             }

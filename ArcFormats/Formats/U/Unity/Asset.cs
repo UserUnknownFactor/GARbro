@@ -80,7 +80,7 @@ namespace GameRes.Formats.Unity
             input.SetupReadId (m_big_id_enabled);
 
             int obj_count = input.ReadInt32();
-            ArchiveFormat.IsSaneCountWithException (obj_count);
+            ArchiveFormat.IsSaneCountEx (obj_count);
             for (int i = 0; i < obj_count; ++i)
             {
                 input.Align();
@@ -92,7 +92,7 @@ namespace GameRes.Formats.Unity
             if (m_format >= 11)
             {
                 int count = input.ReadInt32();
-                ArchiveFormat.IsSaneCountWithException (count);
+                ArchiveFormat.IsSaneCountEx (count);
                 script_types = new Dictionary<long, int>(count);
                 for (int i = 0; i < count; ++i)
                 {
@@ -105,7 +105,7 @@ namespace GameRes.Formats.Unity
             if (m_format >= 6)
             {
                 int count = input.ReadInt32();
-                ArchiveFormat.IsSaneCountWithException (count);
+                ArchiveFormat.IsSaneCountEx (count);
                 m_externals = new List<AssetRef>(count);
                 for (int i = 0; i < count; ++i)
                 {
@@ -117,7 +117,7 @@ namespace GameRes.Formats.Unity
             if (m_format >= 20)
             {
                 int count = input.ReadInt32();
-                ArchiveFormat.IsSaneCountWithException (count);
+                ArchiveFormat.IsSaneCountEx (count);
                 for (int i = 0; i < count; ++i)
                 {
                     var new_type = new SerializedType (m_format, true);
@@ -951,7 +951,7 @@ namespace GameRes.Formats.Unity
                 m_has_dependence_types = reader.ReadBool();
 
             int count = reader.ReadInt32();
-            ArchiveFormat.IsSaneCountWithException (count);
+            ArchiveFormat.IsSaneCountEx (count);
             for (int i = 0; i < count; ++i)
             {
                 var new_type = new SerializedType (format);

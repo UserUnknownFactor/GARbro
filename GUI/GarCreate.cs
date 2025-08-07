@@ -179,7 +179,7 @@ namespace GARbro.GUI
             {
                 if (entry.IsDirectory)
                 {
-                    if (".." != entry.Name)
+                    if (VFS.DIR_PARENT != entry.Name)
                     {
                         var dir = new DirectoryInfo (entry.Name);
                         add_files (list, entry.Name, dir);
