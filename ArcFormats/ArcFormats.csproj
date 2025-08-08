@@ -5,7 +5,7 @@
     <AssemblyName>ArcFormats</AssemblyName>
     <Copyright>morkt, crskycode and other contributors</Copyright>
     <Description>GARbro legacy formats support library</Description>
-    <Version>1.0.2</Version>
+    <Version>1.1.1</Version>
     <AssemblyVersion>$([System.DateTime]::Today.ToString('yy.MM.dd'))</AssemblyVersion>
 
     <TargetFramework>net48</TargetFramework>

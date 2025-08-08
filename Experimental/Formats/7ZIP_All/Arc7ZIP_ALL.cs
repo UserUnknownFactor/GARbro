@@ -18,9 +18,9 @@ namespace GameRes.Formats.SevenZip
     {
         public override string         Tag { get { return "7Z/OTHERS"; } }
         public override string Description { get { return "Archive supported by 7-Zip"; } }
-        public override uint     Signature { get { return 0; } }
-        public override bool  IsHierarchic { get { return true; } }
-        public override bool      CanWrite { get { return false; } }
+        public override uint     Signature { get { return  0; } }
+        public override bool  IsHierarchic { get { return  true; } }
+        public override bool      CanWrite { get { return  false; } }
 
         public SevenZipOpener()
         {
@@ -31,12 +31,12 @@ namespace GameRes.Formats.SevenZip
             };
         }
 
-        public override ArcFile TryOpen(ArcView file)
+        public override ArcFile TryOpen (ArcView file)
         {
             if (!Lib7ZipLoader.Load())
                 return null;
 
-            var format = GuessFormat(file);
+            var format = GuessFormat (file);
             if (format == SevenZipFormat.Undefined)
                 return null;
 
@@ -46,41 +46,41 @@ namespace GameRes.Formats.SevenZip
                 var classId     = Formats.FormatGuidMapping[format];
                 var interfaceId = typeof(IInArchive).GUID;
 
-                int hr = CreateObject(ref classId, ref interfaceId, out archive);
+                int hr = CreateObject (ref classId, ref interfaceId, out archive);
                 if (hr != 0)
                     return null;
 
                 var inArchive = archive as IInArchive;
                 if (inArchive == null)
                 {
-                    Marshal.ReleaseComObject(archive);
+                    Marshal.ReleaseComObject (archive);
                     return null;
                 }
 
-                var stream   = new ArcViewStream(file);
-                var inStream = new InStreamWrapper(stream);
+                var stream   = new ArcViewStream (file);
+                var inStream = new InStreamWrapper (stream);
 
                 ulong maxCheckStartPosition = 32 * 1024;
-                hr = inArchive.Open(inStream, ref maxCheckStartPosition, null);
+                hr = inArchive.Open (inStream, ref maxCheckStartPosition, null);
 
                 if (hr != 0)
                 {
-                    Marshal.ReleaseComObject(inArchive);
+                    Marshal.ReleaseComObject (inArchive);
                     stream.Dispose();
                     return null;
                 }
 
-                var dir = ReadDirectory(inArchive, file.Name);
+                var dir = ReadDirectory (inArchive, file.Name);
                 if (dir.Count == 0)
                 {
-                    Marshal.ReleaseComObject(inArchive);
+                    Marshal.ReleaseComObject (inArchive);
                     stream.Dispose();
                     return null;
                 }
 
                 Comment = format.ToString();
 
-                return new SevenZipArchive(file, this, dir, inArchive, inStream, format);
+                return new SevenZipArchive (file, this, dir, inArchive, inStream, format);
             }
             catch
             {
@@ -88,64 +88,64 @@ namespace GameRes.Formats.SevenZip
             }
         }
 
-        public override void Create(Stream output, IEnumerable<Entry> list, ResourceOptions options,
+        public override void Create (Stream output, IEnumerable<Entry> list, ResourceOptions options,
             EntryCallback callback)
         {
             if (!Lib7ZipLoader.Load())
                 return;
 
-            var format = GetFormatFromOptions(options);
-            if (!Formats.FormatGuidMapping.ContainsKey(format))
+            var format = GetFormatFromOptions (options);
+            if (!Formats.FormatGuidMapping.ContainsKey (format))
                 throw new NotSupportedException($"Format {format} is not supported for writing");
 
             object archive;
             var classId = Formats.FormatGuidMapping[format];
             var interfaceId = typeof(IOutArchive).GUID;
 
-            int hr = CreateObject(ref classId, ref interfaceId, out archive);
+            int hr = CreateObject (ref classId, ref interfaceId, out archive);
             if (hr != 0)
                 throw new COMException($"Failed to create archive interface {interfaceId}", hr);
 
             var outArchive = archive as IOutArchive;
             if (outArchive == null)
             {
-                Marshal.ReleaseComObject(archive);
-                throw new InvalidCastException("Failed to cast to IOutArchive");
+                Marshal.ReleaseComObject (archive);
+                throw new InvalidCastException ("Failed to cast to IOutArchive");
             }
 
             var entries = list.ToArray();
 
             try
             {
-                SetCompressionProperties(outArchive, format, options);
+                SetCompressionProperties (outArchive, format, options);
 
-                var outStream = new OutStreamWrapper(output);
-                var updateCallback = new ArchiveUpdateCallback(entries, callback);
+                var outStream = new OutStreamWrapper (output);
+                var updateCallback = new ArchiveUpdateCallback (entries, callback);
 
-                hr = outArchive.UpdateItems(outStream, (uint)entries.Length, updateCallback);
+                hr = outArchive.UpdateItems (outStream, (uint)entries.Length, updateCallback);
                 if (hr != 0)
                     throw new InvalidOperationException($"Failed to create archive: {hr:X8}");
             }
             finally
             {
-                Marshal.ReleaseComObject(outArchive);
+                Marshal.ReleaseComObject (outArchive);
             }
         }
 
-        SevenZipFormat GetFormatFromOptions(ResourceOptions options)
+        SevenZipFormat GetFormatFromOptions (ResourceOptions options)
         {
             var arcOptions = options as ArchiveOptions;
-            if (arcOptions != null && !string.IsNullOrEmpty(arcOptions.ArchiveFormat))
+            if (arcOptions != null && !string.IsNullOrEmpty (arcOptions.ArchiveFormat))
             {
                 var format = arcOptions.ArchiveFormat.ToLowerInvariant();
-                if (Formats.ExtensionFormatMapping.ContainsKey(format))
+                if (Formats.ExtensionFormatMapping.ContainsKey (format))
                     return Formats.ExtensionFormatMapping[format];
             }
 
             return SevenZipFormat.SevenZip;
         }
 
-        void SetCompressionProperties(IOutArchive archive, SevenZipFormat format, ResourceOptions options)
+        void SetCompressionProperties (IOutArchive archive, SevenZipFormat format, ResourceOptions options)
         {
             var setProperties = archive as ISetProperties;
             if (setProperties == null)
@@ -157,37 +157,37 @@ namespace GameRes.Formats.SevenZip
             var arcOptions = options as ArchiveOptions;
             if (arcOptions != null)
             {
-                props.Add("x");
-                values.Add(arcOptions.CompressionLevel);
+                props.Add ("x");
+                values.Add (arcOptions.CompressionLevel);
             }
             else
             {
-                props.Add("x");
-                values.Add(5);
+                props.Add ("x");
+                values.Add (5);
             }
 
             switch (format)
             {
                 case SevenZipFormat.SevenZip:
-                    props.Add("m");
-                    values.Add("LZMA2");
-                    props.Add("mt");
-                    values.Add("on");
+                    props.Add ("m");
+                    values.Add ("LZMA2");
+                    props.Add ("mt");
+                    values.Add ("on");
                     break;
 
                 case SevenZipFormat.Zip:
-                    props.Add("m");
-                    values.Add("Deflate");
+                    props.Add ("m");
+                    values.Add ("Deflate");
                     break;
             }
 
             if (props.Count > 0)
             {
-                setProperties.SetProperties(props.ToArray(), values.ToArray(), props.Count);
+                setProperties.SetProperties (props.ToArray(), values.ToArray(), props.Count);
             }
         }
 
-        SevenZipFormat GuessFormat(ArcView file)
+        SevenZipFormat GuessFormat (ArcView file)
         {
             var signatures = new Dictionary<byte[], SevenZipFormat>
             {
@@ -208,56 +208,56 @@ namespace GameRes.Formats.SevenZip
             };
 
             byte[] header = new byte[8];
-            file.View.Read(0, header, 0, 8);
+            file.View.Read (0, header, 0, 8);
 
             foreach (var sig in signatures)
             {
-                if (header.Take(sig.Key.Length).SequenceEqual(sig.Key))
+                if (header.Take (sig.Key.Length).SequenceEqual (sig.Key))
                     return sig.Value;
             }
 
             if (file.MaxOffset > 512)
             {
                 byte[] tarSig = new byte[5];
-                file.View.Read(257, tarSig, 0, 5);
-                if (tarSig.AsciiEqual("ustar"))
+                file.View.Read (257, tarSig, 0, 5);
+                if (tarSig.AsciiEqual ("ustar"))
                     return SevenZipFormat.Tar;
             }
 
             if (file.MaxOffset > 0x8000 + 5)
             {
                 byte[] isoSig = new byte[5];
-                file.View.Read(0x8001, isoSig, 0, 5);
-                if (isoSig.AsciiEqual("CD001"))
+                file.View.Read (0x8001, isoSig, 0, 5);
+                if (isoSig.AsciiEqual ("CD001"))
                     return SevenZipFormat.Iso;
             }
 
-            var ext = Path.GetExtension(file.Name).TrimStart('.').ToLowerInvariant();
-            if (Formats.ExtensionFormatMapping.ContainsKey(ext))
+            var ext = Path.GetExtension (file.Name).TrimStart('.').ToLowerInvariant();
+            if (Formats.ExtensionFormatMapping.ContainsKey (ext))
                 return Formats.ExtensionFormatMapping[ext];
 
             return SevenZipFormat.Undefined;
         }
 
-        List<Entry> ReadDirectory(IInArchive archive, string arcName)
+        List<Entry> ReadDirectory (IInArchive archive, string arcName)
         {
             var itemCount = archive.GetNumberOfItems();
             var dir = new List<Entry>((int)itemCount);
 
             for (uint i = 0; i < itemCount; i++)
             {
-                var entry = ReadEntry(archive, i);
+                var entry = ReadEntry (archive, i);
                 if (entry != null && !entry.IsFolder)
-                    dir.Add(entry);
+                    dir.Add (entry);
             }
 
             return dir;
         }
 
-        SevenZipEntry ReadEntry(IInArchive archive, uint index)
+        SevenZipEntry ReadEntry (IInArchive archive, uint index)
         {
             string name    = GetProperty<string>(archive, index, ItemPropId.kpidPath);
-            if (string.IsNullOrEmpty(name))
+            if (string.IsNullOrEmpty (name))
                 return null;
 
             bool isFolder    = GetProperty<bool>(archive, index, ItemPropId.kpidIsFolder);
@@ -270,8 +270,8 @@ namespace GameRes.Formats.SevenZip
 
             var entry = new SevenZipEntry
             {
-                Name        = name.Replace('\\', '/'),
-                Type        = FormatCatalog.Instance.GetTypeFromName(name),
+                Name        = name.Replace("\\", VFS.DIR_DELIMITER),
+                Type        = FormatCatalog.Instance.GetTypeFromName (name),
                 Index       = index,
                 Size        = (uint)size,
                 Offset      = 0,
@@ -286,7 +286,7 @@ namespace GameRes.Formats.SevenZip
         T GetProperty<T>(IInArchive archive, uint index, ItemPropId propId)
         {
             PropVariant propVariant = new PropVariant();
-            archive.GetProperty(index, propId, ref propVariant);
+            archive.GetProperty (index, propId, ref propVariant);
             object value = propVariant.GetObject();
 
             if (propVariant.VarType == VarEnum.VT_EMPTY)
@@ -304,49 +304,58 @@ namespace GameRes.Formats.SevenZip
 
             Type type = typeof(T);
             bool isNullable = type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>);
-            Type underlyingType = isNullable ? Nullable.GetUnderlyingType(type) : type;
+            Type underlyingType = isNullable ? Nullable.GetUnderlyingType (type) : type;
 
-            T result = (T)Convert.ChangeType(value.ToString(), underlyingType);
+            T result = (T)Convert.ChangeType (value.ToString(), underlyingType);
             return result;
         }
 
-        public override Stream OpenEntry(ArcFile arc, Entry entry)
+        public override Stream OpenEntry (ArcFile arc, Entry entry)
         {
             var sarc = arc as SevenZipArchive;
             var sentry = entry as SevenZipEntry;
             if (sarc == null || sentry == null)
-                return base.OpenEntry(arc, entry);
+                return base.OpenEntry (arc, entry);
 
-            try
+            lock (sarc.LockObject)
             {
-                // First, try to extract with the existing archive
-                return ExtractEntryInternal(sarc.Archive, sentry);
-            }
-#pragma warning disable CS0168
-            catch (Exception ex)
-            {
-#if LOG_EVERYTHING 
-                System.Diagnostics.Debug.WriteLine($"Initial extraction failed: {ex.Message}"); // this always fails on a first open entry??
-#endif
+                if (sarc.IsDisposed)
+                    throw new ObjectDisposedException ("Archive has been disposed");
 
-                // Archive might be closed, try to reopen it
                 try
                 {
-                    return ReopenAndExtract(sarc, sentry);
+                    // First, try to extract with the existing archive
+                    return ExtractEntryInternal (sarc.Archive, sentry);
                 }
-                catch (Exception reopenEx)
+#pragma warning disable CS0168
+                catch (Exception ex)
                 {
 #if LOG_EVERYTHING 
-                    System.Diagnostics.Debug.WriteLine($"Reopen and extract failed: {reopenEx.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Initial extraction failed: {ex.Message}");
 #endif
-                    throw new InvalidOperationException("Failed to extract entry after reopening archive", reopenEx);
+                    // Archive might be closed, try to reopen it
+                    if (!sarc.IsDisposed)
+                    {
+                        try
+                        {
+                            return ReopenAndExtract (sarc, sentry);
+                        }
+                        catch (Exception reopenEx)
+                        {
+#if LOG_EVERYTHING 
+                            System.Diagnostics.Debug.WriteLine($"Reopen and extract failed: {reopenEx.Message}");
+#endif
+                            throw new InvalidOperationException ("Failed to extract entry after reopening archive", reopenEx);
+                        }
+                    }
+                    throw;
                 }
-            }
 #pragma warning restore CS0168
+            }
         }
 
         // Helper method to extract entry
-        private Stream ExtractEntryInternal(IInArchive archive, SevenZipEntry entry)
+        private Stream ExtractEntryInternal (IInArchive archive, SevenZipEntry entry)
         {
             // Verify archive is accessible
             uint numItems = archive.GetNumberOfItems();
@@ -357,9 +366,9 @@ namespace GameRes.Formats.SevenZip
                 throw new InvalidOperationException($"Entry index {entry.Index} is out of range (max: {numItems - 1})");
 
             var stream = new MemoryStream();
-            var callback = new StreamExtractCallback(entry.Index, stream);
+            var callback = new StreamExtractCallback (entry.Index, stream);
 
-            int hr = archive.Extract(new[] { entry.Index }, 1, 0, callback);
+            int hr = archive.Extract (new[] { entry.Index }, 1, 0, callback);
             if (hr != 0)
             {
                 stream.Dispose();
@@ -370,7 +379,7 @@ namespace GameRes.Formats.SevenZip
             return stream;
         }
 
-        private Stream ReopenAndExtract(SevenZipArchive arc, SevenZipEntry entry)
+        private Stream ReopenAndExtract (SevenZipArchive arc, SevenZipEntry entry)
         {
 #if LOG_EVERYTHING 
             System.Diagnostics.Debug.WriteLine($"Reopening archive for format: {arc.Format}");
@@ -383,49 +392,44 @@ namespace GameRes.Formats.SevenZip
             var classId = Formats.FormatGuidMapping[arc.Format];
             var interfaceId = typeof(IInArchive).GUID;
 
-            int hr = CreateObject(ref classId, ref interfaceId, out archive);
+            int hr = CreateObject (ref classId, ref interfaceId, out archive);
             if (hr != 0)
                 throw new COMException($"Failed to create archive interface: 0x{hr:X8}", hr);
 
             var inArchive = archive as IInArchive;
             if (inArchive == null)
             {
-                Marshal.ReleaseComObject(archive);
-                throw new InvalidCastException("Failed to cast to IInArchive");
+                Marshal.ReleaseComObject (archive);
+                throw new InvalidCastException ("Failed to cast to IInArchive");
             }
 
-            var stream = new ArcViewStream(arc.File);
-            var inStream = new InStreamWrapper(stream);
+            var stream = new ArcViewStream (arc.File);
+            var inStream = new InStreamWrapper (stream);
 
             try
             {
                 ulong maxCheckStartPosition = 32 * 1024;
-                hr = inArchive.Open(inStream, ref maxCheckStartPosition, null);
+                hr = inArchive.Open (inStream, ref maxCheckStartPosition, null);
                 if (hr != 0)
                     throw new InvalidOperationException($"Failed to reopen archive: 0x{hr:X8}");
 
-                var extractedStream = ExtractEntryInternal(inArchive, entry);
+                var extractedStream = ExtractEntryInternal (inArchive, entry);
                 
-                var archiveProperty = typeof(SevenZipArchive).GetProperty("Archive");
-                var streamProperty = typeof(SevenZipArchive).GetProperty("Stream");
-                if (archiveProperty != null && streamProperty != null)
-                {
-                    archiveProperty.SetValue(arc, inArchive);
-                    streamProperty.SetValue(arc, inStream);
-                }
+                // Update the archive reference
+                arc.UpdateArchive (inArchive, inStream);
 
                 return extractedStream;
             }
             catch
             {
                 inStream.Dispose();
-                Marshal.ReleaseComObject(inArchive);
+                Marshal.ReleaseComObject (inArchive);
                 throw;
             }
         }
 
         [DllImport("7z.dll", CallingConvention = CallingConvention.StdCall)]
-        static extern int CreateObject(ref Guid classID, ref Guid interfaceID,
+        static extern int CreateObject (ref Guid classID, ref Guid interfaceID,
             [MarshalAs(UnmanagedType.Interface)] out object outObject);
     }
 
@@ -445,45 +449,87 @@ namespace GameRes.Formats.SevenZip
 
     internal class SevenZipArchive : ArcFile
     {
-        public IInArchive Archive { get; private set; }
-        public InStreamWrapper Stream { get; private set; }
+        private IInArchive _archive;
+        private InStreamWrapper _stream;
+        private readonly object _lockObject = new object();
+        private bool _disposed = false;
+
+        public IInArchive Archive 
+        { 
+                    get { lock (_lockObject) {  return _archive; } }
+            private set { lock (_lockObject) { _archive = value; } }
+        }
+        
+        public InStreamWrapper Stream 
+        { 
+                    get { lock (_lockObject) {  return _stream; } }
+            private set { lock (_lockObject) { _stream = value; } }
+        }
+        
         public SevenZipFormat Format { get; private set; }
-        private GCHandle archiveHandle;
+        public object LockObject => _lockObject;
+        public   bool IsDisposed => _disposed;
 
-        public SevenZipArchive(ArcView arc, ArchiveFormat impl, ICollection<Entry> dir,
+        public SevenZipArchive (ArcView arc, ArchiveFormat impl, ICollection<Entry> dir,
             IInArchive archive, InStreamWrapper stream, SevenZipFormat format)
-            : base(arc, impl, dir)
+            : base (arc, impl, dir)
         {
-            Archive = archive;
-            Stream = stream;
-            Format = format;
-
-            archiveHandle = GCHandle.Alloc(archive, GCHandleType.Normal);
+            _archive = archive;
+            _stream  = stream;
+            Format   = format;
         }
 
-        protected override void Dispose(bool disposing)
+        public void UpdateArchive (IInArchive newArchive, InStreamWrapper newStream)
         {
-            if (disposing)
+            lock (_lockObject)
             {
-                if (Archive != null)
+                if (_disposed)
+                    throw new ObjectDisposedException ("Archive has been disposed");
+
+                if (_archive != null)
                 {
-                    if (archiveHandle.IsAllocated)
-                        archiveHandle.Free();
-                    try
-                    {
-                        Archive.Close();
-                    }
-                    catch { }
-                    Marshal.ReleaseComObject(Archive);
-                    Archive = null;
+                    try { _archive.Close(); } catch { }
+                    Marshal.FinalReleaseComObject (_archive);
                 }
-                if (Stream != null)
+                
+                _stream?.Dispose();
+
+                _archive = newArchive;
+                _stream = newStream;
+            }
+        }
+
+        protected override void Dispose (bool disposing)
+        {
+            lock (_lockObject)
+            {
+                if (_disposed)
+                    return;
+
+                _disposed = true;
+
+                if (disposing)
                 {
-                    Stream.Dispose();
-                    Stream = null;
+                    if (_archive != null)
+                    {
+                        try
+                        {
+                            _archive.Close();
+                        }
+                        catch { }
+
+                        Marshal.FinalReleaseComObject (_archive);
+                        _archive = null;
+                    }
+
+                    if (_stream != null)
+                    {
+                        _stream.Dispose();
+                        _stream = null;
+                    }
                 }
             }
-            base.Dispose(disposing);
+            base.Dispose (disposing);
         }
     }
 
@@ -503,17 +549,17 @@ namespace GameRes.Formats.SevenZip
         private          long m_total_size;
         private          long m_completed_size;
 
-        public ArchiveUpdateCallback(Entry[] entries, EntryCallback callback)
+        public ArchiveUpdateCallback (Entry[] entries, EntryCallback callback)
         {
             m_entries    = entries;
             m_callback   = callback;
-            m_total_size = entries.Sum(e => (long)e.Size);
+            m_total_size = entries.Sum (e => (long)e.Size);
         }
 
-        public void SetTotal(ulong total) { }
-        public void SetCompleted(ref ulong completeValue) { }
+        public void SetTotal (ulong total) { }
+        public void SetCompleted (ref ulong completeValue) { }
 
-        public int GetUpdateItemInfo(uint index, ref int newData, ref int newProperties, ref uint indexInArchive)
+        public int GetUpdateItemInfo (uint index, ref int newData, ref int newProperties, ref uint indexInArchive)
         {
             newData = 1;
             newProperties = 1;
@@ -521,35 +567,35 @@ namespace GameRes.Formats.SevenZip
             return 0;
         }
 
-        public int GetProperty(uint index, ItemPropId propID, ref PropVariant value)
+        public int GetProperty (uint index, ItemPropId propID, ref PropVariant value)
         {
             var entry = m_entries[index];
 
             switch (propID)
             {
             case ItemPropId.kpidPath:
-                value.SetString(entry.Name);
+                value.SetString (entry.Name);
                 break;
             case ItemPropId.kpidIsFolder:
-                value.SetBool(false);
+                value.SetBool (false);
                 break;
             case ItemPropId.kpidSize:
-                value.SetULong((ulong)entry.Size);
+                value.SetULong ((ulong)entry.Size);
                 break;
             case ItemPropId.kpidAttributes:
-                value.SetUInt(0x20);
+                value.SetUInt (0x20);
                 break;
             case ItemPropId.kpidCreationTime:
             case ItemPropId.kpidLastAccessTime:
             case ItemPropId.kpidLastWriteTime:
-                value.SetFileTime(DateTime.Now);
+                value.SetFileTime (DateTime.Now);
                 break;
             }
 
             return 0;
         }
 
-        public int GetStream(uint index, out ISequentialInStream inStream)
+        public int GetStream (uint index, out ISequentialInStream inStream)
         {
             m_current_index = (int)index;
             var entry = m_entries[index];
@@ -557,16 +603,16 @@ namespace GameRes.Formats.SevenZip
             if (m_callback != null)
             {
                 int progress = (int)((m_completed_size * 100) / m_total_size);
-                m_callback(progress, entry, "Adding file...");
+                m_callback (progress, entry, "Adding file...");
             }
 
-            m_current_stream = File.OpenRead(entry.Name);
+            m_current_stream = File.OpenRead (entry.Name);
             inStream = this;
 
             return 0;
         }
 
-        public int SetOperationResult(int operationResult)
+        public int SetOperationResult (int operationResult)
         {
             if (m_current_stream != null)
             {
@@ -577,14 +623,14 @@ namespace GameRes.Formats.SevenZip
             return 0;
         }
 
-        public uint Read(byte[] data, uint size)
+        public uint Read (byte[] data, uint size)
         {
             if (m_current_stream == null)
                 return 0;
-            return (uint)m_current_stream.Read(data, 0, (int)size);
+            return (uint)m_current_stream.Read (data, 0, (int)size);
         }
 
-        public int CryptoGetTextPassword2(ref int passwordIsDefined, out string password)
+        public int CryptoGetTextPassword2 (ref int passwordIsDefined, out string password)
         {
             passwordIsDefined = 0;
             password = "";
@@ -598,7 +644,7 @@ namespace GameRes.Formats.SevenZip
         private readonly Stream m_stream;
         private OutStreamWrapper m_streamWrapper;
 
-        public StreamExtractCallback(uint index, Stream stream)
+        public StreamExtractCallback (uint index, Stream stream)
         {
             m_index = index;
             m_stream = stream;
@@ -607,21 +653,21 @@ namespace GameRes.Formats.SevenZip
 #endif
         }
 
-        public void SetTotal(ulong total)
+        public void SetTotal (ulong total)
         {
 #if LOG_EVERYTHING 
             System.Diagnostics.Debug.WriteLine($"SetTotal called: {total} bytes");
 #endif
         }
 
-        public void SetCompleted(ref ulong completeValue)
+        public void SetCompleted (ref ulong completeValue)
         {
 #if LOG_EVERYTHING 
             System.Diagnostics.Debug.WriteLine($"SetCompleted called: {completeValue} bytes");
 #endif
         }
 
-        public int GetStream(uint index, out ISequentialOutStream outStream, AskMode askExtractMode)
+        public int GetStream (uint index, out ISequentialOutStream outStream, AskMode askExtractMode)
         {
 #if LOG_EVERYTHING 
             System.Diagnostics.Debug.WriteLine($"GetStream called: index={index}, askExtractMode={askExtractMode}");
@@ -631,17 +677,17 @@ namespace GameRes.Formats.SevenZip
             {
                 outStream = null;
 #if LOG_EVERYTHING 
-                System.Diagnostics.Debug.WriteLine("GetStream returning null stream");
+                System.Diagnostics.Debug.WriteLine ("GetStream returning null stream");
 #endif
                 return 0;
             }
 
             try
             {
-                m_streamWrapper = new OutStreamWrapper(m_stream);
+                m_streamWrapper = new OutStreamWrapper (m_stream);
                 outStream = m_streamWrapper;
 #if LOG_EVERYTHING 
-                System.Diagnostics.Debug.WriteLine("GetStream created output stream successfully");
+                System.Diagnostics.Debug.WriteLine ("GetStream created output stream successfully");
 #endif
                 return 0;
             }
@@ -653,14 +699,14 @@ namespace GameRes.Formats.SevenZip
             }
         }
 
-        public void PrepareOperation(AskMode askExtractMode)
+        public void PrepareOperation (AskMode askExtractMode)
         {
 #if LOG_EVERYTHING 
             System.Diagnostics.Debug.WriteLine($"PrepareOperation called: {askExtractMode}");
 #endif
         }
 
-        public void SetOperationResult(OperationResult resultEOperationResult)
+        public void SetOperationResult (OperationResult resultEOperationResult)
         {
 #if LOG_EVERYTHING 
             System.Diagnostics.Debug.WriteLine($"SetOperationResult called: {resultEOperationResult}");
@@ -686,7 +732,7 @@ namespace GameRes.Formats.SevenZip
         private ArcView m_view;
         private long m_position;
 
-        public ArcViewStream(ArcView view)
+        public ArcViewStream (ArcView view)
         {
             m_view = view;
             m_position = 0;
@@ -704,18 +750,18 @@ namespace GameRes.Formats.SevenZip
 
         public override void Flush() { }
 
-        public override int Read(byte[] buffer, int offset, int count)
+        public override int Read (byte[] buffer, int offset, int count)
         {
-            int read = (int)Math.Min(count, Length - m_position);
+            int read = (int)Math.Min (count, Length - m_position);
             if (read > 0)
             {
-                m_view.View.Read(m_position, buffer, offset, (uint)read);
+                m_view.View.Read (m_position, buffer, offset, (uint)read);
                 m_position += read;
             }
             return read;
         }
 
-        public override long Seek(long offset, SeekOrigin origin)
+        public override long Seek (long offset, SeekOrigin origin)
         {
             switch (origin)
             {
@@ -732,12 +778,12 @@ namespace GameRes.Formats.SevenZip
             return m_position;
         }
 
-        public override void SetLength(long value)
+        public override void SetLength (long value)
         {
             throw new NotSupportedException();
         }
 
-        public override void Write(byte[] buffer, int offset, int count)
+        public override void Write (byte[] buffer, int offset, int count)
         {
             throw new NotSupportedException();
         }
@@ -745,51 +791,55 @@ namespace GameRes.Formats.SevenZip
 
     internal static class Lib7ZipLoader
     {
-        [DllImport("kernel32.dll", SetLastError = true)]
-        static extern IntPtr LoadLibraryEx(string lpFileName, IntPtr hReservedNull, uint dwFlags);
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        static extern IntPtr LoadLibraryEx (string lpFileName, IntPtr hReservedNull, uint dwFlags);
 
         static bool loaded = false;
         static bool failed = false;
+        static readonly object loadLock = new object();
 
-        const uint LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR = 0x00000100;
-        const uint LOAD_LIBRARY_SEARCH_SYSTEM32     = 0x00000800;
+        const uint LOAD_WITH_ALTERED_SEARCH_PATH = 0x00000008;
 
         public static bool Load()
         {
-            if (loaded)
-                return true;
-
-            if (failed)
-                return false; // no need to retry
-
-            var folder = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-            var arch = IntPtr.Size == 4 ? "x86" : "x64";
-
-            string[] searchPaths = {
-                Path.Combine(folder, arch, "7z.dll"),
-                Path.Combine(folder, $"7z-{arch}.dll"),
-                Path.Combine(folder, "7z.dll"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "7-Zip", "7z.dll")
-            };
-
-            foreach (var path in searchPaths)
+            lock (loadLock)
             {
-                if (!File.Exists(path)) continue;
-
-                var handle = LoadLibraryEx(path, IntPtr.Zero,
-                    LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
-                if (handle != IntPtr.Zero)
-                {
-                    loaded = true;
+                if (loaded)
                     return true;
-                }
-            }
 
-            failed = true;
+                if (failed)
+                    return false; // no need to retry
+
+                var folder = Path.GetDirectoryName (Assembly.GetExecutingAssembly().Location);
+                var arch = IntPtr.Size == 4 ? "x86" : "x64";
+
+                string[] searchPaths = {
+                    Path.Combine (folder, arch, "7z.dll"),
+                    Path.Combine (folder, $"7z-{arch}.dll"),
+                    Path.Combine (folder, "7z.dll"),
+                    Path.Combine (Environment.GetFolderPath (Environment.SpecialFolder.ProgramFiles), "7-Zip", "7z.dll")
+                };
+
+                foreach (var path in searchPaths)
+                {
+                    if (!File.Exists (path)) continue;
+
+                    var absolutePath = Path.GetFullPath (path);
+                    var handle = LoadLibraryEx (absolutePath, IntPtr.Zero, LOAD_WITH_ALTERED_SEARCH_PATH);
+                    
+                    if (handle != IntPtr.Zero)
+                    {
+                        loaded = true;
+                        return true;
+                    }
+                }
+
+                failed = true;
 #if LOG_EVERYTHING 
-            System.Diagnostics.Debug.WriteLine("7z.dll not found in any expected location");
+                System.Diagnostics.Debug.WriteLine ("7z.dll not found in any expected location");
 #endif
-            return false;
+                return false;
+            }
         }
     }
 
@@ -806,7 +856,7 @@ namespace GameRes.Formats.SevenZip
             uint numItems,
             [MarshalAs(UnmanagedType.Interface)] IArchiveUpdateCallback updateCallback);
 
-        void GetFileTimeType(out uint type);
+        void GetFileTimeType (out uint type);
     }
 
     [ComImport]
@@ -814,23 +864,23 @@ namespace GameRes.Formats.SevenZip
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     internal interface IArchiveUpdateCallback
     {
-        void SetTotal(ulong total);
+        void SetTotal (ulong total);
         void SetCompleted([In] ref ulong completeValue);
 
         [PreserveSig]
-        int GetUpdateItemInfo(uint index,
+        int GetUpdateItemInfo (uint index,
             ref int newData,
             ref int newProperties,
             ref uint indexInArchive);
 
         [PreserveSig]
-        int GetProperty(uint index, ItemPropId propID, ref PropVariant value);
+        int GetProperty (uint index, ItemPropId propID, ref PropVariant value);
 
         [PreserveSig]
-        int GetStream(uint index, out ISequentialInStream inStream);
+        int GetStream (uint index, out ISequentialInStream inStream);
 
         [PreserveSig]
-        int SetOperationResult(int operationResult);
+        int SetOperationResult (int operationResult);
     }
 
     [ComImport]
@@ -859,31 +909,31 @@ namespace GameRes.Formats.SevenZip
     // Extended PropVariant for setting values
     internal partial struct PropVariant
     {
-        public void SetString(string value)
+        public void SetString (string value)
         {
             this.vt = (ushort)VarEnum.VT_BSTR;
-            this.pointerValue = Marshal.StringToBSTR(value);
+            this.pointerValue = Marshal.StringToBSTR (value);
         }
 
-        public void SetBool(bool value)
+        public void SetBool (bool value)
         {
             this.vt = (ushort)VarEnum.VT_BOOL;
             this.byteValue = (byte)(value ? 255 : 0);
         }
 
-        public void SetULong(ulong value)
+        public void SetULong (ulong value)
         {
             this.vt = (ushort)VarEnum.VT_UI8;
             this.longValue = (long)value;
         }
 
-        public void SetUInt(uint value)
+        public void SetUInt (uint value)
         {
             this.vt = (ushort)VarEnum.VT_UI4;
             this.longValue = value;
         }
 
-        public void SetFileTime(DateTime value)
+        public void SetFileTime (DateTime value)
         {
             this.vt = (ushort)VarEnum.VT_FILETIME;
             this.longValue = value.ToFileTime();
@@ -1057,7 +1107,7 @@ namespace GameRes.Formats.SevenZip
     internal interface IArchiveExtractCallback
     {
         // IProgress methods
-        void SetTotal(ulong total);
+        void SetTotal (ulong total);
         void SetCompleted([In] ref ulong completeValue);
 
         // IArchiveExtractCallback methods
@@ -1067,8 +1117,8 @@ namespace GameRes.Formats.SevenZip
             [MarshalAs(UnmanagedType.Interface)] out ISequentialOutStream outStream,
             AskMode askExtractMode);
 
-        void PrepareOperation(AskMode askExtractMode);
-        void SetOperationResult(OperationResult resultEOperationResult);
+        void PrepareOperation (AskMode askExtractMode);
+        void SetOperationResult (OperationResult resultEOperationResult);
     }
 
     [ComImport]
@@ -1125,7 +1175,7 @@ namespace GameRes.Formats.SevenZip
             IntPtr newPosition);
 
         [PreserveSig]
-        int SetSize(long newSize);
+        int SetSize (long newSize);
     }
 
     [ComImport]
@@ -1133,22 +1183,22 @@ namespace GameRes.Formats.SevenZip
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     internal interface IArchiveOpenCallback
     {
-        void SetTotal(IntPtr files, IntPtr bytes);
-        void SetCompleted(IntPtr files, IntPtr bytes);
+        void SetTotal (IntPtr files, IntPtr bytes);
+        void SetCompleted (IntPtr files, IntPtr bytes);
     }
 
     // Structures
-    [StructLayout(LayoutKind.Explicit)]
+    [StructLayout (LayoutKind.Explicit)]
     internal partial struct PropVariant
     {
         [DllImport("ole32.dll")]
-        private static extern int PropVariantClear(ref PropVariant pvar);
+        private static extern int PropVariantClear (ref PropVariant pvar);
 
-        [FieldOffset(0)] public ushort vt;
-        [FieldOffset(8)] public IntPtr pointerValue;
-        [FieldOffset(8)] public byte byteValue;
-        [FieldOffset(8)] public long longValue;
-        [FieldOffset(8)] public System.Runtime.InteropServices.ComTypes.FILETIME filetime;
+        [FieldOffset (0)] public ushort vt;
+        [FieldOffset (8)] public IntPtr pointerValue;
+        [FieldOffset (8)] public byte byteValue;
+        [FieldOffset (8)] public long longValue;
+        [FieldOffset (8)] public System.Runtime.InteropServices.ComTypes.FILETIME filetime;
 
         public VarEnum VarType
         {
@@ -1182,11 +1232,15 @@ namespace GameRes.Formats.SevenZip
                     this.vt = 0;
                     break;
                 case VarEnum.VT_BSTR:
-                    Marshal.FreeBSTR(this.pointerValue);
+                    if (this.pointerValue != IntPtr.Zero)
+                    {
+                        Marshal.FreeBSTR (this.pointerValue);
+                        this.pointerValue = IntPtr.Zero;
+                    }
                     this.vt = 0;
                     break;
                 default:
-                    PropVariantClear(ref this);
+                    PropVariantClear (ref this);
                     break;
             }
         }
@@ -1199,13 +1253,13 @@ namespace GameRes.Formats.SevenZip
                     return null;
 
                 case VarEnum.VT_FILETIME:
-                    return DateTime.FromFileTime(this.longValue);
+                    return DateTime.FromFileTime (this.longValue);
 
                 default:
-                    GCHandle PropHandle = GCHandle.Alloc(this, GCHandleType.Pinned);
+                    GCHandle PropHandle = GCHandle.Alloc (this, GCHandleType.Pinned);
                     try
                     {
-                        return Marshal.GetObjectForNativeVariant(PropHandle.AddrOfPinnedObject());
+                        return Marshal.GetObjectForNativeVariant (PropHandle.AddrOfPinnedObject());
                     }
                     finally
                     {
@@ -1222,57 +1276,70 @@ namespace GameRes.Formats.SevenZip
     internal class StreamWrapper : IDisposable
     {
         protected Stream BaseStream;
+        private bool _disposed = false;
 
-        protected StreamWrapper(Stream baseStream)
+        protected StreamWrapper (Stream baseStream)
         {
             this.BaseStream = baseStream;
         }
 
-        public void Dispose()
+        public void Dispose ()
         {
-            this.BaseStream.Close();
+            Dispose (true);
+            GC.SuppressFinalize (this);
         }
 
-        public virtual void Seek(long offset, uint seekOrigin, IntPtr newPosition)
+        protected virtual void Dispose (bool disposing)
         {
-            long Position = this.BaseStream.Seek(offset, (SeekOrigin)seekOrigin);
+            if (!_disposed)
+            {
+                if (disposing)
+                    BaseStream?.Close();
+
+                _disposed = true;
+            }
+        }
+
+        public virtual void Seek (long offset, uint seekOrigin, IntPtr newPosition)
+        {
+            long Position = this.BaseStream.Seek (offset, (SeekOrigin)seekOrigin);
             if (newPosition != IntPtr.Zero)
             {
-                Marshal.WriteInt64(newPosition, Position);
+                Marshal.WriteInt64 (newPosition, Position);
             }
         }
     }
 
     internal class InStreamWrapper : StreamWrapper, ISequentialInStream, IInStream
     {
-        public InStreamWrapper(Stream baseStream) : base(baseStream)
+        public InStreamWrapper (Stream baseStream) : base (baseStream)
         {
         }
 
-        public uint Read(byte[] data, uint size)
+        public uint Read (byte[] data, uint size)
         {
-            return (uint)this.BaseStream.Read(data, 0, (int)size);
+            return (uint)this.BaseStream.Read (data, 0, (int)size);
         }
     }
 
     internal class OutStreamWrapper : StreamWrapper, ISequentialOutStream, IOutStream
     {
-        public OutStreamWrapper(Stream baseStream) : base(baseStream)
+        public OutStreamWrapper (Stream baseStream) : base (baseStream)
         {
         }
 
-        public int SetSize(long newSize)
+        public int SetSize (long newSize)
         {
-            this.BaseStream.SetLength(newSize);
+            this.BaseStream.SetLength (newSize);
             return 0;
         }
 
-        public int Write(byte[] data, uint size, IntPtr processedSize)
+        public int Write (byte[] data, uint size, IntPtr processedSize)
         {
-            this.BaseStream.Write(data, 0, (int)size);
+            this.BaseStream.Write (data, 0, (int)size);
             if (processedSize != IntPtr.Zero)
             {
-                Marshal.WriteInt32(processedSize, (int)size);
+                Marshal.WriteInt32 (processedSize, (int)size);
             }
             return 0;
         }
@@ -1323,53 +1390,53 @@ namespace GameRes.Formats.SevenZip
 
         internal static Dictionary<SevenZipFormat, Guid> FormatGuidMapping = new Dictionary<SevenZipFormat, Guid>
         {
-            {SevenZipFormat.SevenZip, new Guid("23170f69-40c1-278a-1000-000110070000")},
-            {SevenZipFormat.Arj,      new Guid("23170f69-40c1-278a-1000-000110040000")},
-            {SevenZipFormat.BZip2,    new Guid("23170f69-40c1-278a-1000-000110020000")},
-            {SevenZipFormat.Cab,      new Guid("23170f69-40c1-278a-1000-000110080000")},
-            {SevenZipFormat.Chm,      new Guid("23170f69-40c1-278a-1000-000110e90000")},
-            {SevenZipFormat.Compound, new Guid("23170f69-40c1-278a-1000-000110e50000")},
-            {SevenZipFormat.Cpio,     new Guid("23170f69-40c1-278a-1000-000110ed0000")},
-            {SevenZipFormat.Deb,      new Guid("23170f69-40c1-278a-1000-000110ec0000")},
-            {SevenZipFormat.GZip,     new Guid("23170f69-40c1-278a-1000-000110ef0000")},
-            {SevenZipFormat.Iso,      new Guid("23170f69-40c1-278a-1000-000110e70000")},
-            {SevenZipFormat.Lzh,      new Guid("23170f69-40c1-278a-1000-000110060000")},
-            {SevenZipFormat.Lzma,     new Guid("23170f69-40c1-278a-1000-0001100a0000")},
-            {SevenZipFormat.Nsis,     new Guid("23170f69-40c1-278a-1000-000110090000")},
-            {SevenZipFormat.Rar,      new Guid("23170f69-40c1-278a-1000-000110030000")},
-            {SevenZipFormat.Rar5,     new Guid("23170f69-40c1-278a-1000-000110CC0000")},
-            {SevenZipFormat.Rpm,      new Guid("23170f69-40c1-278a-1000-000110eb0000")},
-            {SevenZipFormat.Split,    new Guid("23170f69-40c1-278a-1000-000110ea0000")},
-            {SevenZipFormat.Tar,      new Guid("23170f69-40c1-278a-1000-000110ee0000")},
-            {SevenZipFormat.Wim,      new Guid("23170f69-40c1-278a-1000-000110e60000")},
-            {SevenZipFormat.Lzw,      new Guid("23170f69-40c1-278a-1000-000110050000")},
-            {SevenZipFormat.Zip,      new Guid("23170f69-40c1-278a-1000-000110010000")},
-            {SevenZipFormat.Udf,      new Guid("23170f69-40c1-278a-1000-000110E00000")},
-            {SevenZipFormat.Xar,      new Guid("23170f69-40c1-278a-1000-000110E10000")},
-            {SevenZipFormat.Mub,      new Guid("23170f69-40c1-278a-1000-000110E20000")},
-            {SevenZipFormat.Hfs,      new Guid("23170f69-40c1-278a-1000-000110E30000")},
-            {SevenZipFormat.Dmg,      new Guid("23170f69-40c1-278a-1000-000110E40000")},
-            {SevenZipFormat.XZ,       new Guid("23170f69-40c1-278a-1000-0001100C0000")},
-            {SevenZipFormat.Mslz,     new Guid("23170f69-40c1-278a-1000-000110D50000")},
-            {SevenZipFormat.PE,       new Guid("23170f69-40c1-278a-1000-000110DD0000")},
-            {SevenZipFormat.Elf,      new Guid("23170f69-40c1-278a-1000-000110DE0000")},
-            {SevenZipFormat.Swf,      new Guid("23170f69-40c1-278a-1000-000110D70000")},
-            {SevenZipFormat.Vhd,      new Guid("23170f69-40c1-278a-1000-000110DC0000")},
-            {SevenZipFormat.Flv,      new Guid("23170f69-40c1-278a-1000-000110D60000")},
-            {SevenZipFormat.SquashFS, new Guid("23170f69-40c1-278a-1000-000110D20000")},
-            {SevenZipFormat.Lzma86,   new Guid("23170f69-40c1-278a-1000-0001100B0000")},
-            {SevenZipFormat.Ppmd,     new Guid("23170f69-40c1-278a-1000-0001100D0000")},
-            {SevenZipFormat.TE,       new Guid("23170f69-40c1-278a-1000-000110CF0000")},
-            {SevenZipFormat.UEFIc,    new Guid("23170f69-40c1-278a-1000-000110D00000")},
-            {SevenZipFormat.UEFIs,    new Guid("23170f69-40c1-278a-1000-000110D10000")},
-            {SevenZipFormat.CramFS,   new Guid("23170f69-40c1-278a-1000-000110D30000")},
-            {SevenZipFormat.APM,      new Guid("23170f69-40c1-278a-1000-000110D40000")},
-            {SevenZipFormat.Swfc,     new Guid("23170f69-40c1-278a-1000-000110D80000")},
-            {SevenZipFormat.Ntfs,     new Guid("23170f69-40c1-278a-1000-000110D90000")},
-            {SevenZipFormat.Fat,      new Guid("23170f69-40c1-278a-1000-000110DA0000")},
-            {SevenZipFormat.Mbr,      new Guid("23170f69-40c1-278a-1000-000110DB0000")},
-            {SevenZipFormat.MachO,    new Guid("23170f69-40c1-278a-1000-000110DF0000")},
-            {SevenZipFormat.Msi,      new Guid("23170f69-40c1-278a-1000-000110e50000")}
+            {SevenZipFormat.SevenZip, new Guid ("23170f69-40c1-278a-1000-000110070000")},
+            {SevenZipFormat.Arj,      new Guid ("23170f69-40c1-278a-1000-000110040000")},
+            {SevenZipFormat.BZip2,    new Guid ("23170f69-40c1-278a-1000-000110020000")},
+            {SevenZipFormat.Cab,      new Guid ("23170f69-40c1-278a-1000-000110080000")},
+            {SevenZipFormat.Chm,      new Guid ("23170f69-40c1-278a-1000-000110e90000")},
+            {SevenZipFormat.Compound, new Guid ("23170f69-40c1-278a-1000-000110e50000")},
+            {SevenZipFormat.Cpio,     new Guid ("23170f69-40c1-278a-1000-000110ed0000")},
+            {SevenZipFormat.Deb,      new Guid ("23170f69-40c1-278a-1000-000110ec0000")},
+            {SevenZipFormat.GZip,     new Guid ("23170f69-40c1-278a-1000-000110ef0000")},
+            {SevenZipFormat.Iso,      new Guid ("23170f69-40c1-278a-1000-000110e70000")},
+            {SevenZipFormat.Lzh,      new Guid ("23170f69-40c1-278a-1000-000110060000")},
+            {SevenZipFormat.Lzma,     new Guid ("23170f69-40c1-278a-1000-0001100a0000")},
+            {SevenZipFormat.Nsis,     new Guid ("23170f69-40c1-278a-1000-000110090000")},
+            {SevenZipFormat.Rar,      new Guid ("23170f69-40c1-278a-1000-000110030000")},
+            {SevenZipFormat.Rar5,     new Guid ("23170f69-40c1-278a-1000-000110CC0000")},
+            {SevenZipFormat.Rpm,      new Guid ("23170f69-40c1-278a-1000-000110eb0000")},
+            {SevenZipFormat.Split,    new Guid ("23170f69-40c1-278a-1000-000110ea0000")},
+            {SevenZipFormat.Tar,      new Guid ("23170f69-40c1-278a-1000-000110ee0000")},
+            {SevenZipFormat.Wim,      new Guid ("23170f69-40c1-278a-1000-000110e60000")},
+            {SevenZipFormat.Lzw,      new Guid ("23170f69-40c1-278a-1000-000110050000")},
+            {SevenZipFormat.Zip,      new Guid ("23170f69-40c1-278a-1000-000110010000")},
+            {SevenZipFormat.Udf,      new Guid ("23170f69-40c1-278a-1000-000110E00000")},
+            {SevenZipFormat.Xar,      new Guid ("23170f69-40c1-278a-1000-000110E10000")},
+            {SevenZipFormat.Mub,      new Guid ("23170f69-40c1-278a-1000-000110E20000")},
+            {SevenZipFormat.Hfs,      new Guid ("23170f69-40c1-278a-1000-000110E30000")},
+            {SevenZipFormat.Dmg,      new Guid ("23170f69-40c1-278a-1000-000110E40000")},
+            {SevenZipFormat.XZ,       new Guid ("23170f69-40c1-278a-1000-0001100C0000")},
+            {SevenZipFormat.Mslz,     new Guid ("23170f69-40c1-278a-1000-000110D50000")},
+            {SevenZipFormat.PE,       new Guid ("23170f69-40c1-278a-1000-000110DD0000")},
+            {SevenZipFormat.Elf,      new Guid ("23170f69-40c1-278a-1000-000110DE0000")},
+            {SevenZipFormat.Swf,      new Guid ("23170f69-40c1-278a-1000-000110D70000")},
+            {SevenZipFormat.Vhd,      new Guid ("23170f69-40c1-278a-1000-000110DC0000")},
+            {SevenZipFormat.Flv,      new Guid ("23170f69-40c1-278a-1000-000110D60000")},
+            {SevenZipFormat.SquashFS, new Guid ("23170f69-40c1-278a-1000-000110D20000")},
+            {SevenZipFormat.Lzma86,   new Guid ("23170f69-40c1-278a-1000-0001100B0000")},
+            {SevenZipFormat.Ppmd,     new Guid ("23170f69-40c1-278a-1000-0001100D0000")},
+            {SevenZipFormat.TE,       new Guid ("23170f69-40c1-278a-1000-000110CF0000")},
+            {SevenZipFormat.UEFIc,    new Guid ("23170f69-40c1-278a-1000-000110D00000")},
+            {SevenZipFormat.UEFIs,    new Guid ("23170f69-40c1-278a-1000-000110D10000")},
+            {SevenZipFormat.CramFS,   new Guid ("23170f69-40c1-278a-1000-000110D30000")},
+            {SevenZipFormat.APM,      new Guid ("23170f69-40c1-278a-1000-000110D40000")},
+            {SevenZipFormat.Swfc,     new Guid ("23170f69-40c1-278a-1000-000110D80000")},
+            {SevenZipFormat.Ntfs,     new Guid ("23170f69-40c1-278a-1000-000110D90000")},
+            {SevenZipFormat.Fat,      new Guid ("23170f69-40c1-278a-1000-000110DA0000")},
+            {SevenZipFormat.Mbr,      new Guid ("23170f69-40c1-278a-1000-000110DB0000")},
+            {SevenZipFormat.MachO,    new Guid ("23170f69-40c1-278a-1000-000110DF0000")},
+            {SevenZipFormat.Msi,      new Guid ("23170f69-40c1-278a-1000-000110e50000")}
         };
     }
 
@@ -1377,7 +1444,7 @@ namespace GameRes.Formats.SevenZip
 
     internal static class ByteArrayExtensions
     {
-        public static bool AsciiEqual(this byte[] data, string text)
+        public static bool AsciiEqual (this byte[] data, string text)
         {
             if (data.Length < text.Length)
                 return false;
@@ -1389,7 +1456,7 @@ namespace GameRes.Formats.SevenZip
             return true;
         }
 
-        public static int ToInt24(this byte[] data, int offset)
+        public static int ToInt24 (this byte[] data, int offset)
         {
             return data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16);
         }

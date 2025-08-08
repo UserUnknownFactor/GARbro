@@ -26,6 +26,11 @@ namespace GameRes
         bool FileExists (string filename);
 
         /// <summary>
+        /// System.IO.Directory.Exists() analog.
+        /// </summary>
+        bool DirectoryExists (string filename);
+
+        /// <summary>
         /// Open file for reading as stream.
         /// </summary>
         Stream OpenStream (Entry entry);
@@ -139,6 +144,11 @@ namespace GameRes
         public bool FileExists (string filename)
         {
             return File.Exists (filename);
+        }
+
+        public bool DirectoryExists (string path)
+        {
+            return IsDirectory (path);
         }
 
         public bool IsDirectory (string path)
@@ -353,6 +363,11 @@ namespace GameRes
                    && m_dir.ContainsKey (CombinePath (CurrentDirectory, filename));
         }
 
+        public bool DirectoryExists (string path)
+        {
+            return IsDirectory(path);
+        }
+
         public bool IsDirectory (string path)
         {
             var dirPath = path.TrimEnd ('/', '\\') + VFS.DIR_DELIMITER;
@@ -526,9 +541,17 @@ namespace GameRes
             return string.Join (PathDelimiter, path1, path2);
         }
 
+        private string NormalizePath (string filename)
+        {
+            if (PathDelimiter != "\\")
+                return filename.Replace ("\\", PathDelimiter);
+            return filename;
+        }
+
         public override Entry FindFile (string filename)
         {
             Entry entry = null;
+            filename = NormalizePath (filename);
             if (m_dir.TryGetValue (filename, out entry))
                 return entry;
             if (m_dir.TryGetValue (CombinePath (CurrentDirectory, filename), out entry))
@@ -624,6 +647,7 @@ namespace GameRes
 
         public override long GetDirectorySize (string path)
         {
+            path = NormalizePath (path);
             var dirPath = string.IsNullOrEmpty (path) ? "" : path + PathDelimiter;
             return m_arc.Dir
                 .Where (e => e.Name.StartsWith (dirPath, StringComparison.OrdinalIgnoreCase))
@@ -632,6 +656,7 @@ namespace GameRes
 
         private FileSystemStats CalculateStats (string path)
         {
+            path = NormalizePath (path);
             var entries = string.IsNullOrEmpty (path)
                 ? m_arc.Dir
                 : m_arc.Dir.Where (e => e.Name.StartsWith (path + PathDelimiter, StringComparison.OrdinalIgnoreCase));
@@ -966,6 +991,11 @@ namespace GameRes
             var entry = m_vfs.Top.FindFile (filename);
             _entryCache[filename] = new WeakReference (entry);
             return entry;
+        }
+
+        public static bool DirectoryExists (string dirname)
+        {
+            return m_vfs.Top.DirectoryExists (dirname);
         }
 
         public static bool FileExists (string filename)

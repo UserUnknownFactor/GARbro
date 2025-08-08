@@ -10,6 +10,7 @@ namespace GameRes.Formats.RPGMaker
     internal class RpgmvpMetaData : ImageMetaData
     {
         public byte[]   Key;
+        public ImageFormat Format;
     }
 
     [Export(typeof(ImageFormat))]
@@ -26,34 +27,53 @@ namespace GameRes.Formats.RPGMaker
 
         public override ImageMetaData ReadMetaData (IBinaryStream file)
         {
-            var header = file.ReadHeader (0x14);
+            var header = file.ReadHeader (5);
             if (header[4] != 'V')
                 return null;
 
-            var key = RpgmvDecryptor.LastKey ?? RpgmvDecryptor.FindKeyFor (file.Name);
-            if (null == key)
-                return null;
+            var key = RpgmvDecryptor.LastKey;
+            System.Tuple<ImageFormat, ImageMetaData> im_format = null;
 
-            var decrypted_header = new byte[header.Length];
-            for (int i = 0; i < 16; ++i)
-                decrypted_header[i] ^= key[i];
-
-            using (var header_stream = new BinaryStream(new MemoryStream(decrypted_header), file.Name))
+            if (key != null)
             {
-                var im_format = ImageFormat.FindFormat(header_stream);
-                if (null == im_format)
+                // we have already viewed some images
+                file.Position = 0;
+                using (var image = RpgmvDecryptor.DecryptStream (file, key, true))
+                {
+                    im_format = ImageFormat.FindFormat (image); // there can be webp and jpg too
+                    if (im_format == null)
+                        key = null; // bad key - maybe we're checking another game?
+                }
+            }
+            if (key == null)
+            {
+                // first time viewing
+                key = RpgmvDecryptor.FindKeyFor (file.Name);
+                if (key == null)
                 {
                     RpgmvDecryptor.LastKey = null;
-                    return null;
+                    return null; // not a known format
                 }
             }
 
-            RpgmvDecryptor.LastKey = key;
-            using (var png = RpgmvDecryptor.DecryptStream (file, key, true))
+            file.Position = 0;
+            using (var image = RpgmvDecryptor.DecryptStream (file, key, true))
             {
-                var info = Png.ReadMetaData (png);
+                if (im_format == null)
+                {
+                    im_format = ImageFormat.FindFormat (image);
+                    if (im_format == null)
+                    {
+                        RpgmvDecryptor.LastKey = null;
+                        return null;
+                    }
+                }
+
+                var info = im_format.Item2;
                 if (null == info)
                     return null;
+
+                RpgmvDecryptor.LastKey = key;
 
                 return new RpgmvpMetaData
                 {
@@ -63,18 +83,19 @@ namespace GameRes.Formats.RPGMaker
                     OffsetY = info.OffsetY,
                     BPP = info.BPP,
                     Key = key,
+                    Format = im_format.Item1
                 };
             }
         }
 
-        public override ImageData Read(IBinaryStream file, ImageMetaData info)
+        public override ImageData Read (IBinaryStream file, ImageMetaData info)
         {
             var meta = (RpgmvpMetaData)info;
-            using (var png = RpgmvDecryptor.DecryptStream(file, meta.Key, true))
-                return Png.Read(png, info);
+            using (var image = RpgmvDecryptor.DecryptStream (file, meta.Key, true))
+                return meta.Format.Read (image, info);
         }
 
-        public override void Write(Stream file, ImageData image)
+        public override void Write (Stream file, ImageData image)
         {
             byte[] key = RpgmvDecryptor.LastKey ?? RpgmvDecryptor.DefaultKey;
 
@@ -82,18 +103,18 @@ namespace GameRes.Formats.RPGMaker
 
             using (var pngStream = new MemoryStream())
             {
-                Png.Write(pngStream, image);
+                Png.Write (pngStream, image);
                 pngStream.Position = 0;
 
                 var pngHeader = new byte[key.Length];
-                pngStream.Read(pngHeader, 0, pngHeader.Length);
+                pngStream.Read (pngHeader, 0, pngHeader.Length);
 
                 for (int i = 0; i < key.Length; ++i)
                     pngHeader[i] ^= key[i];
 
-                file.Write(pngHeader, 0, pngHeader.Length);
+                file.Write (pngHeader, 0, pngHeader.Length);
 
-                pngStream.CopyTo(file);
+                pngStream.CopyTo (file);
             }
         }
     }
@@ -129,42 +150,64 @@ namespace GameRes.Formats.RPGMaker
                 return char.ToUpper (x) - 'A' + 10;
         }
 
-        static byte[] ParseSystemJson (string filename)
+        static byte[] ParseSystemJson (Stream input)
         {
-            var json = File.ReadAllText (filename, Encoding.UTF8);
-            try
+            input.Position = 0;
+            using (var reader = new StreamReader (input, Encoding.UTF8))
             {
-                var sys = JObject.Parse(json);
-                var key = sys["encryptionKey"]?.Value<string>();
-                if (null == key)
+                try
+                {
+                    var sys = JObject.Parse (reader.ReadToEnd());
+                    var key = sys["encryptionKey"]?.Value<string>();
+                    if (null == key)
+                        return null;
+                    return GetKeyFromString (key);
+                }
+                catch (JsonException)
+                {
                     return null;
-                return GetKeyFromString (key);
-            }
-            catch (JsonException)
-            {
-                return null;
+                }
             }
         }
 
         public static byte[] FindKeyFor (string filename)
         {
-            foreach (var system_filename in FindSystemJson (filename))
+            foreach (var system_filename in SystemJsonLocations())
             {
-                if (File.Exists (system_filename))
-                    return ParseSystemJson (system_filename);
+                // Search up the directory tree
+                var currentDir = VFS.GetDirectoryName (filename);
+                while (!string.IsNullOrEmpty (currentDir))
+                {
+                    var path = Path.Combine (currentDir, system_filename);
+
+                    try
+                    {
+                        var entry = VFS.FindFileInHierarchy (path);
+                        if (entry != null)
+                        {
+                            using (var input = VFS.OpenStreamInHierarchy (entry))
+                            {
+                                var key = ParseSystemJson (input);
+                                if (key != null)
+                                    return key;
+                            }
+                        }
+                    }
+                    catch (FileNotFoundException)
+                    {
+                    }
+
+                    currentDir = VFS.GetDirectoryName (currentDir);
+                }
             }
+
             return null;
         }
 
-        static IEnumerable<string> FindSystemJson (string filename)
+        static IEnumerable<string> SystemJsonLocations ()
         {
-            var dir_name = Path.GetDirectoryName (filename);
-            yield return Path.Combine (dir_name, @"..\..\data\System.json");
-            yield return Path.Combine (dir_name, @"..\..\..\www\data\System.json");
-            yield return Path.Combine (dir_name, @"..\..\..\data\System.json");
-            yield return Path.Combine (dir_name, @"..\..\..\..\data\System.json");
-            yield return Path.Combine (dir_name, @"..\data\System.json");
-            yield return Path.Combine (dir_name, @"data\System.json");
+            yield return @"data\System.json";
+            yield return @"www\data\System.json";
         }
 
         internal static readonly byte[] DefaultKey = {

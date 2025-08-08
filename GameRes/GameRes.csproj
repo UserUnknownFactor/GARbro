@@ -5,7 +5,7 @@
     <AssemblyName>GameRes</AssemblyName>
     <Copyright>morkt, crskycode and other contributors</Copyright>
     <Description>GARbro internal formats support library</Description>
-    <Version>1.0.2</Version>
+    <Version>1.1.1</Version>
     <AssemblyVersion>$([System.DateTime]::Today.ToString('yy.MM.dd'))</AssemblyVersion>
 
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
