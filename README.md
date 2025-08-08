@@ -21,8 +21,8 @@ When displaying the contents of a file system, GARbro assigns types to files bas
 <tr><td><kbd>Enter</kbd></td><td>                   Try to open selected file as archive -OR- playback audio file</td></tr>
 <tr><td><kbd>Ctrl</kbd>+<kbd>PgDn</kbd></td><td>    Try to open selected file as archive</td></tr>
 <tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td><td>       Open current folder in Windows Explorer</td></tr>
-<tr><td><kbd>Backspace</kbd></td><td>               Go back</td></tr>
-<tr><td><kbd>Alt</kbd>+<kbd>&rarr;</kbd></td><td>   Go forward</td></tr>
+<tr><td><kbd>Left Arrow</kbd></td><td>               Go back</td></tr>
+<tr><td><kbd>Right Arrow</kbd></td><td>   Go forward</td></tr>
 <tr><td><kbd>Ctrl</kbd>+<kbd>PgUp</kbd></td><td>    Go to parent directory</td></tr>
 <tr><td><kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>       Choose file to open as archive</td></tr>
 <tr><td><kbd>Ctrl</kbd>+<kbd>A</kbd></td><td>       Select all files</td></tr>

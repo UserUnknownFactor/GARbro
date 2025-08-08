@@ -419,6 +419,7 @@
                 <ColumnDefinition Width="*" MinWidth="100"/>
             </Grid.ColumnDefinitions>
             <local:ListViewEx x:Name="CurrentDirectory" Grid.Column="0" BorderThickness="0"
+                    FocusVisualStyle="{x:Null}"
                     ItemsSource="{Binding Source={StaticResource ListViewSource}}"
                     VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
                     BorderBrush="Transparent" SelectedValuePath="Name"
@@ -428,6 +429,15 @@
                     PreviewKeyDown="lv_KeyDown"
                     SelectionChanged="lv_SelectionChanged"
                     GridViewColumnHeader.Click="lv_ColumnHeaderClicked">
+                <ListView.Style>
+                    <Style TargetType="ListView">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ElementName=FilterInputBorder, Path=Visibility}" Value="Visible">
+                                <Setter Property="Padding" Value="0,0,0,25"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ListView.Style>
                 <ListView.Resources>
                     <SolidColorBrush x:Key="ItemInactiveBackground" Color="#ffcbcbcb" />
                 </ListView.Resources>
@@ -503,10 +513,12 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <!-- Separator -->
-                    <Rectangle Grid.Row="0" Height="1" 
-                               Stroke="#CCCCCC" 
-                               StrokeDashArray="3,3" 
-                               SnapsToDevicePixels="True"/>
+                    <Line x:Name="FilterInputSepartor" Grid.Row="0" 
+                          X1="0" Y1="0.5" X2="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}" Y2="0.5"
+                          Stroke="#CCCCCC" 
+                          StrokeDashArray="4,3" 
+                          StrokeThickness="1.5"
+                          SnapsToDevicePixels="True"/>
                     <!-- Filter input area -->
                     <Grid Grid.Row="1">
                         <Grid.ColumnDefinitions>
@@ -588,9 +600,8 @@
         <KeyBinding Gesture="Ctrl+P" Command="{x:Static local:Commands.Preferences}"/>
         <KeyBinding Gesture="Ctrl+S" Command="{x:Static local:Commands.ScaleImage}"/>
         <KeyBinding Gesture="Ctrl+Shift+R" Command="{x:Static local:Commands.ResetWindowPosition}"/>
-        <KeyBinding Gesture="Backspace" Command="{x:Static local:Commands.GoBack}"/>
-        <KeyBinding Gesture="Alt+Left" Command="{x:Static local:Commands.GoBack}"/>
-        <KeyBinding Gesture="Alt+Right" Command="{x:Static local:Commands.GoForward}"/>
+        <KeyBinding Gesture="Left" Command="{x:Static local:Commands.GoBack}"/>
+        <KeyBinding Gesture="Right" Command="{x:Static local:Commands.GoForward}"/>
         <KeyBinding Gesture="Alt+Shift+M" Command="{x:Static local:Commands.HideMenuBar}"/>
         <KeyBinding Gesture="Alt+Shift+T" Command="{x:Static local:Commands.HideToolBar}"/>
         <KeyBinding Gesture="Alt+Shift+S" Command="{x:Static local:Commands.HideStatusBar}"/>

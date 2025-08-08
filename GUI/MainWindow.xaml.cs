@@ -583,9 +583,9 @@ namespace GARbro.GUI
                 lv_SelectItem (ViewModel.Find (name));
         }
 
-        public void ListViewFocus ()
+        public void ListViewFocus (bool simple = false)
         {
-            if (CurrentDirectory.SelectedIndex != -1)
+            if (!simple && CurrentDirectory.SelectedIndex != -1)
             {
                 var item = CurrentDirectory.SelectedItem;
                 var lvi = CurrentDirectory.ItemContainerGenerator.ContainerFromItem (item) as ListViewItem;
@@ -767,7 +767,7 @@ namespace GARbro.GUI
                 _filterText = string.Empty;
                 _isFilterActive = false;
                 ApplyFilter();
-                ListViewFocus();
+                ListViewFocus (true);
                 SetFileStatus ("");
             }
         }
@@ -800,7 +800,7 @@ namespace GARbro.GUI
             }
             else if (e.Key == Key.Enter)
             {
-                ListViewFocus();
+                ListViewFocus (true);
                 e.Handled = true;
             }
             else if (e.Key == Key.Up || e.Key == Key.Down)
@@ -916,113 +916,31 @@ namespace GARbro.GUI
                 e.Handled = true;
                 return;
             }
-
-            if (!_isFilterActive)
-                LookupItem (e.Text, e.Timestamp);
-
             e.Handled = true;
         }
 
         private void lv_KeyDown (object sender, KeyEventArgs e)
         {
-            if (e.IsDown && LookupActive)
+            if (e.IsDown)
             {
+                bool handled = false;
+
                 switch (e.Key)
                 {
                 case Key.Space:
-                    LookupItem (" ", e.Timestamp);
+                    CycleToNextItem (forward: true);
+                    handled = true;
+                    break;
+
+                case Key.Back:  // Backspace
+                    CycleToNextItem (forward: false);
+                    handled = true;
+                    break;
+                }
+
+                if (handled)
                     e.Handled = true;
-                    break;
-                case Key.Down:
-                case Key.Up:
-                case Key.Left:
-                case Key.Right:
-                case Key.Next:
-                case Key.Prior:
-                case Key.Home:
-                case Key.End:
-                case Key.Enter:
-                    m_current_input.Reset();
-                    break;
-                }
             }
-        }
-
-        class InputData
-        {
-            public int              LastTime = 0;
-            public StringBuilder    Phrase = new StringBuilder();
-            public bool             Mismatch = false;
-
-            public bool LookupActive
-            {
-                get { return Phrase.Length > 0 && Environment.TickCount - LastTime < TextLookupTimeout; }
-            }
-
-            public void Reset ()
-            {
-                Phrase.Clear ();
-                Mismatch = false;
-            }
-
-            public void Update (int timestamp)
-            {
-                if (timestamp - LastTime >= TextLookupTimeout)
-                {
-                    Reset();
-                }
-                LastTime = timestamp;
-            }
-        }
-
-        const int TextLookupTimeout = 1000; // milliseconds
-
-        InputData m_current_input = new InputData();
-
-        public bool LookupActive { get { return m_current_input.LookupActive; } }
-
-        /// <summary>
-        /// Lookup item in listview pane by first letters of name.
-        /// </summary>
-        private void LookupItem (string key, int timestamp)
-        {
-            if (string.IsNullOrEmpty (key))
-                return;
-            if ("\x1B" == key) // Esc key
-            {
-                m_current_input.Reset();
-                return;
-            }
-            var source = CurrentDirectory.ItemsSource as CollectionView;
-            if (source == null)
-                return;
-
-            m_current_input.Update (timestamp);
-            if (m_current_input.Mismatch)
-                return;
-
-            if (!(1 == m_current_input.Phrase.Length && m_current_input.Phrase[0] == key[0]))
-            {
-                m_current_input.Phrase.Append (key);
-            }
-            int start_index = CurrentDirectory.SelectedIndex;
-            if (1 == m_current_input.Phrase.Length)
-            {
-                // lookup starting from the next item
-                if (start_index != -1 && start_index + 1 < source.Count)
-                    ++start_index;
-            }
-            var items = source.Cast<EntryViewModel>();
-            if (start_index > 0)
-            {
-                items = items.Skip (start_index).Concat (items.Take (start_index));
-            }
-            string input = m_current_input.Phrase.ToString();
-            var matched = items.FirstOrDefault (e => e.Name.StartsWith (input, StringIgnoreCase));
-            if (null != matched)
-                lv_SelectItem (matched);
-            else
-                m_current_input.Mismatch = true;
         }
 
         static readonly Regex FullpathRe = new Regex (@"^(?:[a-z]:|[\\/])", RegexOptions.IgnoreCase);
@@ -1584,7 +1502,7 @@ namespace GARbro.GUI
                 if (_currentMediaType == MediaType.Audio)
                 {
                     UpdateMediaControlsVisibility (MediaType.None);
-                    SetPreviewStatus("");
+                    SetPreviewStatus ("");
                 }
             }
         }
@@ -1600,7 +1518,7 @@ namespace GARbro.GUI
         /// <summary>
         /// Update audio control button states.
         /// </summary>
-        internal void UpdateAudioControls()
+        internal void UpdateAudioControls ()
         {
             bool isPaused = _audioPreviewHandler?.IsPaused ?? false;
             if (_currentMediaType == MediaType.Video)
@@ -1661,43 +1579,135 @@ namespace GARbro.GUI
         /// </summary>
         private bool PlayNextAudio ()
         {
-            int currentIndex = CurrentDirectory.SelectedIndex;
-            if (currentIndex < 0)
+            int nextIndex = GetNextFileIndex (CurrentDirectory.SelectedIndex, 
+                                             allowCycling: _isAutoCycling, 
+                                             skipCurrent: !(_isAutoCycling && !_isAutoPlaying),
+                                             fileFilter: entry => entry.Type == "audio");
+
+            if (nextIndex < 0)
                 return false;
 
-            for (int i = currentIndex; i < CurrentDirectory.Items.Count; i++)
-            {
-                var next_i = i + 1;
-                if (_isAutoCycling)
-                {
-                    if (!_isAutoPlaying)
-                        next_i = i;
-                    else if (next_i >= CurrentDirectory.Items.Count)
-                    {
-                        next_i = 0;
-                        var firstEntry = CurrentDirectory.Items[next_i] as EntryViewModel;
-                        while (firstEntry.Source is SubDirEntry && next_i < CurrentDirectory.Items.Count - 2)
-                        {
-                            next_i++;
-                            firstEntry = CurrentDirectory.Items[next_i] as EntryViewModel;
-                        }
-                    }
-                }
-                else
-                {
-                    if (next_i >= CurrentDirectory.Items.Count)
-                        return false;
-                }
+            var nextEntry = CurrentDirectory.Items[nextIndex] as EntryViewModel;
+            CurrentDirectory.SelectedIndex = nextIndex;
+            StartAudioPlayback(nextEntry.Source);
+            return true;
+        }
 
-                var nextEntry = CurrentDirectory.Items[next_i] as EntryViewModel;
-                if (nextEntry != null && nextEntry.Type == "audio")
+        private void CycleToNextItem (bool forward)
+        {
+            int nextIndex;
+
+            if (forward)
+            {
+                nextIndex = GetNextFileIndex (
+                    CurrentDirectory.SelectedIndex,
+                    allowCycling: true,
+                    skipCurrent: true,
+                    fileFilter: null
+                );
+            }
+            else
+            {
+                nextIndex = GetPreviousFileIndex (
+                    CurrentDirectory.SelectedIndex,
+                    allowCycling: true,
+                    skipCurrent: true,
+                    fileFilter: null
+                );
+            }
+
+            if (nextIndex >= 0)
+            {
+                CurrentDirectory.SelectedIndex = nextIndex;
+                lv_SelectItem (CurrentDirectory.Items[nextIndex] as EntryViewModel);
+            }
+        }
+
+        /// <summary>
+        /// Finds the index of the next file in the directory that matches the specified criteria.
+        /// </summary>
+        /// <param name="currentIndex">The current selected index in the directory.</param>
+        /// <param name="allowCycling">If true, wraps around to the beginning of the directory after reaching the end.</param>
+        /// <param name="skipCurrent">If false, includes the current index in the search; if true, starts searching from the next index.</param>
+        /// <param name="fileFilter">Optional predicate to filter files. If null, returns any valid entry.</param>
+        /// <returns>The index of the next matching file, or -1 if no matching file is found.</returns>
+        private int GetNextFileIndex (int currentIndex, bool allowCycling, bool skipCurrent, Func<EntryViewModel, bool> fileFilter = null)
+        {
+            if (currentIndex < 0 || CurrentDirectory.Items.Count == 0)
+                return -1;
+
+            // If not skipping current, check if current file matches criteria
+            if (!skipCurrent && IsValidEntry (currentIndex, fileFilter))
+                return currentIndex;
+
+            // Search from next position to end
+            for (int i = currentIndex + 1; i < CurrentDirectory.Items.Count; i++)
+            {
+                if (IsValidEntry (i, fileFilter))
+                    return i;
+            }
+
+            // If cycling is allowed, wrap around to beginning
+            if (allowCycling)
+            {
+                for (int i = 0; i < currentIndex; i++)
                 {
-                    CurrentDirectory.SelectedIndex = next_i;
-                    StartAudioPlayback (nextEntry.Source);
-                    return true;
+                    if (IsValidEntry (i, fileFilter))
+                        return i;
                 }
             }
-            return false;
+
+            return -1; // No next file found
+        }
+
+        /// <summary>
+        /// Finds the index of the previous file in the directory that matches the specified criteria.
+        /// </summary>
+        /// <param name="currentIndex">The current selected index in the directory.</param>
+        /// <param name="allowCycling">If true, wraps around to the beginning of the directory after reaching the end.</param>
+        /// <param name="skipCurrent">If false, includes the current index in the search; if true, starts searching from the next index.</param>
+        /// <param name="fileFilter">Optional predicate to filter files. If null, returns any valid entry.</param>
+        /// <returns>The index of the next matching file, or -1 if no matching file is found.</returns>
+        private int GetPreviousFileIndex (int currentIndex, bool allowCycling, bool skipCurrent, Func<EntryViewModel, bool> fileFilter = null)
+        {
+            if (currentIndex < 0 || CurrentDirectory.Items.Count == 0)
+                return -1;
+
+            if (!skipCurrent && IsValidEntry (currentIndex, fileFilter))
+                return currentIndex;
+
+            for (int i = currentIndex - 1; i >= 0; i--)
+            {
+                if (IsValidEntry (i, fileFilter))
+                    return i;
+            }
+
+            if (allowCycling)
+            {
+                for (int i = CurrentDirectory.Items.Count - 1; i > currentIndex; i--)
+                {
+                    if (IsValidEntry (i, fileFilter))
+                        return i;
+                }
+            }
+
+            return -1; // No previous file found
+        }
+
+        private bool IsValidEntry (int index, Func<EntryViewModel, bool> fileFilter)
+        {
+            var entry = CurrentDirectory.Items[index] as EntryViewModel;
+            if (entry == null)
+                return false;
+
+            if (fileFilter != null)
+                return fileFilter (entry);
+
+            if (entry.Name == VFS.DIR_PARENT)
+                return false;
+
+            // If no filter, accept everything (including directories)
+            return true;
         }
 
         #endregion
@@ -2129,7 +2139,7 @@ namespace GARbro.GUI
 
         void NextItemExec (object sender, ExecutedRoutedEventArgs e)
         {
-            if (LookupActive)
+            if (_isFilterActive)
                 return;
 
             var index = CurrentDirectory.SelectedIndex + 1;
