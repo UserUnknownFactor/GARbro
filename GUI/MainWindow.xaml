@@ -9,11 +9,11 @@
         Loaded="WindowLoaded"
         KeyDown="WindowKeyDown"
         AllowDrop="True" Drop="OnDropEvent"
-        Top="{Binding Source={x:Static p:Settings.Default}, Path=winTop, Mode=TwoWay}"
-        Left="{Binding Source={x:Static p:Settings.Default}, Path=winLeft, Mode=TwoWay}"
-        Height="{Binding Source={x:Static p:Settings.Default}, Path=winHeight, Mode=TwoWay}"
-        Width="{Binding Source={x:Static p:Settings.Default}, Path=winWidth, Mode=TwoWay}"
-        WindowState="{Binding Source={x:Static p:Settings.Default}, Path=winState, Mode=TwoWay}">
+        Top="{Binding Source={x:Static p:Settings.Default}, Path=winTop, Mode=OneTime}"
+        Left="{Binding Source={x:Static p:Settings.Default}, Path=winLeft, Mode=OneTime}"
+        Height="{Binding Source={x:Static p:Settings.Default}, Path=winHeight, Mode=OneTime}"
+        Width="{Binding Source={x:Static p:Settings.Default}, Path=winWidth, Mode=OneTime}"
+        WindowState="{Binding Source={x:Static p:Settings.Default}, Path=winState, Mode=OneTime}">
     <Window.Resources>
         <!-- alternate colors for directory view -->
         <SolidColorBrush x:Key="AlternateColor1" Color="#f2f5f9" />
@@ -587,6 +587,7 @@
         <KeyBinding Gesture="Ctrl+A" Command="{x:Static local:Commands.SelectAll}"/>
         <KeyBinding Gesture="Ctrl+P" Command="{x:Static local:Commands.Preferences}"/>
         <KeyBinding Gesture="Ctrl+S" Command="{x:Static local:Commands.ScaleImage}"/>
+        <KeyBinding Gesture="Ctrl+Shift+R" Command="{x:Static local:Commands.ResetWindowPosition}"/>
         <KeyBinding Gesture="Backspace" Command="{x:Static local:Commands.GoBack}"/>
         <KeyBinding Gesture="Alt+Left" Command="{x:Static local:Commands.GoBack}"/>
         <KeyBinding Gesture="Alt+Right" Command="{x:Static local:Commands.GoForward}"/>
@@ -636,5 +637,6 @@
         <CommandBinding Command="{x:Static local:Commands.Descend}"     Executed="DescendExec" CanExecute="CanExecuteAlways"/>
         <CommandBinding Command="{x:Static local:Commands.Ascend}"      Executed="AscendExec" CanExecute="CanExecuteAlways"/>
         <CommandBinding Command="{x:Static local:Commands.Exit}"       Executed="ExitExec"       CanExecute="CanExecuteAlways"/>
+        <CommandBinding Command="{x:Static local:Commands.ResetWindowPosition}"  Executed="ResetWindowPositionExec" CanExecute="CanExecuteAlways"/>
     </Window.CommandBindings>
 </Window>

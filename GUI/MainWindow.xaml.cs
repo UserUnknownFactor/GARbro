@@ -167,6 +167,8 @@ namespace GARbro.GUI
 
         void WindowLoaded (object sender, RoutedEventArgs e)
         {
+            if ((Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift)
+                ResetWindowPosition();
             lv_SetSortMode (Settings.Default.lvSortColumn, Settings.Default.lvSortDirection);
             Dispatcher.InvokeAsync (WindowRendered, DispatcherPriority.ContextIdle);
             ImageData.SetDefaultDpi (Desktop.DpiX, Desktop.DpiY);
@@ -237,6 +239,36 @@ namespace GARbro.GUI
             else
                 cwd = Directory.GetCurrentDirectory();
             Settings.Default.appLastDirectory = cwd;
+
+            if (WindowState == WindowState.Normal)
+            {
+                var screenLeft = SystemParameters.VirtualScreenLeft;
+                var screenTop = SystemParameters.VirtualScreenTop;
+                var screenWidth = SystemParameters.VirtualScreenWidth;
+                var screenHeight = SystemParameters.VirtualScreenHeight;
+
+                // Check if window is at least partially visible
+                bool isOnScreen = Left < screenLeft + screenWidth &&
+                                 Top < screenTop + screenHeight &&
+                                 Left + Width > screenLeft &&
+                                 Top + Height > screenTop;
+
+                if (isOnScreen)
+                {
+                    Settings.Default.winLeft = Left;
+                    Settings.Default.winTop = Top;
+                    Settings.Default.winWidth = Width;
+                    Settings.Default.winHeight = Height;
+                }
+                else
+                {
+                    // Reset to defaults if offscreen
+                    Settings.Default.winLeft = double.NaN;
+                    Settings.Default.winTop = double.NaN;
+                    Settings.Default.winWidth = (double)DEFAULT_WIDTH;
+                    Settings.Default.winHeight = (double)DEFAULT_HEIGHT;
+                }
+            }
         }
 
         /// <summary>
@@ -2108,6 +2140,32 @@ namespace GARbro.GUI
             }
         }
 
+        const int DEFAULT_WIDTH = 1200;
+        const int DEFAULT_HEIGHT = 600;
+
+        private void ResetWindowPosition()
+        {
+            Settings.Default.winLeft = double.NaN;
+            Settings.Default.winTop = double.NaN;
+            Settings.Default.winWidth = DEFAULT_WIDTH;
+            Settings.Default.winHeight = DEFAULT_HEIGHT;
+            Settings.Default.winState = WindowState.Normal;
+
+            WindowState = WindowState.Normal;
+            Width = DEFAULT_WIDTH;
+            Height = DEFAULT_HEIGHT;
+
+            var screenWidth = SystemParameters.PrimaryScreenWidth;
+            var screenHeight = SystemParameters.PrimaryScreenHeight;
+            Left = (screenWidth - Width) / 2;
+            Top = (screenHeight - Height) / 2;
+        }
+
+        private void ResetWindowPositionExec(object sender, ExecutedRoutedEventArgs e)
+        {
+            ResetWindowPosition();
+        }
+
         /// <summary>
         /// Handle "Exit" command.
         /// </summary>
@@ -2637,6 +2695,7 @@ namespace GARbro.GUI
         public static readonly RoutedCommand Descend = new RoutedCommand();
         public static readonly RoutedCommand Ascend = new RoutedCommand();
         public static readonly RoutedCommand ScaleImage = new RoutedCommand();
+        public static readonly RoutedCommand ResetWindowPosition = new RoutedCommand();
 
         #endregion
     }

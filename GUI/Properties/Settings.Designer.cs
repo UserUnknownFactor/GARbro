@@ -61,7 +61,7 @@ namespace GARbro.GUI.Properties {
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("1024")]
+        [global::System.Configuration.DefaultSettingValueAttribute("1200")]
         public double winWidth {
             get {
                 return ((double)(this["winWidth"]));
