@@ -32,7 +32,6 @@ namespace GARbro.GUI.Preview
         {
             try
             {
-
                 using (var data = VFS.OpenImage(preview.Entry))
                 {
                     if (data.Image is AnimatedImageData animData && animData.IsAnimated)

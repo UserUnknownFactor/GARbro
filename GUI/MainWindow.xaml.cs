@@ -147,10 +147,10 @@ namespace GARbro.GUI
                 DisposeAllStreams();
                 DisposePreviewHandlers();
             }
-            catch (Exception X)
+            catch (Exception ex)
             {
-                Trace.WriteLine (X.Message, "[OnClosing]");
-                Trace.WriteLine (X.StackTrace, "Stack trace");
+                Trace.WriteLine (ex.Message, "[OnClosing]");
+                Trace.WriteLine (ex.StackTrace, "Stack trace");
             }
         }
 
@@ -181,9 +181,9 @@ namespace GARbro.GUI
             {
                 vm = GetNewViewModel (m_app.InitPath);
             }
-            catch (Exception X)
+            catch (Exception ex)
             {
-                PopupError (X.Message, guiStrings.MsgErrorOpening);
+                PopupError (ex.Message, guiStrings.MsgErrorOpening);
             }
             if (null == vm)
             {
@@ -487,9 +487,9 @@ namespace GARbro.GUI
             {
                 return GetNewViewModel (path);
             }
-            catch (Exception X)
+            catch (Exception ex)
             {
-                SetFileStatus (string.Format("{0}: {1}", Path.GetFileName (path), X.Message));
+                SetFileStatus (string.Format("{0}: {1}", Path.GetFileName (path), ex.Message));
                 return null;
             }
         }
@@ -504,10 +504,10 @@ namespace GARbro.GUI
             {
                 return GetNewViewModel (path);
             }
-            catch (Exception X)
+            catch (Exception ex)
             {
                 if (!suppress_warning)
-                    PopupError (X.Message, guiStrings.MsgErrorOpening);
+                    PopupError (ex.Message, guiStrings.MsgErrorOpening);
                 return new DirectoryViewModel (new string[] { "" }, new Entry[0], false);
             }
         }
@@ -963,9 +963,9 @@ namespace GARbro.GUI
                 PushViewModel (GetNewViewModel (path));
                 ListViewFocus();
             }
-            catch (Exception X)
+            catch (Exception ex)
             {
-                PopupError (X.Message, guiStrings.MsgErrorOpening);
+                PopupError (ex.Message, guiStrings.MsgErrorOpening);
             }
         }
 
@@ -994,12 +994,12 @@ namespace GARbro.GUI
                     lv_SelectItem (pos.Item);
                 return true;
             }
-            catch (Exception X)
+            catch (Exception ex)
             {
                 // if VFS.FullPath throws an exception, ViewModel becomes
                 // inconsistent at this point and should be rebuilt
                 ViewModel = CreateViewModel (VFS.Top.CurrentDirectory, true);
-                SetFileStatus (X.Message);
+                SetFileStatus (ex.Message);
                 return false;
             }
         }
@@ -1061,13 +1061,13 @@ namespace GARbro.GUI
             {
                 OpenFileOrDir (filename);
             }
-            catch (OperationCanceledException X)
+            catch (OperationCanceledException ex)
             {
-                SetFileStatus (X.Message);
+                SetFileStatus (ex.Message);
             }
-            catch (Exception X)
+            catch (Exception ex)
             {
-                PopupError (string.Format("{0}\n{1}", filename, X.Message), guiStrings.MsgErrorOpening);
+                PopupError (string.Format("{0}\n{1}", filename, ex.Message), guiStrings.MsgErrorOpening);
             }
         }
 
@@ -1178,10 +1178,11 @@ namespace GARbro.GUI
             else
             {
                 PushViewModel (vm);
+
                 if (VFS.Count > old_fs_count && null != VFS.CurrentArchive)
                     ShowCurrentArchiveStatus();
-                else{
-                    SetFileStatus("");}
+                else
+                    SetFileStatus ("");
             }
             if (VFS.DIR_PARENT == entry.Name)
                 lv_SelectItem (Path.GetFileName (old_dir));
@@ -1315,9 +1316,9 @@ namespace GARbro.GUI
                 var oem = CultureInfo.CurrentCulture.TextInfo.OEMCodePage;
                 list.Add (Encoding.GetEncoding (oem));
             }
-            catch (Exception X)
+            catch (Exception ex)
             {
-                if (X is ArgumentException || X is NotSupportedException)
+                if (ex is ArgumentException || ex is NotSupportedException)
                     list.Add (Encoding.GetEncoding (20127)); //default to US-ASCII
                 else
                     throw;
@@ -1385,7 +1386,7 @@ namespace GARbro.GUI
             _imagePreviewHandler?.Reset();
             _videoPreviewHandler?.Reset();
             _textPreviewHandler?.Reset();
-            // Note: Don't reset audio handler to keep audio playing
+            // NOTE: Don't reset audio handler to keep audio playing
 
             m_video_base_info = "";
         }
@@ -1444,7 +1445,18 @@ namespace GARbro.GUI
 
             if ("video" == entry.Type)
             {
-                _videoPreviewHandler.LoadContent (m_current_preview);
+                SetFileStatus(Localization._T("Loading video..."));
+                try
+                {
+                    _videoPreviewHandler.LoadContent(m_current_preview);
+                    SetFileStatus("");
+                }
+                catch (Exception ex)
+                {
+                    _videoPreviewHandler.Reset();
+                    SetPreviewStatus("");
+                    SetFileStatus(ex.Message);
+                }
             }
             else if ("audio" == entry.Type)
             {
@@ -1568,9 +1580,9 @@ namespace GARbro.GUI
                 }
                 StopAudioPlayback();
             }
-            catch (Exception X)
+            catch (Exception ex)
             {
-                Trace.WriteLine (X.Message, "[OnPlaybackStopped]");
+                Trace.WriteLine (ex.Message, "[OnPlaybackStopped]");
             }
         }
 
@@ -1787,11 +1799,11 @@ namespace GARbro.GUI
             StopVideoPlayback();
         }
 
-        private void OnVideoFailed (object sender, ExceptionRoutedEventArgs e)
+        /*private void OnVideoFailed (object sender, ExceptionRoutedEventArgs e)
         {
             StopVideoPlayback();
             SetFileStatus (Localization.Format("Video playback failed: {}", e.ErrorException.Message));
-        }
+        }*/
 
         #endregion
 
@@ -1912,9 +1924,9 @@ namespace GARbro.GUI
             {
                 Process.Start (file);
             }
-            catch (Exception X)
+            catch (Exception ex)
             {
-                SetFileStatus (X.Message);
+                SetFileStatus (ex.Message);
             }
         }
 
@@ -1955,9 +1967,9 @@ namespace GARbro.GUI
                     string name = Path.Combine (CurrentPath, entry.Name);
                     Process.Start ("explorer.exe", "/select," + name);
                 }
-                catch (Exception X)
+                catch (Exception ex)
                 {
-                    Trace.WriteLine (X.Message, "explorer.exe");
+                    Trace.WriteLine (ex.Message, "explorer.exe");
                 }
             }
         }
@@ -2006,9 +2018,9 @@ namespace GARbro.GUI
             catch (OperationCanceledException)
             {
             }
-            catch (Exception X)
+            catch (Exception ex)
             {
-                SetFileStatus (X.Message);
+                SetFileStatus (ex.Message);
             }
             finally
             {
@@ -2110,9 +2122,9 @@ namespace GARbro.GUI
                 if (count != 0)
                     SetFileStatus (count.Pluralize("MsgSelectedFiles"));
             }
-            catch (Exception X)
+            catch (Exception ex)
             {
-                SetFileStatus (X.Message);
+                SetFileStatus (ex.Message);
             }
         }
 
@@ -2130,9 +2142,9 @@ namespace GARbro.GUI
                 {
                     Clipboard.SetText (string.Join("\r\n", names));
                 }
-                catch (Exception X)
+                catch (Exception ex)
                 {
-                    Trace.WriteLine (X.Message, "Clipboard error");
+                    Trace.WriteLine (ex.Message, "Clipboard error");
                 }
             }
         }
@@ -2464,19 +2476,19 @@ namespace GARbro.GUI
                 {
                     OpenFileOrDir (filename);
                 }
-                catch (Exception X)
+                catch (Exception ex)
                 {
                     VFS.FullPath = new string[] { Path.GetDirectoryName (filename) };
                     var vm = new DirectoryViewModel (VFS.FullPath, VFS.GetFiles(), VFS.IsVirtual);
                     PushViewModel (vm);
                     filename = Path.GetFileName (filename);
                     lv_SelectItem (filename);
-                    SetFileStatus (string.Format("{0}: {1}", filename, X.Message));
+                    SetFileStatus (string.Format("{0}: {1}", filename, ex.Message));
                 }
             }
-            catch (Exception X)
+            catch (Exception ex)
             {
-                Trace.WriteLine (X.Message, "Drop event failed");
+                Trace.WriteLine (ex.Message, "Drop event failed");
             }
         }
 

@@ -560,7 +560,7 @@ Overwrite?</value>
     <value>Video: {0} | Codec: {1} | Resolution: {2}x{3} | FPS: {4:F1}</value>
   </data>
   <data name="VideoPlaybackErrorText" xml:space="preserve">
-    <value>Failed to play video with internal player.\nWould you like to open it with your default video player?</value>
+    <value>Failed to play video with internal player: {0}. Would you like to open it with your default video player?</value>
   </data>
   <data name="VideoPlaybackError" xml:space="preserve">
     <value>Video Playback Error</value>
@@ -569,7 +569,7 @@ Overwrite?</value>
     <value>Media failed to load</value>
   </data>
   <data name="AdditionalCodecsNeeded" xml:space="preserve">
-    <value>\n\nThis video format requires additional codecs to be installed on your system.\nConsider installing a codec pack like K-Lite Codec Pack.</value>
+    <value>This video format requires additional codecs to be installed on your system. Consider installing a codec pack like K-Lite Codec Pack.</value>
   </data>
   <data name="Unknown" xml:space="preserve">
     <value>Unknown</value>

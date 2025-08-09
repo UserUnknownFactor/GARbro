@@ -4,7 +4,7 @@ Requires [.NET Framework v4.8](https://dotnet.microsoft.com) or newer
 
 [Supported formats](https://morkt.github.io/GARbro/supported.html)
 
-[Download latest release](https://github.com/UserUnknownFactor/GARbro/actions)
+[Download latest release](/../../releases/latest)
 
 ## Operation
 Browse through the file system to find the file you're looking for.  If you think it's a game archive, try entering it by pressing the `Enter` key. If GARbro recognizes the format, its contents will be displayed just like a regular file system.
@@ -27,6 +27,7 @@ When displaying the contents of a file system, GARbro assigns types to files bas
 <tr><td><kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>       Choose file to open as archive</td></tr>
 <tr><td><kbd>Ctrl</kbd>+<kbd>A</kbd></td><td>       Select all files</td></tr>
 <tr><td><kbd>Space</kbd></td><td>                   Select next file</td></tr>
+<tr><td><kbd>Backspace</kbd></td><td>                    Select previous file</td></tr>
 <tr><td><kbd>Numpad +</kbd></td><td>                Select files matching specified mask</td></tr>
 <tr><td><kbd>F3</kbd></td><td>                      Create archive</td></tr>
 <tr><td><kbd>F4</kbd></td><td>                      Extract selected files</td></tr>

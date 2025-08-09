@@ -1,8 +1,3 @@
-//! \file       RC4.cs
-//! \date       Sat Oct 08 00:38:00 2016
-//! \brief      RC4 encryption algorithm implementation.
-//
-
 using System.Security.Cryptography;
 
 namespace GameRes.Cryptography

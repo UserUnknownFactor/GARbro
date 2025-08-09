@@ -1,11 +1,5 @@
-//! \file       MersenneTwister.cs
-//! \date       Mon Nov 02 01:57:11 2015
-//! \brief      Mersenne Twister pseudorandom number generator.
-//
 // Copyright (C) 1997 Makoto Matsumoto and Takuji Nishimura.
-//
 // C# port by morkt
-//
 
 namespace GameRes.Cryptography
 {
