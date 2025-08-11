@@ -900,6 +900,21 @@ namespace GameRes.Formats.Properties {
                 this["TIM2AlphaFormat"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string PakUE_Password
+        {
+            get
+            {
+                return ((string)(this["PakUE_Password"]));
+            }
+            set
+            {
+                this["PakUE_Password"] = value;
+            }
+        }
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]

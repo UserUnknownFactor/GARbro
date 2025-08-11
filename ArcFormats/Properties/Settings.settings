@@ -212,6 +212,9 @@
     <Setting Name="TIM2AlphaFormat" Type="System.String" Scope="User">
       <Value Profile="(Default)">RGBA</Value>
     </Setting>
+    <Setting Name="PakUE_Password" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
     <Setting Name="Password" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>

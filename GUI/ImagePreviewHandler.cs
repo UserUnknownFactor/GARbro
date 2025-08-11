@@ -40,10 +40,10 @@ namespace GARbro.GUI.Preview
                         SetStaticImage(preview, data);
                 }
             }
-            catch (Exception X)
+            catch (Exception ex)
             {
                 _mainWindow.Dispatcher.Invoke(() => Reset());
-                _mainWindow.SetFileStatus(X.Message);
+                _mainWindow.SetFileStatus(ex.Message);
                 //_mainWindow.SetFileStatus(Localization._T(X.Message));
             }
         }
