@@ -448,7 +448,22 @@ namespace GARbro.GUI
         void PushViewModel (DirectoryViewModel vm)
         {
             SaveCurrentPosition();
+
+            var scrollViewer = GetScrollViewer(CurrentDirectory);
+            var preserveScroll = scrollViewer?.VerticalOffset ?? 0;
+
             ViewModel = vm;
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                // Check if we should preserve scroll (e.g., when filtering)
+                if (preserveScroll > 0 && scrollViewer != null)
+                {
+                    var newScrollViewer = GetScrollViewer(CurrentDirectory);
+                    if (newScrollViewer != null && newScrollViewer.ScrollableHeight >= preserveScroll)
+                        newScrollViewer.ScrollToVerticalOffset(preserveScroll);
+                }
+            }), System.Windows.Threading.DispatcherPriority.ContextIdle);
         }
 
         DirectoryViewModel GetNewViewModel (string path)
@@ -568,6 +583,7 @@ namespace GARbro.GUI
             }
         }
 
+        /// <inheritdoc cref="lv_SelectItem(EntryViewModel)"/>
         void lv_SelectItem (int index)
         {
             CurrentDirectory.SelectedIndex = index;
@@ -577,15 +593,27 @@ namespace GARbro.GUI
                 lvi.Focus();
         }
 
-        void lv_SelectItem (string name)
+        /// <inheritdoc cref="lv_SelectItem(EntryViewModel)"/>
+        void lv_SelectItem (string name, bool scrollIntoView = true)
         {
             if (!string.IsNullOrEmpty (name))
-                lv_SelectItem (ViewModel.Find (name));
+            {
+                var item = ViewModel.Find (name);
+                if (item != null)
+                {
+                    CurrentDirectory.SelectedItem = item;
+                    if (scrollIntoView)
+                        CurrentDirectory.ScrollIntoView (item);
+                    var lvi = (ListViewItem)CurrentDirectory.ItemContainerGenerator.ContainerFromItem (item);
+                    if (lvi != null)
+                        lvi.Focus();
+                }
+            }
         }
 
-        public void ListViewFocus (bool simple = false)
+        public void ListViewFocus ()
         {
-            if (!simple && CurrentDirectory.SelectedIndex != -1)
+            if (CurrentDirectory.SelectedIndex != -1)
             {
                 var item = CurrentDirectory.SelectedItem;
                 var lvi = CurrentDirectory.ItemContainerGenerator.ContainerFromItem (item) as ListViewItem;
@@ -616,6 +644,7 @@ namespace GARbro.GUI
             var lv = sender as ListView;
             if (null == lv)
                 return;
+
             var item = lv.SelectedItem as EntryViewModel;
             if (item != null && m_last_selected != item)
             {
@@ -767,7 +796,7 @@ namespace GARbro.GUI
                 _filterText = string.Empty;
                 _isFilterActive = false;
                 ApplyFilter();
-                ListViewFocus (true);
+                ListViewFocus ();
                 SetFileStatus ("");
             }
         }
@@ -775,6 +804,8 @@ namespace GARbro.GUI
         private void FilterInput_TextChanged(object sender, TextChangedEventArgs e)
         {
             _filterText = FilterInput.Text;
+
+            CurrentDirectory.SelectedItems.Clear();
             ApplyFilter();
 
             if (string.IsNullOrEmpty (_filterText))
@@ -783,11 +814,17 @@ namespace GARbro.GUI
 
         private void FilterInput_LostFocus (object sender, RoutedEventArgs e)
         {
-            // Check if the focus went to the clear button
             if (ClearFilterButton.IsKeyboardFocusWithin)
                 return;
 
+            CurrentDirectory.IsHitTestVisible = false; // NOTE: to prevent initiation of dragselection mode
+
             HideFilterInput();
+
+            Dispatcher.BeginInvoke(new Action(() => 
+            {
+                CurrentDirectory.IsHitTestVisible = true;
+            }), DispatcherPriority.Input);
         }
 
         private void FilterInput_KeyDown (object sender, KeyEventArgs e)
@@ -800,12 +837,11 @@ namespace GARbro.GUI
             }
             else if (e.Key == Key.Enter)
             {
-                ListViewFocus (true);
+                ListViewFocus ();
                 e.Handled = true;
             }
             else if (e.Key == Key.Up || e.Key == Key.Down)
             {
-                // Allow navigation in the filtered list
                 ListViewFocus();
                 if (CurrentDirectory.Items.Count > 0)
                 {
@@ -891,8 +927,11 @@ namespace GARbro.GUI
         {
             if (_isFilterActive || !string.IsNullOrEmpty(_filterText))
             {
-                _filterText = string.Empty;
                 _isFilterActive = false;
+
+                if (CurrentDirectory.Items.Count > 0 && CurrentDirectory.SelectedIndex == -1)
+                    CurrentDirectory.SelectedIndex = 0;
+                _filterText = string.Empty;
                 FilterInput.Text = string.Empty;
                 FilterInputBorder.Visibility = Visibility.Collapsed;
 
@@ -910,6 +949,7 @@ namespace GARbro.GUI
         {
             if (!FilterInputBorder.IsVisible && !string.IsNullOrEmpty (e.Text) && e.Text != "\x1B")
             {
+                CurrentDirectory.SelectedItems.Clear();
                 ShowFilterInput();
                 FilterInput.Text = e.Text;
                 FilterInput.CaretIndex = FilterInput.Text.Length;
@@ -923,23 +963,18 @@ namespace GARbro.GUI
         {
             if (e.IsDown)
             {
-                bool handled = false;
-
                 switch (e.Key)
                 {
                 case Key.Space:
                     CycleToNextItem (forward: true);
-                    handled = true;
+                    e.Handled = true;
                     break;
 
                 case Key.Back:  // Backspace
                     CycleToNextItem (forward: false);
-                    handled = true;
+                    e.Handled = true;
                     break;
                 }
-
-                if (handled)
-                    e.Handled = true;
             }
         }
 
@@ -978,7 +1013,9 @@ namespace GARbro.GUI
         public DirectoryPosition GetCurrentPosition ()
         {
             var evm = CurrentDirectory.SelectedItem as EntryViewModel;
-            return new DirectoryPosition (ViewModel, evm);
+            var scrollViewer = GetScrollViewer (CurrentDirectory);
+            double scrollOffset = scrollViewer?.VerticalOffset ?? 0;
+            return new DirectoryPosition (ViewModel, evm, scrollOffset);
         }
 
         public bool SetCurrentPosition (DirectoryPosition pos)
@@ -990,14 +1027,36 @@ namespace GARbro.GUI
                 if (null == vm)
                     return false;
                 ViewModel = vm;
-                if (null != pos.Item)
-                    lv_SelectItem (pos.Item);
+
+                var targetScrollOffset = pos.ScrollOffset;
+                var targetItemName = pos.Item;
+
+                // Use Loaded priority to ensure items are generated
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (!string.IsNullOrEmpty(targetItemName))
+                    {
+                        var item = ViewModel.Find(targetItemName);
+                        if (item != null)
+                        {
+                            CurrentDirectory.SelectedItem = item;
+                            var lvi = (ListViewItem)CurrentDirectory.ItemContainerGenerator.ContainerFromItem(item);
+                            if (lvi != null)
+                                lvi.Focus();
+                        }
+                    }
+
+                    var scrollViewer = GetScrollViewer(CurrentDirectory);
+                    if (scrollViewer != null && targetScrollOffset > 0)
+                    {
+                        scrollViewer.ScrollToVerticalOffset(targetScrollOffset);
+                    }
+                }), System.Windows.Threading.DispatcherPriority.Loaded);
+
                 return true;
             }
             catch (Exception ex)
             {
-                // if VFS.FullPath throws an exception, ViewModel becomes
-                // inconsistent at this point and should be rebuilt
                 ViewModel = CreateViewModel (VFS.Top.CurrentDirectory, true);
                 SetFileStatus (ex.Message);
                 return false;
@@ -1158,34 +1217,82 @@ namespace GARbro.GUI
         {
             string old_dir = null == vm ? "" : vm.Path.Last();
             string new_dir = entry.Source.Name;
+            bool isGoingUp = false;
+
             if (VFS.DIR_PARENT == new_dir)
             {
+                isGoingUp = true;
                 if (null != vm && !vm.IsArchive)
                     new_dir = Path.Combine (old_dir, entry.Name);
                 if (vm.Path.Count > 1 && string.IsNullOrEmpty (old_dir))
                     old_dir = vm.Path[vm.Path.Count - 2];
             }
+
             Trace.WriteLine (new_dir, "OpenDirectoryEntry");
             int old_fs_count = VFS.Count;
+
+            if (!isGoingUp)
+                SaveCurrentPosition();
+
             vm = TryCreateViewModel (new_dir);
             if (null == vm)
             {
                 if (VFS.Count == old_fs_count)
                     return;
                 vm = new DirectoryViewModel (VFS.FullPath, new Entry[0], VFS.IsVirtual);
-                PushViewModel (vm);
+                ViewModel = vm;
             }
             else
             {
-                PushViewModel (vm);
+                ViewModel = vm;
 
                 if (VFS.Count > old_fs_count && null != VFS.CurrentArchive)
                     ShowCurrentArchiveStatus();
                 else
                     SetFileStatus ("");
             }
-            if (VFS.DIR_PARENT == entry.Name)
-                lv_SelectItem (Path.GetFileName (old_dir));
+
+            if (isGoingUp)
+            {
+                var historyPos = m_history.Current;
+                if (historyPos != null && historyPos.Path.SequenceEqual(ViewModel.Path))
+                {
+                    Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        if (!string.IsNullOrEmpty(historyPos.Item))
+                        {
+                            var item = ViewModel.Find(historyPos.Item);
+                            if (item != null)
+                            {
+                                CurrentDirectory.SelectedItem = item;
+                                var lvi = (ListViewItem)CurrentDirectory.ItemContainerGenerator.ContainerFromItem(item);
+                                lvi?.Focus();
+                            }
+                        }
+
+                        var scrollViewer = GetScrollViewer(CurrentDirectory);
+                        if (scrollViewer != null && historyPos.ScrollOffset > 0)
+                            scrollViewer.ScrollToVerticalOffset(historyPos.ScrollOffset);
+                    }), System.Windows.Threading.DispatcherPriority.Loaded);
+                    return;
+                }
+
+                var itemName = Path.GetFileName (old_dir);
+                if (!string.IsNullOrEmpty (itemName))
+                {
+                    Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        var item = ViewModel.Find (itemName);
+                        if (item != null)
+                        {
+                            CurrentDirectory.SelectedItem = item;
+                            CurrentDirectory.ScrollIntoView(item);
+                            var lvi = (ListViewItem)CurrentDirectory.ItemContainerGenerator.ContainerFromItem(item);
+                            lvi?.Focus();
+                        }
+                    }), System.Windows.Threading.DispatcherPriority.Loaded);
+                }
+            }
             else
                 lv_SelectItem (0);
         }

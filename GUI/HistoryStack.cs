@@ -74,6 +74,16 @@ namespace Rnd.Windows
             }
         }
 
+        public State Current 
+        { 
+            get 
+            { 
+                if (m_back.Any())
+                    return m_back.Last();
+                return default(State);
+            }
+        }
+
         public event EventHandler StateChanged;
 
         private void OnStateChanged ()

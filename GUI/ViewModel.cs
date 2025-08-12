@@ -313,18 +313,21 @@ namespace GARbro.GUI
     public class DirectoryPosition
     {
         public IEnumerable<string> Path { get; set; }
-        public string              Item { get; set; }
+        public              string Item { get; set; }
+        public      double ScrollOffset { get; set; }
 
-        public DirectoryPosition (DirectoryViewModel vm, EntryViewModel item)
+        public DirectoryPosition (DirectoryViewModel vm, EntryViewModel item, double scrollOffset = 0)
         {
             Path = vm.Path;
             Item = null != item ? item.Name : null;
+            ScrollOffset = scrollOffset;
         }
 
         public DirectoryPosition (string filename)
         {
             Path = new string[] { System.IO.Path.GetDirectoryName (filename) };
             Item = System.IO.Path.GetFileName (filename);
+            ScrollOffset = 0;
         }
     }
 

@@ -248,7 +248,7 @@ namespace GameRes.Formats.ShiinaRio
             double v1_l = 0;
             v0 = 0;
             int i = 0;
-            
+
             do
             {
                 v0 += div;
@@ -1283,6 +1283,43 @@ namespace GameRes.Formats.ShiinaRio
                 {
                     data32[i] ^= m_key;
                 }
+            }
+        }
+    }
+
+    [Serializable]
+    public class Ushimitsu2Crypt : IDecryptExtra
+    {
+        static byte[] m_key = new byte[]
+        {
+            0x4B, 0x4D, 0x36, 0x35, 0x33, 0x32, 0x20, 0x43,
+            0x50, 0x55, 0x20, 0x63, 0x6F, 0x72, 0x65, 0x20,
+            0x65, 0x6D, 0x75, 0x6C, 0x61, 0x74, 0x69, 0x6F,
+            0x6E, 0x20, 0x3A, 0x20, 0x43, 0x6F, 0x70, 0x79,
+            0x72, 0x69, 0x67, 0x68, 0x74, 0x28, 0x43, 0x29,
+            0x20, 0x32, 0x30, 0x30, 0x35, 0x2C, 0x36, 0x20,
+            0x59, 0x2E, 0x59, 0x61, 0x6D, 0x61, 0x64, 0x61,
+            0x2F, 0x53, 0x54, 0x55, 0x44, 0x49, 0x4F, 0x20,
+            0x82, 0xE6, 0x82, 0xB5, 0x82, 0xAD, 0x82, 0xF1
+        };
+
+        public void Decrypt(byte[] data, int index, uint length, uint flags)
+            => DoCrypt(data, index, length, flags);
+
+        public void Encrypt(byte[] data, int index, uint length, uint flags)
+            => DoCrypt(data, index, length, flags);
+
+        private static void DoCrypt(byte[] data, int index, uint length, uint flags)
+        {
+            if (length >= 0x200 && (flags & 0x202) == 0x202)
+            {
+                int count = (int)(((length & 0x7E) | 1u));
+                for (int i = 0; i < count; i++)
+                    data[index + i] ^= m_key[i % m_key.Length];
+
+                var encLen = MemoryMarshal.Read<uint>(data.AsSpan(index + 0x100));
+                encLen ^= length;
+                MemoryMarshal.Write<uint>(data.AsSpan(index + 0x100), ref encLen);
             }
         }
     }
