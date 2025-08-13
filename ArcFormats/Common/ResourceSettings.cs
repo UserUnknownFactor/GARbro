@@ -1,8 +1,3 @@
-//! \file       ResourceSettings.cs
-//! \date       2018 Jan 08
-//! \brief      Persistent resource settings implementation.
-//
-
 using System;
 using System.ComponentModel.Composition;
 using System.Diagnostics;
@@ -11,7 +6,7 @@ using GameRes.Formats.Strings;
 
 namespace GameRes.Formats
 {
-    internal class LocalResourceSetting : ResourceSettingBase
+    public class LocalResourceSetting : ResourceSettingBase
     {
         public override object Value {
             get { return Properties.Settings.Default[Name]; }
@@ -29,23 +24,45 @@ namespace GameRes.Formats
         }
     }
 
-    internal class EncodingSetting : LocalResourceSetting
+    public class EncodingSetting : LocalResourceSetting
     {
-        static readonly Encoding DefaultEncoding = Encodings.cp932;
+        private Encoding _defaultEncoding = Encoding.GetEncoding (932);
 
-        public override object Value {
-            get {
+        public Encoding DefaultEncoding
+        {
+            get         { return _defaultEncoding;  }
+            private set { _defaultEncoding = value; }
+        }
+
+        public override object Value
+        {
+            get
+            {
                 try
                 {
-                    return Encoding.GetEncoding ((int)base.Value);
+                    var baseValue = base.Value;
+                    if (baseValue == null)
+                    {
+                        base.Value = DefaultEncoding.CodePage;
+                        return DefaultEncoding;
+                    }
+
+                    return Encoding.GetEncoding ((int)baseValue);
                 }
-                catch // fallback to CP932
+                catch // fallback to default encoding
                 {
-                    Trace.WriteLine (string.Format ("Unknown encoding code page {0}", base.Value));
+                    Trace.WriteLine (string.Format ("Unknown encoding code page {0}, using default {1}",
+                        base.Value, DefaultEncoding.CodePage));
+
+                    // Set the base value to the default
+                    base.Value = DefaultEncoding.CodePage;
                     return DefaultEncoding;
                 }
             }
-            set { base.Value = ((Encoding)value).CodePage; }
+            set
+            {
+                base.Value = ((Encoding)value).CodePage;
+            }
         }
 
         public EncodingSetting () { }
@@ -53,6 +70,23 @@ namespace GameRes.Formats
         public EncodingSetting (string name) : base (name) { }
 
         public EncodingSetting (string name, string text) : base (name, text) { }
+
+        public EncodingSetting (string name, string text, Encoding defaultEnc) : base(name, text)
+        {
+            if (defaultEnc != null)
+                DefaultEncoding = defaultEnc;
+
+            try
+            {
+                var currentValue = base.Value;
+                if (currentValue == null)
+                    base.Value = DefaultEncoding.CodePage;
+            }
+            catch
+            {
+                base.Value = DefaultEncoding.CodePage;
+            }
+        }
     }
 
     [Export(typeof(ISettingsManager))]

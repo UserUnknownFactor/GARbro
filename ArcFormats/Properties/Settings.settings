@@ -122,6 +122,12 @@
     <Setting Name="ZIPEncodingCP" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">932</Value>
     </Setting>
+    <Setting Name="SevenZipNamesSrcCP" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">0</Value>
+    </Setting>
+    <Setting Name="SevenZipNamesDstCP" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">932</Value>
+    </Setting>
     <Setting Name="AZScriptScheme" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>

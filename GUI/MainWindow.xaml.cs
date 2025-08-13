@@ -1414,6 +1414,9 @@ namespace GARbro.GUI
         private IEnumerable<Encoding> m_encoding_list = GetEncodingList();
         public IEnumerable<Encoding> TextEncodings { get { return m_encoding_list; } }
 
+        [DllImport("kernel32.dll")]
+        static extern uint GetOEMCP();
+
         internal static IEnumerable<Encoding> GetEncodingList (bool exclude_utf16 = false)
         {
             var list = new HashSet<Encoding>();
@@ -1430,6 +1433,13 @@ namespace GARbro.GUI
                 else
                     throw;
             }
+            try
+            {
+                list.Add (Encoding.Default);
+                var oem = GetOEMCP();
+                list.Add (Encoding.GetEncoding ((int)oem));
+            }
+            catch { }
             list.Add (Encoding.GetEncoding (932));
             list.Add (Encoding.GetEncoding (936));
             list.Add (Encoding.UTF8);
@@ -1437,7 +1447,7 @@ namespace GARbro.GUI
             {
                 list.Add (Encoding.Unicode);
                 list.Add (Encoding.BigEndianUnicode);
-                //list.Add (Encoding.UTF32);
+                list.Add (Encoding.UTF32);
                 //list.Add (new UTF32Encoding(true, true));
             }
             return list;

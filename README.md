@@ -21,13 +21,13 @@ When displaying the contents of a file system, GARbro assigns types to files bas
 <tr><td><kbd>Enter</kbd></td><td>                   Try to open selected file as archive -OR- playback audio file</td></tr>
 <tr><td><kbd>Ctrl</kbd>+<kbd>PgDn</kbd></td><td>    Try to open selected file as archive</td></tr>
 <tr><td><kbd>Ctrl</kbd>+<kbd>E</kbd></td><td>       Open current folder in Windows Explorer</td></tr>
-<tr><td><kbd>Left Arrow</kbd></td><td>               Go back</td></tr>
-<tr><td><kbd>Right Arrow</kbd></td><td>   Go forward</td></tr>
+<tr><td><kbd>Left Arrow</kbd></td><td>              Go back</td></tr>
+<tr><td><kbd>Right Arrow</kbd></td><td>             Go forward</td></tr>
 <tr><td><kbd>Ctrl</kbd>+<kbd>PgUp</kbd></td><td>    Go to parent directory</td></tr>
 <tr><td><kbd>Ctrl</kbd>+<kbd>O</kbd></td><td>       Choose file to open as archive</td></tr>
 <tr><td><kbd>Ctrl</kbd>+<kbd>A</kbd></td><td>       Select all files</td></tr>
 <tr><td><kbd>Space</kbd></td><td>                   Select next file</td></tr>
-<tr><td><kbd>Backspace</kbd></td><td>                    Select previous file</td></tr>
+<tr><td><kbd>Backspace</kbd></td><td>               Select previous file</td></tr>
 <tr><td><kbd>Numpad +</kbd></td><td>                Select files matching specified mask</td></tr>
 <tr><td><kbd>F3</kbd></td><td>                      Create archive</td></tr>
 <tr><td><kbd>F4</kbd></td><td>                      Extract selected files</td></tr>

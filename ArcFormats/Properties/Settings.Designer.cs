@@ -527,6 +527,30 @@ namespace GameRes.Formats.Properties {
                 this["ZIPEncodingCP"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public int SevenZipNamesSrcCP {
+            get {
+                return ((int)(this["SevenZipNamesSrcCP"]));
+            }
+            set {
+                this["SevenZipNamesSrcCP"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("932")]
+        public int SevenZipNamesDstCP {
+            get {
+                return ((int)(this["SevenZipNamesDstCP"]));
+            }
+            set {
+                this["SevenZipNamesDstCP"] = value;
+            }
+        }
 
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]

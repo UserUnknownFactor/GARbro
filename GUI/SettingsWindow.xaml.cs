@@ -132,31 +132,11 @@ namespace GARbro.GUI
 
         UIElement CreateEncodingWidget (IResourceSetting setting)
         {
-            var view = CreateSettingView<Encoding> (setting);
-            // XXX make a control template in XAML instead
-            var container = new StackPanel {
-                Orientation = Orientation.Vertical,
-                Margin = new Thickness (2.0),
+            var view = CreateEncodingSettingView (setting);
+            return new ContentControl {
+                Template = (ControlTemplate)this.Resources["BoundEncodingSelector"],
                 DataContext = view,
             };
-            var caption = new TextBlock {
-                Text = view.Text,
-                ToolTip = view.Description,
-            };
-            var combo_box = new ComboBox {
-                ItemsSource = MainWindow.GetEncodingList (true),
-                Margin = new Thickness (0,4,0,0),
-                DisplayMemberPath = "EncodingName",
-                ToolTip = view.Description,
-            };
-            var binding = new Binding ("Value") {
-                Mode = BindingMode.TwoWay,
-                UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged,
-            };
-            BindingOperations.SetBinding (combo_box, ComboBox.SelectedItemProperty, binding);
-            container.Children.Add (caption);
-            container.Children.Add (combo_box);
-            return container;
         }
 
         UIElement CreateGaugeWidget (FixedGaugeSetting setting)
@@ -194,6 +174,14 @@ namespace GARbro.GUI
         {
             var view = new ResourceSettingView<TValue> (setting);
             view.ValueChanged   += (s, e) => ViewModel.HasChanges = true;
+            this.OnApplyChanges += (s, e) => view.Apply();
+            return view;
+        }
+
+        ISettingView CreateEncodingSettingView (IResourceSetting setting)
+        {
+            var view = new EncodingSettingView (setting);
+            view.ValueChanged += (s, e) => ViewModel.HasChanges = true;
             this.OnApplyChanges += (s, e) => view.Apply();
             return view;
         }
@@ -327,6 +315,16 @@ namespace GARbro.GUI
         }
     }
 
+    public class EncodingSettingView : ResourceSettingView<Encoding>
+    {
+        public IEnumerable<Encoding> EncodingList { get; }
+
+        public EncodingSettingView (IResourceSetting setting) : base (setting)
+        {
+            EncodingList = MainWindow.GetEncodingList (true);
+        }
+    }
+
     public static class TreeViewItemExtensions
     {
         /// <returns>Depth of the given TreeViewItem</returns>
@@ -354,7 +352,7 @@ namespace GARbro.GUI
         {
             var item = value as TreeViewItem;
             if (item == null)
-                return new Thickness(0);
+                return new Thickness (0);
             double thickness = Length * item.GetDepth();
 
             return new Thickness (thickness, 0, 0, 0);

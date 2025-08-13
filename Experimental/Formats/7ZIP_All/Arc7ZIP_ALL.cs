@@ -8,6 +8,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
+using System.Text;
 using GameRes.Compression;
 using GameRes.Utility;
 
@@ -22,6 +23,11 @@ namespace GameRes.Formats.SevenZip
         public override bool  IsHierarchic { get { return  true; } }
         public override bool      CanWrite { get { return  false; } }
 
+        EncodingSetting FilenameSrcEncoding = new EncodingSetting(
+            "SevenZipNamesSrcCP", "Assumed encoding", Encoding.GetEncoding(ArchiveOptions.OEMCP));
+        EncodingSetting FilenameDstEncoding = new EncodingSetting(
+            "SevenZipNamesDstCP", "Real encoding", Encoding.GetEncoding(932));
+
         public SevenZipOpener()
         {
             Extensions = new[] {
@@ -29,6 +35,7 @@ namespace GameRes.Formats.SevenZip
                 "iso", "dmg", "vhd", "wim", "rpm", "deb", "arj", "lzh", "chm",
                 "msi", "nsis", "udf", "squashfs", "tgz", "tbz2", "txz"
             };
+            Settings = new[] { FilenameDstEncoding, FilenameSrcEncoding };
         }
 
         public override ArcFile TryOpen (ArcView file)
@@ -70,7 +77,15 @@ namespace GameRes.Formats.SevenZip
                     return null;
                 }
 
-                var dir = ReadDirectory (inArchive, file.Name);
+                var encodingS = FilenameSrcEncoding.Get<Encoding>();
+                var encodingD = FilenameDstEncoding.Get<Encoding>();
+                if (encodingS.CodePage == encodingD.CodePage)
+                {
+                    encodingS = null;
+                    encodingD = null;
+                }
+
+                var dir = ReadDirectory (inArchive, file.Name, encodingS, encodingD);
                 if (dir.Count == 0)
                 {
                     Marshal.ReleaseComObject (inArchive);
@@ -94,7 +109,9 @@ namespace GameRes.Formats.SevenZip
             if (!Lib7ZipLoader.Load())
                 return;
 
-            var format = GetFormatFromOptions (options);
+            var sevenZipOptions = GetOptions<ArchiveOptions> (options);
+            var format = GetFormatFromOptions (sevenZipOptions);
+
             if (!Formats.FormatGuidMapping.ContainsKey (format))
                 throw new NotSupportedException($"Format {format} is not supported for writing");
 
@@ -239,14 +256,14 @@ namespace GameRes.Formats.SevenZip
             return SevenZipFormat.Undefined;
         }
 
-        List<Entry> ReadDirectory (IInArchive archive, string arcName)
+        List<Entry> ReadDirectory (IInArchive archive, string arcName, Encoding encodingS, Encoding encodingD)
         {
             var itemCount = archive.GetNumberOfItems();
             var dir = new List<Entry>((int)itemCount);
 
             for (uint i = 0; i < itemCount; i++)
             {
-                var entry = ReadEntry (archive, i);
+                var entry = ReadEntry (archive, i, encodingS, encodingD);
                 if (entry != null && !entry.IsFolder)
                     dir.Add (entry);
             }
@@ -254,9 +271,9 @@ namespace GameRes.Formats.SevenZip
             return dir;
         }
 
-        SevenZipEntry ReadEntry (IInArchive archive, uint index)
+        SevenZipEntry ReadEntry (IInArchive archive, uint index, Encoding encodingS, Encoding encodingD)
         {
-            string name    = GetProperty<string>(archive, index, ItemPropId.kpidPath);
+            string name    = GetProperty<string>(archive, index, ItemPropId.kpidPath, encodingS, encodingD);
             if (string.IsNullOrEmpty (name))
                 return null;
 
@@ -283,7 +300,8 @@ namespace GameRes.Formats.SevenZip
             return entry;
         }
 
-        T GetProperty<T>(IInArchive archive, uint index, ItemPropId propId)
+        T GetProperty<T>(IInArchive archive, uint index, ItemPropId propId, 
+            Encoding encodingS = null, Encoding encodingD = null)
         {
             PropVariant propVariant = new PropVariant();
             archive.GetProperty (index, propId, ref propVariant);
@@ -293,6 +311,22 @@ namespace GameRes.Formats.SevenZip
             {
                 propVariant.Clear();
                 return default(T);
+            }
+
+            // Special handling for path strings with encoding
+            if (typeof(T) == typeof(string) && 
+                propId == ItemPropId.kpidPath &&
+                value != null && encodingS != null && encodingD != null)
+            {
+                string strValue = value.ToString();
+
+                // Assume 7-Zip decoded using system OEM codepage
+                // and re-encode OEM -> bytes -> Original CodePage
+                byte[] bytes = encodingS.GetBytes(strValue);
+                string fixedValue = encodingD.GetString(bytes);
+
+                propVariant.Clear();
+                return (T)(object)fixedValue;
             }
 
             propVariant.Clear();
@@ -308,6 +342,22 @@ namespace GameRes.Formats.SevenZip
 
             T result = (T)Convert.ChangeType (value.ToString(), underlyingType);
             return result;
+        }
+
+        public override ResourceOptions GetDefaultOptions()
+        {
+            return new ArchiveOptions
+            {
+                FileNameSrcEncoding = FilenameSrcEncoding.Get<Encoding>(),
+                FileNameDstEncoding = FilenameDstEncoding.Get<Encoding>(),
+                ArchiveFormat = "7z",
+                CompressionLevel = 5
+            };
+        }
+
+        public override ResourceOptions GetOptions(object widget)
+        {
+            return GetDefaultOptions();
         }
 
         public override Stream OpenEntry (ArcFile arc, Entry entry)
@@ -414,7 +464,7 @@ namespace GameRes.Formats.SevenZip
                     throw new InvalidOperationException($"Failed to reopen archive: 0x{hr:X8}");
 
                 var extractedStream = ExtractEntryInternal (inArchive, entry);
-                
+
                 // Update the archive reference
                 arc.UpdateArchive (inArchive, inStream);
 
@@ -437,10 +487,19 @@ namespace GameRes.Formats.SevenZip
     {
         public string ArchiveFormat { get; set; }
         public int CompressionLevel { get; set; }
+        public Encoding FileNameSrcEncoding { get; set; }
+        public Encoding FileNameDstEncoding { get; set; }
         public Dictionary<string, object> FormatOptions { get; set; }
+
+        [DllImport("kernel32.dll")]
+        static extern uint GetOEMCP();
+
+        static public int OEMCP = (int)GetOEMCP();
 
         public ArchiveOptions()
         {
+            FileNameSrcEncoding = Encoding.GetEncoding(OEMCP);
+            FileNameDstEncoding = Encoding.GetEncoding(932);
             ArchiveFormat = "7z";
             CompressionLevel = 5;
             FormatOptions = new Dictionary<string, object>();
@@ -459,13 +518,13 @@ namespace GameRes.Formats.SevenZip
                     get { lock (_lockObject) {  return _archive; } }
             private set { lock (_lockObject) { _archive = value; } }
         }
-        
+
         public InStreamWrapper Stream 
         { 
                     get { lock (_lockObject) {  return _stream; } }
             private set { lock (_lockObject) { _stream = value; } }
         }
-        
+
         public SevenZipFormat Format { get; private set; }
         public object LockObject => _lockObject;
         public   bool IsDisposed => _disposed;
@@ -491,7 +550,7 @@ namespace GameRes.Formats.SevenZip
                     try { _archive.Close(); } catch { }
                     Marshal.FinalReleaseComObject (_archive);
                 }
-                
+
                 _stream?.Dispose();
 
                 _archive = newArchive;
@@ -826,7 +885,7 @@ namespace GameRes.Formats.SevenZip
 
                     var absolutePath = Path.GetFullPath (path);
                     var handle = LoadLibraryEx (absolutePath, IntPtr.Zero, LOAD_WITH_ALTERED_SEARCH_PATH);
-                    
+
                     if (handle != IntPtr.Zero)
                     {
                         loaded = true;

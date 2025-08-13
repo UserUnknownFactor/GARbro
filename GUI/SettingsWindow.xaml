@@ -20,29 +20,52 @@
             <GradientStop Color="#FFA4B0DB" Offset="0"/>
             <GradientStop Color="#FF91A2C4" Offset="1"/>
         </LinearGradientBrush>
+
+        <!-- Control Templates for Settings Widgets -->
         <ControlTemplate x:Key="BoundCheckBox" TargetType="CheckBox">
             <CheckBox DataContext="{TemplateBinding DataContext}" IsChecked="{Binding Value}"
                       Content="{Binding Text}" ToolTip="{Binding Description}" Margin="2"/>
         </ControlTemplate>
+
         <ControlTemplate x:Key="BoundSlider" TargetType="Slider">
             <StackPanel Orientation="Vertical" Margin="2" DataContext="{TemplateBinding DataContext}">
-                <TextBlock Text="{Binding Text}" ToolTip="{Binding Description}" Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
+                <TextBlock Text="{Binding Text}" ToolTip="{Binding Description}" 
+                           Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
                 <StackPanel Orientation="Horizontal" Margin="0,2,0,0" VerticalAlignment="Center">
                     <Slider Orientation="Horizontal" IsSnapToTickEnabled="True" Width="120" x:Name="GaugeSlider"
                             TickPlacement="BottomRight" Ticks="{TemplateBinding Ticks}"
                             Minimum="{Binding Path=Source.Min}" Maximum="{Binding Path=Source.Max}"
                             Value="{Binding Value}"/>
-                    <TextBlock Text="{Binding ElementName=GaugeSlider,Path=Value}" Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}" Margin="2,0,0,0"/>
+                    <TextBlock Text="{Binding ElementName=GaugeSlider,Path=Value}" 
+                               Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}" 
+                               Margin="2,0,0,0"/>
                 </StackPanel>
             </StackPanel>
         </ControlTemplate>
+
         <ControlTemplate x:Key="BoundDropDownList" TargetType="ComboBox">
             <StackPanel Orientation="Vertical" Margin="2" DataContext="{TemplateBinding DataContext}">
-                <TextBlock Text="{Binding Text}" ToolTip="{Binding Description}" Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
-                <ComboBox ItemsSource="{Binding Path=Source.ValuesSet}" SelectedItem="{Binding Value, Mode=TwoWay}" Margin="0,4,0,0"/>
+                <TextBlock Text="{Binding Text}" ToolTip="{Binding Description}" 
+                           Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
+                <ComboBox ItemsSource="{Binding Path=Source.ValuesSet}" 
+                          SelectedItem="{Binding Value, Mode=TwoWay}" 
+                          Margin="0,4,0,0"/>
             </StackPanel>
         </ControlTemplate>
 
+        <ControlTemplate x:Key="BoundEncodingSelector" TargetType="ContentControl">
+            <StackPanel Orientation="Vertical" Margin="2" DataContext="{TemplateBinding DataContext}">
+                <TextBlock Text="{Binding Text}" ToolTip="{Binding Description}" 
+                           Foreground="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
+                <ComboBox ItemsSource="{Binding EncodingList}" 
+                          SelectedItem="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                          DisplayMemberPath="EncodingName"
+                          ToolTip="{Binding Description}"
+                          Margin="0,4,0,0"/>
+            </StackPanel>
+        </ControlTemplate>
+
+        <!-- TreeView Styles -->
         <Style x:Key="ExpandCollapseToggleStyle" TargetType="ToggleButton">
             <Setter Property="Focusable" Value="False"/>
             <Setter Property="Template">
@@ -77,6 +100,7 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
         <Style x:Key="{x:Type TreeViewItem}" TargetType="{x:Type TreeViewItem}">
             <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
             <Setter Property="IsExpanded" Value="True"/>
