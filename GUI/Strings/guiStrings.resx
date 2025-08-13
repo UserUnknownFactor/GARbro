@@ -399,6 +399,9 @@ Overwrite?</value>
   <data name="Type_script" xml:space="preserve">
     <value>script</value>
   </data>
+  <data name="Type_audio" xml:space="preserve">
+    <value>audio</value>
+  </data>
   <data name="Type_video" xml:space="preserve">
     <value>video</value>
   </data>
@@ -603,5 +606,11 @@ Overwrite?</value>
   </data>
   <data name="Converted {0}" xml:space="preserve">
     <value>Converted {0}</value>
+  </data>
+  <data name="Filter: {0} of {1} items" xml:space="preserve">
+    <value>Filter: {0} of {1} items</value>
+  </data>
+  <data name="File is too large for preview" xml:space="preserve">
+    <value>File is too large for preview</value>
   </data>
 </root>

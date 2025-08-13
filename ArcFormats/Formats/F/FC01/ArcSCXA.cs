@@ -6,11 +6,11 @@ namespace GameRes.Formats.FC01
     [Export(typeof(ArchiveFormat))]
     public class SCXAOpener : ArchiveFormat
     {
-        public override string Tag { get { return "ARC/SCXA Pia Carrot e Youkoso 4 Xbox360"; } }
+        public override string         Tag { get { return "ARC/SCXA"; } }
         public override string Description { get { return "Pia Carrot e Youkoso 4 Xbox360 resource archive"; } }
-        public override uint Signature { get { return 0x41584353; } } // 'SCXA'
-        public override bool IsHierarchic { get { return false; } }
-        public override bool CanWrite { get { return false; } }
+        public override uint     Signature { get { return  0x41584353; } } // 'SCXA'
+        public override bool  IsHierarchic { get { return  false; } }
+        public override bool      CanWrite { get { return  false; } }
 
         public override ArcFile TryOpen(ArcView file)
         {

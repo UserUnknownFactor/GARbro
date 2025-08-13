@@ -73,6 +73,7 @@ namespace GameRes.Formats.UnrealEngine
         public string Password { get; set; }
     }
 
+    [Serializable]
     public class PakScheme : ResourceScheme
     {
         public Dictionary<string, string> KnownKeys { get; set; }

@@ -42,16 +42,12 @@ namespace GameRes.Formats.FC01
         public override ImageData Read (IBinaryStream stream, ImageMetaData info)
         {
             var meta = (AcdMetaData)info;
-
             stream.Position = meta.DataOffset;
-            using (var reader = new MrgLzssReader (stream, meta.PackedSize, meta.UnpackedSize))
-            {
-                reader.Unpack();
-                var decoder = new AcdDecoder (reader.Data, meta);
-                decoder.Unpack();
-                return ImageData.Create (info, PixelFormats.Gray8, null, decoder.Data);
-            }
-            throw new InvalidFormatException();
+            var lzssReader = new MrgLzssReader (stream, meta.PackedSize, meta.UnpackedSize);
+            lzssReader.Unpack();
+            var decoder = new AcdDecoder (lzssReader.Data, meta);
+            decoder.Unpack();
+            return ImageData.Create (info, PixelFormats.Gray8, null, decoder.Data);
         }
 
         public override void Write (Stream file, ImageData image)

@@ -137,8 +137,8 @@ namespace GameRes.Formats.FC01
             if (m_compressed)
             {
                 using (var input = new BinMemoryStream (data))
-                using (var lzss = new MrgLzssReader (input, data.Length, m_unpacked_size))
-                {
+               {
+                    var lzss = new MrgLzssReader (input, data.Length, m_unpacked_size);
                     lzss.Unpack();
                     data = lzss.Data;
                 }

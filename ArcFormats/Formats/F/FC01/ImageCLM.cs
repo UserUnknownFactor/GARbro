@@ -18,7 +18,12 @@ namespace GameRes.Formats.FC01
     {
         public override string         Tag { get { return "CLM"; } }
         public override string Description { get { return "F&C Co. image format"; } }
-        public override uint     Signature { get { return 0x204D4C43; } } // 'CLM'
+        public override uint     Signature { get { return  0x204D4C43; } } // 'CLM'
+
+        public ClmFormat()
+        {
+            Extensions = new[] { "CLM" };
+        }
 
         public override ImageMetaData ReadMetaData (IBinaryStream stream)
         {
@@ -58,13 +63,12 @@ namespace GameRes.Formats.FC01
             else if (32 == meta.BPP)
                 format = PixelFormats.Bgr32;
             else
-                throw new NotSupportedException ("Not supported CLM color depth");
+                throw new NotSupportedException ("Unsupported CLM color depth");
+
             int packed_size = (int)(stream.Length - stream.Position);
-            using (var reader = new MrgLzssReader (stream, packed_size, meta.UnpackedSize))
-            {
-                reader.Unpack();
-                return ImageData.Create (info, format, palette, reader.Data);
-            }
+            var lzssReader = new MrgLzssReader (stream, packed_size, meta.UnpackedSize);
+            lzssReader.Unpack();
+            return ImageData.Create (info, format, palette, lzssReader.Data);
         }
 
         public override void Write (Stream file, ImageData image)

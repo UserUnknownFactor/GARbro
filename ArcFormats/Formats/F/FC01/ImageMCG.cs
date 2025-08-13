@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using GameRes.Formats.Strings;
@@ -33,7 +34,7 @@ namespace GameRes.Formats.FC01
     {
         public override string         Tag { get { return "MCG"; } }
         public override string Description { get { return "F&C Co. image format"; } }
-        public override uint     Signature { get { return 0x2047434D; } } // 'MCG'
+        public override uint     Signature { get { return  0x2047434D; } } // 'MCG'
 
         internal static Dictionary<string, byte> KnownKeys { get { return DefaultScheme.KnownKeys; } }
 
@@ -45,27 +46,39 @@ namespace GameRes.Formats.FC01
             set { DefaultScheme = (McgScheme)value; }
         }
 
+        private readonly Dictionary<string, byte> _fileKeyCache = new Dictionary<string, byte>();
+        private byte? _lastUserKey = null;
+
+        public McgFormat()
+        {
+            Extensions = new[] { "MCG" };
+        }
+
         public override ImageMetaData ReadMetaData (IBinaryStream stream)
         {
             var header = stream.ReadHeader (0x40);
             if (header[5] != '.')
                 return null;
+
             int version = header[4] * 100 + header[6] * 10 + header[7] - 0x14D0;
             if (version != 200 && version != 101 && version != 100)
-                throw new NotSupportedException ("Not supported MCG format version");
+                throw new NotSupportedException (string.Format("Unsupported MCG version: {0}", version));
+
             int header_size = header.ToInt32 (0x10);
             if (header_size < 0x40)
                 return null;
+
             int bpp = header.ToInt32 (0x24);
             if (24 != bpp && 8 != bpp && 16 != bpp)
-                throw new NotSupportedException ("Not supported MCG image bitdepth");
+                throw new NotSupportedException (string.Format("Unsupported MCG bitdepth: {0}", bpp));
+
             int packed_size = header.ToInt32 (0x38);
             return new McgMetaData
             {
-                Width = header.ToUInt32 (0x1c),
-                Height = header.ToUInt32 (0x20),
-                OffsetX = header.ToInt32 (0x14),
-                OffsetY = header.ToInt32 (0x18),
+                Width   = header.ToUInt32 (0x1c),
+                Height  = header.ToUInt32 (0x20),
+                OffsetX =  header.ToInt32 (0x14),
+                OffsetY =  header.ToInt32 (0x18),
                 BPP = bpp,
                 DataOffset = header_size,
                 PackedSize = packed_size,
@@ -74,34 +87,49 @@ namespace GameRes.Formats.FC01
             };
         }
 
-        // cache key value so that dialog does not pop up on every file accessed.
-        byte? LastKey = null;
-
         public override ImageData Read (IBinaryStream stream, ImageMetaData info)
         {
             var meta = (McgMetaData)info;
-            byte key = 0;
-            if (101 == meta.Version || 100 == meta.Version)
-            {
-                if (null == LastKey)
-                {
-                    var options = Query<McgOptions> (arcStrings.ArcImageEncrypted);
-                    key = options.Key;
-                    LastKey = key;
-                }
-                else
-                    key = LastKey.Value;
-            }
+            byte key = DetermineKey(stream, meta);
+
             var reader = new McgDecoder (stream, meta, key);
             reader.Unpack();
-            if (reader.Key != 0)
-                LastKey = reader.Key;
+
+            if (reader.Key != 0 && reader.KeyWasDetected)
+            {
+                var fileName = Path.GetFileName(stream.Name ?? "");
+                if (!string.IsNullOrEmpty(fileName))
+                    _fileKeyCache[fileName] = reader.Key;
+                _lastUserKey = reader.Key;
+            }
+
             return ImageData.Create (info, reader.Format, reader.Palette, reader.Data, reader.Stride);
+        }
+
+        private byte DetermineKey(IBinaryStream stream, McgMetaData meta)
+        {
+            if (meta.Version != 101 && meta.Version != 100)
+                return 0;
+
+            var fileName = Path.GetFileName(stream.Name ?? "");
+            if (!string.IsNullOrEmpty(fileName) && _fileKeyCache.TryGetValue(fileName, out byte cachedKey))
+                return cachedKey;
+
+            if (_lastUserKey.HasValue)
+                return _lastUserKey.Value;
+
+            byte savedKey = Properties.Settings.Default.MCGLastKey;
+            if (savedKey != 0)
+                return savedKey;
+
+            var options = Query<McgOptions> (arcStrings.ArcImageEncrypted);
+            _lastUserKey = options.Key;
+            return options.Key;
         }
 
         public override void Write (Stream file, ImageData image)
         {
-            throw new System.NotImplementedException ("McgFormat.Write not implemented");
+            throw new NotImplementedException ("McgFormat.Write not implemented");
         }
 
         public override ResourceOptions GetDefaultOptions ()
@@ -124,54 +152,74 @@ namespace GameRes.Formats.FC01
     }
 
     // mcg decompression // graphic.unt @ 100047B0
-
     internal class McgDecoder
     {
-        byte[]  m_input;
-        byte[]  m_output;
-        int     m_width;
-        int     m_height;
-        int     m_pixels;
-        byte    m_key;
-        IBinaryStream   m_file;
-        McgMetaData     m_info;
+        private readonly IBinaryStream m_file;
+        private readonly McgMetaData   m_info;
+        private readonly int           m_width;
+        private readonly int           m_height;
+        private readonly int           m_pixels;
+
+        private byte[] m_input;
+        private byte[] m_output;
+        private   byte m_key;
+        private   bool m_key_was_detected;
 
         public byte              Key { get { return m_key; } }
+        public bool   KeyWasDetected { get { return m_key_was_detected; } }
         public byte[]           Data { get { return m_output; } }
         public int            Stride { get; private set; }
         public PixelFormat    Format { get; private set; }
         public BitmapPalette Palette { get; private set; }
 
+        private static readonly byte[] ChannelOrder = { 1, 0, 2 };
+
         public McgDecoder (IBinaryStream input, McgMetaData info, byte key)
         {
-            m_file = input;
-            m_info = info;
-            m_width = (int)info.Width;
+            m_file   = input;
+            m_info   = info;
+            m_width  = (int)info.Width;
             m_height = (int)info.Height;
-            m_pixels = m_width*m_height;
-            m_key = key;
+            m_pixels = m_width * m_height;
+            m_key    = key;
+            m_key_was_detected = false;
+
+            InitializeFormat();
+        }
+
+        private void InitializeFormat()
+        {
             Stride = m_width * m_info.BPP / 8;
             if (m_info.Version <= 101)
                 Stride = (Stride + 3) & -4;
-            if (24 == m_info.BPP)
-                Format = PixelFormats.Bgr24;
-            else if (16 == m_info.BPP)
-                Format = PixelFormats.Bgr555;
-            else if (8 == m_info.BPP)
-                Format = PixelFormats.Indexed8;
-            else
-                throw new InvalidFormatException();
-        }
 
-        static readonly byte[] ChannelOrder = { 1, 0, 2 };
+            switch (m_info.BPP)
+            {
+            case 24: Format = PixelFormats.Bgr24;    break;
+            case 16: Format = PixelFormats.Bgr555;   break;
+            case 8:  Format = PixelFormats.Indexed8; break;
+            default:
+                throw new InvalidFormatException(string.Format("Invalid MCG BPP: {0}", m_info.BPP));
+            }
+        }
 
         public void Unpack ()
         {
+            ReadInputData();
+
+            if (200 == m_info.Version)
+                UnpackV200();
+            else
+                UnpackV101();
+        }
+
+        private void ReadInputData()
+        {
             m_file.Position = m_info.DataOffset;
-            int input_size = m_info.PackedSize;
+            long input_size = m_info.PackedSize;
             if (0 == input_size)
-                input_size = (int)m_file.Length;
-            input_size -= m_info.DataOffset;
+                input_size  = m_file.Length;
+            input_size     -= m_info.DataOffset;
             if (8 == m_info.BPP)
             {
                 Palette = ImageFormat.ReadPalette (m_file.AsStream);
@@ -182,6 +230,7 @@ namespace GameRes.Formats.FC01
                 var masks = new int[m_info.ChannelsCount];
                 for (int i = 0; i < masks.Length; ++i)
                     masks[i] = m_file.ReadInt32();
+
                 if (16 == m_info.BPP && 3 == m_info.ChannelsCount)
                 {
                     if (0x7E0 == masks[1])
@@ -189,128 +238,247 @@ namespace GameRes.Formats.FC01
                 }
                 input_size -= m_info.ChannelsCount * 4;
             }
-            m_input = m_file.ReadBytes (input_size);
+
+            if (input_size <= 0)
+                throw new InvalidFormatException ("Invalid MCG input size");
+
+            m_input = m_file.ReadBytes ((int)input_size);
             if (m_input.Length != input_size)
-                throw new InvalidFormatException ("Unexpected end of file");
-            if (200 == m_info.Version)
-                UnpackV200();
-            else
-                UnpackV101();
+                Trace.WriteLine($"Unexpected end of file {m_input.Length} != {input_size}", "[MCG]");
         }
 
-        void UnpackV101 ()
+        private void UnpackV101 ()
         {
             if (m_key != 0)
             {
-                MrgOpener.Decrypt (m_input, 0, m_input.Length-1, m_key);
-            }
-#if DEBUG
-            else if (101 == m_info.Version) // bruteforce key *in debug build only*
-            {
-                var copy = new byte[m_input.Length];
-                for (int key = 1; key < 256; ++key)
+                var result = TryUnpackV101WithKey(m_key);
+                if (result != null)
                 {
-                    Buffer.BlockCopy (m_input, 0, copy, 0, m_input.Length);
-                    MrgOpener.Decrypt (copy, 0, copy.Length-1, (byte)key);
-                    using (var input = new BinMemoryStream (copy))
-                    using (var lzss = new MrgLzssReader (input, copy.Length, Stride * m_height))
-                    {
-                        lzss.Unpack();
-                        if (input.Length - input.Position <= 1)
-                        {
-                            Trace.WriteLine (string.Format ("Found matching key {0:X2}", key), "[MCG]");
-                            m_output = lzss.Data;
-                            m_key = (byte)key;
-                            return;
-                        }
-                    }
+                    m_output = result;
+                    return;
                 }
             }
-#endif
-            using (var input = new BinMemoryStream (m_input))
-            using (var lzss = new MrgLzssReader (input, m_input.Length, Stride * m_height))
-            {
-                lzss.Unpack();
-                // data remaining within input stream indicates invalid encryption key
-                if (input.Length - input.Position > 1)
-                {
-                    m_key = 0;
-                }
-                m_output = lzss.Data;
-            }
-        }
 
-        void UnpackV200 ()
-        {
-            m_output = new byte[m_pixels*3];
-            var reader = new MrgDecoder (m_input, 0, (uint)m_pixels);
-            do
+            var detected = TryDetectKeyV101();
+            if (detected != null)
             {
-                reader.ResetKey (m_key);
-                try
-                {
-                    for (int i = 0; i < 3; ++i)
-                    {
-                        reader.Unpack();
-                        var plane = reader.Data;
-                        int src = 0;
-                        for (int j = ChannelOrder[i]; j < m_output.Length; j += 3)
-                        {
-                            m_output[j] = plane[src++];
-                        }
-                    }
-//                    Trace.WriteLine (string.Format ("Found matching key {0:X2}", key), "[MCG]");
-                }
-                catch (InvalidFormatException)
-                {
-                    m_key++;
-                    continue;
-                }
-                Transform();
-                Properties.Settings.Default.MCGLastKey = m_key;
+                m_output = detected;
+                m_key_was_detected = true;
                 return;
             }
-            while (m_key != Properties.Settings.Default.MCGLastKey);
+
+            m_key = 0;
+            var unencrypted = TryUnpackV101WithKey(0);
+            if (unencrypted != null)
+                m_output = unencrypted;
+            else
+                throw new InvalidFormatException("Failed to decompress MCG image");
+        }
+
+        private byte[] TryUnpackV101WithKey(byte key)
+        {
+            try
+            {
+                var data = new byte[m_input.Length];
+                Buffer.BlockCopy(m_input, 0, data, 0, m_input.Length);
+
+                if (key != 0)
+                    MrgOpener.Decrypt(data, 0, data.Length - 1, key);
+
+                using (var input = new BinMemoryStream(data))
+                {
+                    var lzss = new MrgLzssReader(input, data.Length, Stride * m_height);
+                    lzss.Unpack();
+
+                    // check if we consumed most of the input
+                    long bytesRemaining = input.Length - input.Position;
+                    if (bytesRemaining <= 1) // Allow for padding byte
+                    {
+                        m_key = key;
+                        return lzss.Data;
+                    }
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private byte[] TryDetectKeyV101()
+        {
+            byte savedKey = Properties.Settings.Default.MCGLastKey;
+            if (savedKey != 0)
+            {
+                var result = TryUnpackV101WithKey(savedKey);
+                if (result != null)
+                {
+                    //Trace.WriteLine(string.Format("Found matching key {0:X2} (saved)", savedKey), "[MCG]");
+                    return result;
+                }
+            }
+
+            var knownKeys = McgFormat.KnownKeys;
+            if (knownKeys != null && knownKeys.Count > 0)
+            {
+                var uniqueKeys = new HashSet<byte>(knownKeys.Values);
+                foreach (byte knownKey in uniqueKeys)
+                {
+                    if (knownKey == savedKey || knownKey == 0)
+                        continue;
+
+                    var result = TryUnpackV101WithKey(knownKey);
+                    if (result != null)
+                    {
+                        //Trace.WriteLine(string.Format("Found matching key {0:X2} (known)", knownKey), "[MCG]");
+                        Properties.Settings.Default.MCGLastKey = knownKey;
+                        return result;
+                    }
+                }
+            }
+
+            // Full bruteforce as last resort
+            for (int key = 1; key < 256; ++key)
+            {
+                if (key == savedKey)
+                    continue;
+
+                if (knownKeys != null && knownKeys.ContainsValue((byte)key))
+                    continue;
+
+                var result = TryUnpackV101WithKey((byte)key);
+                if (result != null)
+                {
+                    Trace.WriteLine(string.Format("Found matching key {0:X2} (bruteforce)", key), "[MCG]");
+                    Properties.Settings.Default.MCGLastKey = (byte)key;
+                    return result;
+                }
+            }
+
+            return null;
+        }
+
+        private void UnpackV200 ()
+        {
+            m_output = new byte[m_pixels * 3];
+            var reader = new MrgDecoder (m_input, 0, (uint)m_pixels);
+
+            if (m_key != 0 && TryUnpackV200WithKey(reader, m_key))
+                return;
+
+            byte savedKey = Properties.Settings.Default.MCGLastKey;
+            if (savedKey != 0 && savedKey != m_key && TryUnpackV200WithKey(reader, savedKey))
+            {
+                m_key_was_detected = true;
+                return;
+            }
+
+            var knownKeys = McgFormat.KnownKeys;
+            if (knownKeys != null && knownKeys.Count > 0)
+            {
+                var uniqueKeys = new HashSet<byte>(knownKeys.Values);
+                foreach (byte knownKey in uniqueKeys)
+                {
+                    if (knownKey == m_key || knownKey == savedKey)
+                        continue;
+
+                    if (TryUnpackV200WithKey(reader, knownKey))
+                    {
+                        m_key_was_detected = true;
+                        //Trace.WriteLine(string.Format("Found matching key {0:X2} (known)", knownKey), "[MCG]");
+                        return;
+                    }
+                }
+            }
+
+            // Bruteforce remaining keys
+            for (int key = 0; key < 256; ++key)
+            {
+                if (key == m_key || key == savedKey)
+                    continue;
+
+                if (knownKeys != null && knownKeys.ContainsValue((byte)key))
+                    continue;
+
+                if (TryUnpackV200WithKey(reader, (byte)key))
+                {
+                    m_key_was_detected = true;
+                    Trace.WriteLine(string.Format("Found matching key {0:X2} (bruteforce)", key), "[MCG]");
+                    return;
+                }
+            }
+
             throw new UnknownEncryptionScheme();
         }
 
-        void Transform ()
+        private bool TryUnpackV200WithKey(MrgDecoder reader, byte key)
         {
-            int dst = 0;
-            for (int y = m_height-1; y > 0; --y) // @@1a
+            try
             {
-                for (int x = Stride-3; x > 0; --x) // @@1b
+                var testOutput = new byte[m_output.Length];
+
+                reader.ResetKey(key);
+                for (int i = 0; i < 3; ++i)
+                {
+                    reader.Unpack();
+                    var plane = reader.Data;
+                    int src = 0;
+                    for (int j = ChannelOrder[i]; j < testOutput.Length; j += 3)
+                    {
+                        testOutput[j] = plane[src++];
+                    }
+                }
+
+                Buffer.BlockCopy(testOutput, 0, m_output, 0, m_output.Length);
+                Transform();
+                m_key = key;
+                Properties.Settings.Default.MCGLastKey = key;
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private void Transform ()
+        {
+            // Apply predictive transform
+            int dst = 0;
+            for (int y = m_height - 1; y > 0; --y)   // @@1a
+            {
+                for (int x = Stride - 3; x > 0; --x) // @@1b
                 {
                     int p0 = m_output[dst];
-                    int py = m_output[dst+Stride] - p0;
-                    int px = m_output[dst+3] - p0;
-                    p0 = Math.Abs (px + py);
-                    py = Math.Abs (py);
-                    px = Math.Abs (px);
-                    byte pv;
-                    if (p0 >= px && py >= px)
-                        pv = m_output[dst+Stride];
-                    else if (p0 < py)
-                        pv = m_output[dst];
-                    else
-                        pv = m_output[dst+3];
+                    int py = m_output[dst + Stride] - p0;
+                    int px = m_output[dst + 3] - p0;
+                    int gradient = Math.Abs(px + py);
+                    py = Math.Abs(py);
+                    px = Math.Abs(px);
 
-                    m_output[dst+Stride+3] += (byte)(pv + 0x80);
+                    byte predictor;
+                    if (gradient >= px && py >= px)
+                        predictor = m_output[dst + Stride];
+                    else if (gradient < py)
+                        predictor = m_output[dst];
+                    else
+                        predictor = m_output[dst + 3];
+
+                    m_output[dst + Stride + 3] += (byte)(predictor + 0x80);
                     ++dst;
                 }
                 dst += 3;
             }
+
+            // Convert from YCbCr to RGB
             dst = 0;
-            for (uint i = 0; i < m_pixels; ++i)
+            for (int i = 0; i < m_pixels; ++i)
             {
-                sbyte b = -128;
-                sbyte r = -128;
-                b += (sbyte)m_output[dst];
-                r += (sbyte)m_output[dst+2];
-                int g = m_output[dst+1] - ((b + r) >> 2);
-                m_output[dst++] = (byte)(b + g);
-                m_output[dst++] = (byte)g;
-                m_output[dst++] = (byte)(r + g);
+                sbyte cb = (sbyte)(m_output[dst    ] - 128);
+                sbyte cr = (sbyte)(m_output[dst + 2] - 128);
+                int y = m_output[dst + 1] - ((cb + cr) >> 2);
+
+                m_output[dst++] = (byte)(cb + y);
+                m_output[dst++] = (byte)y;
+                m_output[dst++] = (byte)(cr + y);
             }
         }
     }

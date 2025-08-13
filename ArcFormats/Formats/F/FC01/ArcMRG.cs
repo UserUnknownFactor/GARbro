@@ -17,14 +17,19 @@ namespace GameRes.Formats.FC01
     {
         public override string         Tag { get { return "MRG"; } }
         public override string Description { get { return "F&C Co. engine resource archive"; } }
-        public override uint     Signature { get { return 0x0047524D; } } // 'MRG'
-        public override bool  IsHierarchic { get { return false; } }
-        public override bool      CanWrite { get { return false; } }
+        public override uint     Signature { get { return  0x0047524D; } } // 'MRG'
+        public override bool  IsHierarchic { get { return  false; } }
+        public override bool      CanWrite { get { return  false; } }
 
         public static readonly Tuple<byte[], byte[]> KnownKey = Tuple.Create (
             // Konata yori Kanata made
             new byte[] { 0, 0x68, 0x5F }, new byte[] { 0, 0x37 }
         );
+
+        public MrgOpener()
+        {
+            Extensions = new[] { "MRG" };
+        }
 
         public override ArcFile TryOpen (ArcView file)
         {
@@ -87,19 +92,19 @@ namespace GameRes.Formats.FC01
                 if (entry.Size < 0x108)
                     return arc.File.CreateStream (entry.Offset, entry.Size);
                 var data = arc.File.View.ReadBytes (entry.Offset, entry.Size);
-                var reader = new MrgDecoder (data);
-                reader.Unpack();
-                input = new BinMemoryStream (reader.Data, entry.Name);
+                var mrgReader = new MrgDecoder (data);
+                mrgReader.Unpack();
+                input = new BinMemoryStream (mrgReader.Data, entry.Name);
             }
             else
                 input = arc.File.CreateStream (entry.Offset, entry.Size);
             if (packed_entry.Method < 3)
             {
                 using (input)
-                using (var reader = new MrgLzssReader (input, (int)input.Length, (int)packed_entry.UnpackedSize))
                 {
-                    reader.Unpack();
-                    return new BinMemoryStream (reader.Data, entry.Name);
+                    var lzssReader = new MrgLzssReader (input, (int)input.Length, (int)packed_entry.UnpackedSize);
+                    lzssReader.Unpack();
+                    return new BinMemoryStream (lzssReader.Data, entry.Name);
                 }
             }
             return input.AsStream;
@@ -153,13 +158,13 @@ namespace GameRes.Formats.FC01
     {
         public override string         Tag { get { return "MRG/2"; } }
         public override string Description { get { return "Overture engine resource archive"; } }
-        public override uint     Signature { get { return 0x0047524D; } } // 'MRG'
-        public override bool  IsHierarchic { get { return false; } }
-        public override bool      CanWrite { get { return false; } }
+        public override uint     Signature { get { return  0x0047524D; } } // 'MRG'
+        public override bool  IsHierarchic { get { return  false; } }
+        public override bool      CanWrite { get { return  false; } }
 
         public Mrg2Opener ()
         {
-            Extensions = new string[] { "mrg" };
+            Extensions = new string[] { "MRG" };
         }
 
         public override ArcFile TryOpen (ArcView file)
@@ -220,19 +225,19 @@ namespace GameRes.Formats.FC01
             else if (mrg_entry.Method >= 2)
             {
                 var data = arc.File.View.ReadBytes (entry.Offset, entry.Size);
-                var reader = new MrgDecoder (data);
-                reader.Unpack();
-                input = new BinMemoryStream (reader.Data, entry.Name);
+                var mrgReader = new MrgDecoder (data);
+                mrgReader.Unpack();
+                input = new BinMemoryStream (mrgReader.Data, entry.Name);
             }
             else
                 input = arc.File.CreateStream (entry.Offset, entry.Size);
             if (1 == mrg_entry.Method || 3 == mrg_entry.Method)
             {
                 using (input)
-                using (var reader = new MrgLzssReader (input, (int)input.Length, (int)mrg_entry.UnpackedSize))
                 {
-                    reader.Unpack();
-                    return new BinMemoryStream (reader.Data, entry.Name);
+                    var lzssReader = new MrgLzssReader (input, (int)input.Length, (int)mrg_entry.UnpackedSize);
+                    lzssReader.Unpack();
+                    return new BinMemoryStream (lzssReader.Data, entry.Name);
                 }
             }
             return input.AsStream;
@@ -271,7 +276,7 @@ namespace GameRes.Formats.FC01
     /// <summary>
     /// LZSS decompression with slightly modified offset/count values encoding.
     /// </summary>
-    internal sealed class MrgLzssReader : IDisposable
+    internal sealed class MrgLzssReader
     {
         IBinaryStream   m_input;
         byte[]          m_output;
@@ -330,12 +335,6 @@ namespace GameRes.Formats.FC01
                 }
             }
         }
-
-        #region IDisposable Members
-        public void Dispose ()
-        {
-        }
-        #endregion
     }
 
     internal class MrgDecoder
