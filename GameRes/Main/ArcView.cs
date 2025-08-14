@@ -243,9 +243,11 @@ namespace GameRes
                 uint total = 0;
                 while (total < length)
                 {
-                    int read = input.Read (buffer, 0, buffer.Length);
+                    int toRead = (int)Math.Min (BufferSize, length - total);
+                    int read = input.Read(buffer, 0, toRead);
                     if (0 == read)
                         break;
+
                     read = (int)Math.Min (read, length - total);
                     Marshal.Copy (buffer, 0, (IntPtr)(ptr + total), read);
                     total += (uint)read;

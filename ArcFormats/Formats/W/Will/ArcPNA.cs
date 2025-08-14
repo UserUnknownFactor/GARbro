@@ -16,9 +16,9 @@ namespace GameRes.Formats.Will
     {
         public override string         Tag { get { return "PNA"; } }
         public override string Description { get { return "Pulltop multi-frame image format"; } }
-        public override uint     Signature { get { return 0x50414E50; } } // 'PNAP'
-        public override bool  IsHierarchic { get { return false; } }
-        public override bool      CanWrite { get { return false; } }
+        public override uint     Signature { get { return  0x50414E50; } } // 'PNAP'
+        public override bool  IsHierarchic { get { return  false; } }
+        public override bool      CanWrite { get { return  false; } }
 
         public override ArcFile TryOpen (ArcView file)
         {
@@ -61,7 +61,7 @@ namespace GameRes.Formats.Will
         public override IImageDecoder OpenImage (ArcFile arc, Entry entry)
         {
             var pent = (PnaEntry)entry;
-            var input = arc.File.CreateStream (entry.Offset, entry.Size);
+            var input = arc.File.CreateStream (entry.Offset, entry.Size, entry.Name);
             return new PnaDecoder (input, pent.Info);
         }
     }
@@ -75,6 +75,8 @@ namespace GameRes.Formats.Will
         protected override ImageData GetImageData ()
         {
             var pixels = ReadPixels();
+            if (pixels == null)
+                return null;
             return ImageData.Create (Info, PixelFormats.Bgra32, null, pixels);
         }
 
@@ -82,25 +84,25 @@ namespace GameRes.Formats.Will
         {
             var image = ImageFormat.Read (m_input);
             if (null == image)
-                throw new InvalidFormatException();
+                return null;
+
             var bitmap = image.Bitmap;
             if (bitmap.Format.BitsPerPixel != 32)
-            {
                 bitmap = new FormatConvertedBitmap (bitmap, PixelFormats.Bgra32, null, 0);
-            }
+
             int stride = bitmap.PixelWidth * 4;
             var pixels = new byte[stride * bitmap.PixelHeight];
             bitmap.CopyPixels (pixels, stride, 0);
 
-            // restore colors premultiplied by alpha
+            // restore colors pre-multiplied by alpha
             for (int i = 0; i < pixels.Length; i += 4)
             {
                 int alpha = pixels[i+3];
                 if (alpha != 0 && alpha != 0xFF)
                 {
-                    pixels[i]   = (byte)(pixels[i]   * 0xFF / alpha);
-                    pixels[i+1] = (byte)(pixels[i+1] * 0xFF / alpha);
-                    pixels[i+2] = (byte)(pixels[i+2] * 0xFF / alpha);
+                    pixels[i    ] = (byte)(pixels[i    ] * 0xFF / alpha);
+                    pixels[i + 1] = (byte)(pixels[i + 1] * 0xFF / alpha);
+                    pixels[i + 2] = (byte)(pixels[i + 2] * 0xFF / alpha);
                 }
             }
             return pixels;

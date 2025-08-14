@@ -23,9 +23,9 @@ namespace GameRes.Formats.FVP
     {
         public override string         Tag { get { return "HZC/MULTI"; } }
         public override string Description { get { return "Favorite View Point multi-frame image"; } }
-        public override uint     Signature { get { return 0x31637A68; } } // 'HZC1'
-        public override bool  IsHierarchic { get { return false; } }
-        public override bool      CanWrite { get { return false; } }
+        public override uint     Signature { get { return  0x31637A68; } } // 'hzc1'
+        public override bool  IsHierarchic { get { return  false; } }
+        public override bool      CanWrite { get { return  false; } }
 
         public HzcOpener ()
         {

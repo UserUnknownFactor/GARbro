@@ -654,6 +654,7 @@ namespace GameRes
         }
     }
 
+    /*
     [Export(typeof(ScriptFormat))]
     public class BinScriptFormat : ScriptFormat
     {
@@ -698,4 +699,5 @@ namespace GameRes
             throw new NotSupportedException("Binary script writing not implemented");
         }
     }
+    */
 }
