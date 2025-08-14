@@ -122,6 +122,9 @@
     <Setting Name="ZIPEncodingCP" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">932</Value>
     </Setting>
+    <Setting Name="DiscImageFileNameCP" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">932</Value>
+    </Setting>
     <Setting Name="SevenZipNamesSrcCP" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">0</Value>
     </Setting>
@@ -223,6 +226,9 @@
     </Setting>
     <Setting Name="Password" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="TLGVersion" Type="System.String" Scope="User">
+      <Value Profile="(Default)">TLG6 (Golomb)</Value
     </Setting>
   </Settings>
 </SettingsFile>

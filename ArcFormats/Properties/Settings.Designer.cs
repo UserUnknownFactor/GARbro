@@ -530,6 +530,18 @@ namespace GameRes.Formats.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("932")]
+        public int DiscImageFileNameCP {
+            get {
+                return ((int)(this["DiscImageFileNameCP"]));
+            }
+            set {
+                this["DiscImageFileNameCP"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("")]
         public int SevenZipNamesSrcCP {
             get {
@@ -952,6 +964,21 @@ namespace GameRes.Formats.Properties {
             set
             {
                 this["Password"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("TLG6 (Golomb)")]
+        public string TLGVersion
+        {
+            get
+            {
+                return ((string)(this["TLGVersion"]));
+            }
+            set
+            {
+                this["TLGVersion"] = value;
             }
         }
     }
