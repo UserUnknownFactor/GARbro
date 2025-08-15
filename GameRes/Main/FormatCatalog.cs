@@ -10,6 +10,7 @@ using System.Runtime.Serialization.Formatters.Binary;
 using GameRes.Compression;
 using System.Threading;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using Newtonsoft.Json.Linq;
 using System.Text;
 using System.Reflection;
@@ -21,35 +22,35 @@ namespace GameRes
         private static readonly FormatCatalog m_instance = new FormatCatalog();
 
         #pragma warning disable 649
-        private IEnumerable<ArchiveFormat>  m_arc_formats;
-        private IEnumerable<ImageFormat>    m_image_formats;
-        private IEnumerable<VideoFormat>    m_video_formats;
-        private IEnumerable<AudioFormat>    m_audio_formats;
+        private IEnumerable<ArchiveFormat>    m_arc_formats;
+        private IEnumerable<ImageFormat>      m_image_formats;
+        private IEnumerable<VideoFormat>      m_video_formats;
+        private IEnumerable<AudioFormat>      m_audio_formats;
         [ImportMany(typeof(ScriptFormat))]
-        private IEnumerable<ScriptFormat>   m_script_formats;
+        private IEnumerable<ScriptFormat>     m_script_formats;
         [ImportMany(typeof(ISettingsManager))]
         private IEnumerable<ISettingsManager> m_settings_managers;
         #pragma warning restore 649
 
         private MultiValueDictionary<string, IResource> m_extension_map = new MultiValueDictionary<string, IResource>();
-        private MultiValueDictionary<uint, IResource> m_signature_map = new MultiValueDictionary<uint, IResource>();
+        private MultiValueDictionary<uint, IResource>   m_signature_map = new MultiValueDictionary<uint,   IResource>();
 
         private Dictionary<string, string> m_game_map = new Dictionary<string, string>();
 
         /// <summary> The only instance of this class.</summary>
-        public static FormatCatalog       Instance      { get { return m_instance; } }
+        public static FormatCatalog       Instance      { get { return m_instance;       } }
 
-        public IEnumerable<ArchiveFormat> ArcFormats    { get { return m_arc_formats; } }
-        public IEnumerable<ImageFormat>   ImageFormats  { get { return m_image_formats; } }
-        public IEnumerable<VideoFormat>   VideoFormats  { get { return m_video_formats; } }
-        public IEnumerable<AudioFormat>   AudioFormats  { get { return m_audio_formats; } }
+        public IEnumerable<ArchiveFormat> ArcFormats    { get { return m_arc_formats;    } }
+        public IEnumerable<ImageFormat>   ImageFormats  { get { return m_image_formats;  } }
+        public IEnumerable<VideoFormat>   VideoFormats  { get { return m_video_formats;  } }
+        public IEnumerable<AudioFormat>   AudioFormats  { get { return m_audio_formats;  } }
         public IEnumerable<ScriptFormat>  ScriptFormats { get { return m_script_formats; } }
 
         public IEnumerable<IResource> Formats
         {
             get
             {
-                return ((IEnumerable<IResource>)ArcFormats).Concat (ImageFormats).Concat (AudioFormats).Concat (ScriptFormats).Concat(VideoFormats);
+                return ((IEnumerable<IResource>)ArcFormats).Concat (ImageFormats).Concat (AudioFormats).Concat (ScriptFormats).Concat (VideoFormats);
             }
         }
 
@@ -79,19 +80,19 @@ namespace GameRes
             //Create the CompositionContainer with the parts in the catalog
             using (var container = new CompositionContainer (catalog))
             {
-                m_arc_formats = ImportWithPriorities<ArchiveFormat> (container);
-                m_image_formats = ImportWithPriorities<ImageFormat> (container);
-                m_video_formats = ImportWithPriorities<VideoFormat> (container);
-                m_audio_formats = ImportWithPriorities<AudioFormat> (container);
+                m_arc_formats   = ImportWithPriorities<ArchiveFormat> (container);
+                m_image_formats = ImportWithPriorities<ImageFormat>   (container);
+                m_video_formats = ImportWithPriorities<VideoFormat>   (container);
+                m_audio_formats = ImportWithPriorities<AudioFormat>   (container);
 
                 //Fill the imports of this object
                 container.ComposeParts (this);
 
-                AddResourceImpl (m_image_formats, container);
-                AddResourceImpl (m_video_formats, container);
-                AddResourceImpl (m_audio_formats, container);
+                AddResourceImpl (m_image_formats,  container);
+                AddResourceImpl (m_video_formats,  container);
+                AddResourceImpl (m_audio_formats,  container);
                 AddResourceImpl (m_script_formats, container);
-                AddResourceImpl (m_arc_formats, container);
+                AddResourceImpl (m_arc_formats,    container);
 
                 AddAliases (container);
             }
@@ -107,9 +108,9 @@ namespace GameRes
                     if (part.ImportDefinitions.Any())
                         container.SatisfyImportsOnce (part);
                 }
-                catch (Exception X)
+                catch (Exception ex)
                 {
-                    System.Diagnostics.Trace.WriteLine (X.Message, impl.Tag);
+                    System.Diagnostics.Trace.WriteLine (ex.Message, impl.Tag);
                 }
                 foreach (var ext in impl.Extensions)
                 {
@@ -222,7 +223,7 @@ namespace GameRes
         /// <summary>
         /// Enumerate resources matching specified <paramref name="signature"/> and filename extension.
         /// </summary>
-        internal IEnumerable<ResourceType> FindFormats<ResourceType> (string filename, uint signature) where ResourceType : IResource
+        public IEnumerable<ResourceType> FindFormats<ResourceType> (string filename, uint signature) where ResourceType : IResource
         {
             var ext = new Lazy<string> (() => Path.GetExtension (filename).TrimStart ('.').ToLowerInvariant(), false);
             var tried = Enumerable.Empty<ResourceType>();
@@ -321,7 +322,6 @@ namespace GameRes
             { ".aac",  "audio" },
 
             // 3D/Scene files
-            { ".scn",   "scene" },
             { ".fbx",   "scene" },
             { ".obj",   "scene" },
             { ".dae",   "scene" },
@@ -335,7 +335,7 @@ namespace GameRes
             { ".dylib", "binary" }
         };
 
-        public string GetTypeFromName(string filename, IEnumerable<string> preferred_formats = null, Dictionary<string, string> custom_map = null)
+        public string GetTypeFromName (string filename, IEnumerable<string> preferred_formats = null, Dictionary<string, string> custom_map = null)
         {
             var formats = LookupFileName (filename);
             string extension = Path.GetExtension (filename);
@@ -346,7 +346,7 @@ namespace GameRes
             if (formats.Any()) 
             {
                 if (preferred_formats != null && preferred_formats.Any())
-                    formats = formats.OrderByDescending (f => preferred_formats.Contains(f.Tag));
+                    formats = formats.OrderByDescending (f => preferred_formats.Contains (f.Tag));
 
                 string type = formats.First().Type;
                 if (!string.IsNullOrEmpty (type))
@@ -455,14 +455,19 @@ namespace GameRes
         {
             var settings = new JsonSerializerSettings
             {
-                Formatting = Formatting.Indented,
                 TypeNameHandling = TypeNameHandling.Auto,
-                Converters = new List<JsonConverter> { new ResourceSchemeJsonConverter() }
+                ContractResolver = new IncludeFieldsContractResolver(),
+                Converters = { new ByteArrayToHexStringConverter() },
+                Formatting = Formatting.Indented,
+                ReferenceLoopHandling = ReferenceLoopHandling.Ignore
             };
 
-            var json = JsonConvert.SerializeObject(db, settings);
-            var bytes = Encoding.UTF8.GetBytes(json);
-            output.Write(bytes, 0, bytes.Length);
+            using (var sw = new StreamWriter (output, Encoding.UTF8, 1024, true))
+            {
+                var json = JsonConvert.SerializeObject (db, settings);
+                sw.Write (json);
+                sw.Flush();
+            }
         }
 
         /// <summary>
@@ -470,14 +475,16 @@ namespace GameRes
         /// </summary>
         public void DeserializeSchemeJson (Stream input)
         {
-            using (var reader = new StreamReader(input, Encoding.UTF8, true, 1024, true))
+            using (var reader = new StreamReader (input, Encoding.UTF8, true, 1024, true))
             {
                 var json = reader.ReadToEnd();
 
                 var settings = new JsonSerializerSettings
                 {
                     TypeNameHandling = TypeNameHandling.Auto,
-                    Converters = new List<JsonConverter> { new ResourceSchemeJsonConverter() }
+                    ContractResolver = new IncludeFieldsContractResolver(),
+                    Converters = { new ByteArrayToHexStringConverter() },
+                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore
                 };
 
                 var db = JsonConvert.DeserializeObject<SchemeDataBase>(json, settings);
@@ -500,17 +507,17 @@ namespace GameRes
         /// <summary>
         /// Helper method to convert ResourceScheme to JSON-serializable format.
         /// </summary>
-        private JsonResourceScheme ConvertToJsonScheme(ResourceScheme scheme)
+        private JsonResourceScheme ConvertToJsonScheme (ResourceScheme scheme)
         {
             // Serialize the scheme object to binary, then convert to base64
             using (var ms = new MemoryStream())
             {
                 var formatter = new BinaryFormatter();
-                formatter.Serialize(ms, scheme);
+                formatter.Serialize (ms, scheme);
                 return new JsonResourceScheme
                 {
                     TypeName = scheme.GetType().AssemblyQualifiedName,
-                    Data = Convert.ToBase64String(ms.ToArray())
+                    Data = Convert.ToBase64String (ms.ToArray())
                 };
             }
         }
@@ -518,13 +525,13 @@ namespace GameRes
         /// <summary>
         /// Helper method to convert JSON-serializable format back to ResourceScheme.
         /// </summary>
-        private ResourceScheme ConvertFromJsonScheme(JsonResourceScheme jsonScheme)
+        private ResourceScheme ConvertFromJsonScheme (JsonResourceScheme jsonScheme)
         {
-            var bytes = Convert.FromBase64String(jsonScheme.Data);
-            using (var ms = new MemoryStream(bytes))
+            var bytes = Convert.FromBase64String (jsonScheme.Data);
+            using (var ms = new MemoryStream (bytes))
             {
                 var formatter = new BinaryFormatter();
-                return (ResourceScheme)formatter.Deserialize(ms);
+                return (ResourceScheme)formatter.Deserialize (ms);
             }
         }
 
@@ -621,207 +628,92 @@ namespace GameRes
 /// <summary>
 /// Custom JSON converter for ResourceScheme objects that intelligently handles serialization
 /// </summary>
-public class ResourceSchemeJsonConverter : JsonConverter
+public class ByteArrayToHexStringConverter : JsonConverter<byte[]>
 {
-    public override bool CanConvert (Type objectType)
-    {
-        return typeof(GameRes.ResourceScheme).IsAssignableFrom(objectType);
-    }
-
-    public override void WriteJson (JsonWriter writer, object value, JsonSerializer serializer)
+    public override void WriteJson (JsonWriter writer, byte[] value, JsonSerializer serializer)
     {
         if (value == null)
         {
             writer.WriteNull();
             return;
         }
+        writer.WriteValue (ByteArrayToString(value));
+    }
 
-        var schemeType = value.GetType();
-        var obj = new JObject();
-        obj["$type"] = schemeType.AssemblyQualifiedName;
+    public override byte[] ReadJson (JsonReader reader, Type objectType, byte[] existingValue, 
+        bool hasExistingValue, JsonSerializer serializer)
+    {
+        if (reader.TokenType == JsonToken.Null)
+            return null;
 
-        // Try to serialize properties normally first
-        var properties = schemeType.GetProperties (BindingFlags.Public | BindingFlags.Instance);
-        var fields = schemeType.GetFields (BindingFlags.Public | BindingFlags.Instance);
-
-        var data = new JObject();
-        bool hasNonSerializableData = false;
-
-        // Serialize properties
-        foreach (var prop in properties.Where (p => p.CanRead && p.CanWrite))
+        if (reader.TokenType == JsonToken.String)
         {
-            try
-            {
-                var propValue = prop.GetValue(value);
-                if (IsJsonSerializable(propValue))
-                {
-                    data[prop.Name] = JToken.FromObject (propValue, serializer);
-                }
-                else
-                {
-                    hasNonSerializableData = true;
-                }
-            }
-            catch
-            {
-                hasNonSerializableData = true;
-            }
+            string hex = (string)reader.Value;
+            return StringToByteArray (hex);
         }
 
-        // Serialize fields
+        throw new JsonSerializationException($"Unexpected token type: {reader.TokenType}");
+    }
+
+    private static string ByteArrayToString (byte[] input)
+    {
+        var sb = new StringBuilder (input.Length * 2);
+        foreach (var b in input)
+            sb.AppendFormat ("{0:X2}", b);
+        return sb.ToString();
+    }
+
+    private static byte[] StringToByteArray (string hex)
+    {
+        if (string.IsNullOrEmpty (hex))
+            return new byte[0];
+
+        int length = hex.Length / 2;
+        byte[] bytes = new byte[length];
+        for (int i = 0; i < length; i++)
+        {
+            bytes[i] = Convert.ToByte (hex.Substring (i * 2, 2), 16);
+        }
+        return bytes;
+    }
+}
+
+public class IncludeFieldsContractResolver : DefaultContractResolver
+{
+    protected override IList<JsonProperty> CreateProperties (Type type, MemberSerialization memberSerialization)
+    {
+        var properties = base.CreateProperties (type, memberSerialization);
+
+        // Create a HashSet of existing property names to avoid duplicates
+        var existingNames = new HashSet<string>(properties.Select (p => p.PropertyName));
+
+        var fields = type.GetFields (BindingFlags.Public | BindingFlags.Instance)
+            .Where (f => !f.IsInitOnly && !f.IsLiteral);
+
         foreach (var field in fields)
         {
-            try
-            {
-                var fieldValue = field.GetValue (value);
-                if (IsJsonSerializable (fieldValue))
-                {
-                    data[field.Name] = JToken.FromObject (fieldValue, serializer);
-                }
-                else
-                {
-                    hasNonSerializableData = true;
-                }
-            }
-            catch
-            {
-                hasNonSerializableData = true;
-            }
+            // Skip compiler-generated backing fields
+            if (field.Name.Contains ("<") || field.Name.Contains (">") || 
+                field.Name.Contains ("k__BackingField"))
+                continue;
+
+            // Skip if a property with the same name already exists
+            if (existingNames.Contains (field.Name))
+                continue;
+
+            var jsonProperty = CreateProperty (field, memberSerialization);
+            jsonProperty.Writable = true;
+            jsonProperty.Readable = true;
+            properties.Add (jsonProperty);
+            existingNames.Add (field.Name);
         }
 
-        obj["data"] = data;
-
-        // If there's non-serializable data, also include a binary fallback
-        if (hasNonSerializableData)
-        {
-            using (var ms = new MemoryStream())
-            {
-                var formatter = new BinaryFormatter();
-                formatter.Serialize (ms, value);
-                obj["binaryData"] = Convert.ToBase64String (ms.ToArray());
-            }
-        }
-
-        obj.WriteTo(writer);
-    }
-
-    public override object ReadJson (JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
-    {
-        var obj = JObject.Load (reader);
-
-        var typeName = obj["$type"]?.Value<string>();
-        if (string.IsNullOrEmpty (typeName))
-            return null;
-
-        var type = Type.GetType (typeName);
-        if (type == null)
-            return null;
-
-        // First try to deserialize from binary data if present
-        var binaryData = obj["binaryData"]?.Value<string>();
-        if (!string.IsNullOrEmpty (binaryData))
-        {
-            var bytes = Convert.FromBase64String(binaryData);
-            using (var ms = new MemoryStream(bytes))
-            {
-                var formatter = new BinaryFormatter();
-                return formatter.Deserialize (ms);
-            }
-        }
-
-        // Otherwise, try to reconstruct from JSON data
-        var data = obj["data"] as JObject;
-        if (data != null)
-        {
-            var instance = Activator.CreateInstance (type);
-
-            // Set properties
-            var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-            foreach (var prop in properties.Where (p => p.CanWrite))
-            {
-                var propData = data[prop.Name];
-                if (propData != null)
-                {
-                    try
-                    {
-                        var value = propData.ToObject (prop.PropertyType, serializer);
-                        prop.SetValue (instance, value);
-                    }
-                    catch { }
-                }
-            }
-
-            // Set fields
-            var fields = type.GetFields (BindingFlags.Public | BindingFlags.Instance);
-            foreach (var field in fields)
-            {
-                var fieldData = data[field.Name];
-                if (fieldData != null)
-                {
-                    try
-                    {
-                        var value = fieldData.ToObject (field.FieldType, serializer);
-                        field.SetValue (instance, value);
-                    }
-                    catch { }
-                }
-            }
-
-            return instance;
-        }
-
-        return null;
-    }
-
-    private bool IsJsonSerializable (object value)
-    {
-        return true;
-        /*
-        if (value == null)
-            return true;
-
-        var type = value.GetType();
-
-        // Primitive types and strings are always serializable
-        if (type.IsPrimitive || type == typeof(string) || type == typeof(decimal) || 
-            type == typeof(DateTime) || type == typeof(DateTimeOffset) || type == typeof(TimeSpan) ||
-            type == typeof(Guid))
-            return true;
-
-        // Arrays and lists of serializable types
-        if (type.IsArray)
-        {
-            var elementType = type.GetElementType();
-            return IsJsonSerializableType (elementType);
-        }
-
-        // Common generic collections
-        if (type.IsGenericType)
-        {
-            var genericDef = type.GetGenericTypeDefinition();
-            if (genericDef == typeof(List<>) || genericDef == typeof(Dictionary<,>) || 
-                genericDef == typeof(HashSet<>) || genericDef == typeof(Queue<>) || 
-                genericDef == typeof(Stack<>))
-            {
-                return type.GetGenericArguments().All(IsJsonSerializableType);
-            }
-        }
-
-        // Check if type has DataContract or is a simple POCO
-        return type.IsSerializable || type.GetCustomAttribute<DataContractAttribute>() != null;
-        */
-    }
-
-    private bool IsJsonSerializableType (Type type)
-    {
-        return type.IsPrimitive || type == typeof(string) || type == typeof(decimal) || 
-               type == typeof(DateTime) || type == typeof(DateTimeOffset) || type == typeof(TimeSpan) ||
-               type == typeof(Guid) || type.IsEnum;
+        return properties;
     }
 }
 
 /*
-using (var fileStream = File.Create("scheme.json"))
+using (var fileStream = File.Create ("scheme.json"))
 {
     var db = new SchemeDataBase 
     {
@@ -829,10 +721,10 @@ using (var fileStream = File.Create("scheme.json"))
         SchemeMap = schemeMap,
         GameMap = gameMap
     };
-    catalog.SerializeSchemeJson(fileStream, db);
+    catalog.SerializeSchemeJson (fileStream, db);
 }
-using (var fileStream = File.OpenRead("scheme.json"))
+using (var fileStream = File.OpenRead ("scheme.json"))
 {
-    catalog.DeserializeSchemeJson(fileStream);
+    catalog.DeserializeSchemeJson (fileStream);
 }
 */

@@ -80,33 +80,32 @@ namespace GameRes.Formats
                 return ImageFormat.Jpeg;
             if (0x38464947 == signature || 0x39464947 == signature) // GIF
                 return ImageFormat.Gif;
-            /*
+
             if (0x002A4949 == signature || 0x2A004D4D == signature) // TIFF
-                return ImageFormat.Tiff;
+                return ImageFormat.FindByTag("TIFF");
             if (0x20534444 == signature) // 'DDS '
-                return ImageFormat.Dds;
+                return ImageFormat.FindByTag("DDS");
 
             // Audio formats
             if (0x03334449 == signature) // 'ID3\x03'
-                return Mp3Audio.Instance;
+                return AudioFormat.FindByTag("MP3");
             if ((signature & 0xFFE0) == 0xFFE0) // MP3 frame sync
-                return Mp3Audio.Instance;
+                return AudioFormat.FindByTag("MP3");
             if (0x43614C66 == signature) // 'fLaC'
-                return FlacAudio.Instance;
+                return AudioFormat.FindByTag("FLAC");
 
             // Archive formats (if supported)
             if (0x04034B50 == signature || 0x06054B50 == signature) // ZIP
-                return ZipOpener.Instance;
+                return FormatCatalog.Instance.ArcFormats.FirstOrDefault(x => x.Tag == "ZIP");
 
             if (0x21726152 == signature) // 'Rar!'
-                return RarOpener.Instance;
+                return FormatCatalog.Instance.ArcFormats.FirstOrDefault(x => x.Tag == "7Z/OTHERS");
             if (0xAFBC7A37 == signature) // '7z\xBC\xAF'
-                return 7zOpener.Instance;
+                return FormatCatalog.Instance.ArcFormats.FirstOrDefault(x => x.Tag == "7Z/OTHERS");
             if (0x685A42 == (signature & 0xFFFFFF)) // 'BZh' - BZip2
-                return BZip2Opener.Instance;
+                return FormatCatalog.Instance.ArcFormats.FirstOrDefault(x => x.Tag == "7Z/OTHERS");
             if (0x8B1F == (signature & 0xFFFF)) // GZip - only 2 bytes
-                return GZipOpener.Instance;
-            */
+                return FormatCatalog.Instance.ArcFormats.FirstOrDefault(x => x.Tag == "7Z/OTHERS");
 
             // Fall back to catalog lookup
             var res = FormatCatalog.Instance.LookupSignature (signature);

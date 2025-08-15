@@ -15,10 +15,10 @@ namespace GameRes.Formats.Iso
     [ExportMetadata("Priority", 50)]
     public class IsoOpener : DiscImageOpener
     {
-        public override string Tag { get { return "ISO"; } }
+        public override string         Tag { get { return "ISO"; } }
         public override string Description { get { return "ISO 9660 CD-ROM Image"; } }
-        public override uint Signature { get { return 0; } }
-        public override bool CanWrite { get { return true; } }
+        public override uint     Signature { get { return  0; } }
+        public override bool      CanWrite { get { return  true; } }
 
         private readonly (int sectorSize, int dataOffset)[] ValidSectorSizes = new[]
         {

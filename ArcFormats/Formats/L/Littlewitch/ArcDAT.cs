@@ -23,38 +23,19 @@ namespace GameRes.Formats.Littlewitch
         public byte[] CreateKey ()
         {
             var name_bytes = Encoding.GetEncoding(932).GetBytes(Name.ToLower());
-            Array.Reverse(name_bytes);
             int name_length = name_bytes.Length;
-
+            var md5 = new MD5();
+            Array.Reverse (name_bytes);
             var key = new byte[1024];
             int key_pos = 0;
-
-            var md5 = new MD5();
-            md5.Initialize();
-            long cumulativeBits = 0;
-
             for (int i = 0; i < 64; ++i)
             {
                 int name_pos = i % name_length;
-                var cut_name_length = name_length - name_pos;
-
-                md5.Update(name_bytes, name_pos, cut_name_length);
-                cumulativeBits += cut_name_length * 8;
-
-                var paddingBuffer = new byte[64];
-                int bufferPos = cut_name_length & 0x3F;
-                paddingBuffer[0] = 0x80;
-
-                int paddingLen = (bufferPos < 56) ? (56 - bufferPos) : (120 - bufferPos);
-                md5.Update(paddingBuffer, 0, paddingLen);
-
-                var bitLength = BitConverter.GetBytes(cumulativeBits);
-                md5.Update(bitLength, 0, 8);
-
-                Buffer.BlockCopy(md5.State, 0, key, key_pos, 16);
+                md5.Update (name_bytes, name_pos, name_length - name_pos);
+                md5.Final();
+                Buffer.BlockCopy (md5.State, 0, key, key_pos, 16);
                 key_pos += 16;
             }
-
             return key;
         }
     }
@@ -140,15 +121,15 @@ namespace GameRes.Formats.Littlewitch
 
         static void DecryptEntry (byte[] data, byte[] key)
         {
-            int limit = Math.Min(data.Length, 1024);
-            for (int i = 0; i < limit; ++i)
+            for (int i = 0; i < data.Length; ++i)
                 data[i] ^= key[i];
         }
 
         static unsafe void DecryptIndex (byte[] data, int pos, int length, uint key, uint seed)
         {
             if (pos < 0 || pos + length > data.Length)
-                throw new ArgumentOutOfRangeException ("pos", "Invalid byte array index.");
+                throw new ArgumentOutOfRangeException ("pos", "Invalid decryption byte array index");
+
             fixed (byte* data8 = &data[pos])
             {
                 uint* data32 = (uint*)data8;
@@ -183,9 +164,12 @@ namespace GameRes.Formats.Littlewitch
         static uint[] FindKey (string arc_name, uint arc_key)
         {
             arc_name = Path.GetFileName (arc_name);
-            var name_bytes = Encoding.GetEncoding(932).GetBytes(arc_name);
+            var name_bytes = Encoding.GetEncoding (932).GetBytes (arc_name);
             arc_key ^= name_bytes.ToUInt32 (0);
-            return DatScheme.KnownSchemes.Values.FirstOrDefault (k => k[0] == arc_key);
+            var key = DatScheme.KnownSchemes.Values.FirstOrDefault (k => k[0] == arc_key);
+            if (key == null)
+                System.Diagnostics.Trace.WriteLine ($"LittleWitch decryption keys for title 0x{arc_key:X} ({arc_key}) not found...");
+            return key;
         }
 
         static RepiScheme DatScheme = new RepiScheme { KnownSchemes = new Dictionary<string, uint[]>() };
@@ -208,7 +192,7 @@ namespace GameRes.Formats.Littlewitch
                 var md5 = new MD5();
                 FormatCatalog.Instance.ReadFileList(ListFileName, name =>
                 {
-                    var name_bytes = Encoding.GetEncoding(932).GetBytes(name.ToLower());
+                    var name_bytes = Encoding.GetEncoding (932).GetBytes (name.ToLower());
                     var hash = md5.ComputeHash (name_bytes);
                     dict[hash] = name;
                 });
@@ -240,7 +224,7 @@ namespace GameRes.Formats.Littlewitch
         public int GetHashCode (byte[] key)
         {
             if (null == key)
-                throw new ArgumentNullException("key");
+                throw new ArgumentNullException ("key");
             if (key.Length < 16)
                 throw new ArgumentException ("Invalid key length", "key");
             var hash = key.ToInt32 (0);
