@@ -184,4 +184,25 @@ namespace GameRes
     }
 
     public delegate ArchiveOperation EntryCallback (int num, Entry entry, string description);
+
+    public static class StringExtensions
+    {
+        public static uint ToSignature(this string text)
+        {
+            if (string.IsNullOrEmpty(text)) return 0;
+            uint sig = 0;
+            for (int i = 0; i < Math.Min(text.Length, 4); i++)
+                sig |= (uint)(byte)text[i] << (i * 8);
+            return sig;
+        }
+
+        public static ulong ToSignature64(this string text)
+        {
+            if (string.IsNullOrEmpty(text)) return 0;
+            ulong sig = 0;
+            for (int i = 0; i < Math.Min(text.Length, 8); i++)
+                sig |= (ulong)(byte)text[i] << (i * 8);
+            return sig;
+        }
+    }
 }

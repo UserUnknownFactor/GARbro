@@ -15,7 +15,7 @@ namespace GameRes
         public virtual string      Type { get; set; }
         public         long      Offset { get; set; }
         public         long        Size { get; set; }
-        public         bool IsEncrypted { get; set; }
+        public virtual bool IsEncrypted { get; set; }
 
         public Entry ()
         {
